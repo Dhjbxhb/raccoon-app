@@ -33,6 +33,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUser = async () => {
+    if (token) {
+      await fetchCurrentUser();
+    }
+  };
+
   const login = (token, userData) => {
     localStorage.setItem('raccoon_token', token);
     setToken(token);
@@ -50,7 +56,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isGuest }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, isGuest, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

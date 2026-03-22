@@ -4,6 +4,7 @@ from services.matching_service import matching_queue
 from services.auth_service import AuthService
 from services.db_service import get_users_collection, get_guests_collection, get_blocked_users_collection, get_messages_collection, get_matches_collection
 from services.game_service import feud_service, truth_or_dare_service
+from services.moderation_service import content_moderator
 from datetime import datetime, timezone
 import uuid
 
@@ -189,6 +190,23 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if not content:
                 return
             
+            # Moderate content
+            moderation_result = await content_moderator.moderate(content, user_id, use_ai=True)
+            
+            if moderation_result.is_flagged:
+                if moderation_result.action == "block":
+                    await sio.emit('message_blocked', {
+                        'reason': moderation_result.reason,
+                        'message': 'Your message was blocked due to policy violation.'
+                    }, room=sid)
+                    logger.warning(f"Message blocked from {user_id}: {moderation_result.reason}")
+                    return
+                elif moderation_result.action == "warn":
+                    await sio.emit('message_warning', {
+                        'reason': moderation_result.reason,
+                        'message': 'Please be mindful of our community guidelines.'
+                    }, room=sid)
+            
             session_data = matching_queue.get_session(user_id)
             if not session_data:
                 await sio.emit('error', {'message': 'No active session'}, room=sid)
@@ -208,7 +226,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'sender_username': sender['username'],
                 'content': content,
                 'timestamp': datetime.now(timezone.utc).isoformat(),
-                'premium': sender['premium']
+                'premium': sender['premium'],
+                'moderated': moderation_result.is_flagged
             }
             
             # Store message in session
@@ -221,7 +240,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'session_id': session_data['session_id'],
                 'sender_id': user_id,
                 'content': content,
-                'timestamp': message['timestamp']
+                'timestamp': message['timestamp'],
+                'moderation': moderation_result.to_dict() if moderation_result.is_flagged else None
             })
             
             # Send to both users
@@ -566,4 +586,102 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         except Exception as e:
             logger.error(f"Error in ToD round complete: {e}")
+
+    # ============================================
+    # WEBRTC SIGNALING HANDLERS
+    # ============================================
+    
+    @sio.event
+    async def webrtc_offer(sid, data):
+        """Handle WebRTC offer"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            # Forward offer to partner
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            if partner_socket:
+                await sio.emit('webrtc_offer', {
+                    'offer': data.get('offer'),
+                    'from_user': user_id
+                }, room=partner_socket)
+                logger.info(f"WebRTC offer forwarded from {user_id}")
+        
+        except Exception as e:
+            logger.error(f"Error in webrtc_offer: {e}")
+    
+    @sio.event
+    async def webrtc_answer(sid, data):
+        """Handle WebRTC answer"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            # Forward answer to partner
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            if partner_socket:
+                await sio.emit('webrtc_answer', {
+                    'answer': data.get('answer'),
+                    'from_user': user_id
+                }, room=partner_socket)
+                logger.info(f"WebRTC answer forwarded from {user_id}")
+        
+        except Exception as e:
+            logger.error(f"Error in webrtc_answer: {e}")
+    
+    @sio.event
+    async def webrtc_ice_candidate(sid, data):
+        """Handle WebRTC ICE candidate"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            # Forward ICE candidate to partner
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            if partner_socket:
+                await sio.emit('webrtc_ice_candidate', {
+                    'candidate': data.get('candidate'),
+                    'from_user': user_id
+                }, room=partner_socket)
+        
+        except Exception as e:
+            logger.error(f"Error in webrtc_ice_candidate: {e}")
+    
+    @sio.event
+    async def webrtc_end_call(sid, data):
+        """Handle WebRTC call end"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            # Notify partner that call ended
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            if partner_socket:
+                await sio.emit('webrtc_end_call', {
+                    'from_user': user_id
+                }, room=partner_socket)
+                logger.info(f"WebRTC call ended by {user_id}")
+        
+        except Exception as e:
+            logger.error(f"Error in webrtc_end_call: {e}")
 

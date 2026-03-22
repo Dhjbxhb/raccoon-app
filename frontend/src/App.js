@@ -10,6 +10,7 @@ import Guest from '@/pages/Guest';
 import Dashboard from '@/pages/Dashboard';
 import Match from '@/pages/Match';
 import Premium from '@/pages/Premium';
+import PremiumSuccess from '@/pages/PremiumSuccess';
 import GameFeud from '@/pages/GameFeud';
 import GameTruthOrDare from '@/pages/GameTruthOrDare';
 import Admin from '@/pages/Admin';
@@ -38,6 +39,7 @@ function AppRoutes() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/guest" element={<Guest />} />
       <Route path="/premium" element={<Premium />} />
+      <Route path="/premium/success" element={<PremiumSuccess />} />
       <Route 
         path="/dashboard" 
         element={

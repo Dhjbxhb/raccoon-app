@@ -20,6 +20,9 @@ class DatabaseService:
             cls.client.close()
 
 # Collections
+def get_database():
+    return DatabaseService.get_db()
+
 def get_users_collection():
     db = DatabaseService.get_db()
     return db.users

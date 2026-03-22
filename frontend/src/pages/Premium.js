@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Gamepad2, Sparkles, Target, MessageCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { ArrowLeft, Star, Gamepad2, Sparkles, Target, MessageCircle, Loader2, Check } from 'lucide-react';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const Premium = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(null);
 
   const plans = [
-    { duration: 'Weekly', price: 4, period: 'week', popular: false },
-    { duration: 'Monthly', price: 12, period: 'month', popular: true },
-    { duration: '3 Months', price: 28, period: '3 months', popular: false }
+    { id: 'weekly', duration: 'Weekly', price: 4, period: 'week', popular: false },
+    { id: 'monthly', duration: 'Monthly', price: 12, period: 'month', popular: true },
+    { id: 'quarterly', duration: '3 Months', price: 28, period: '3 months', popular: false }
   ];
 
   const featureCategories = [
@@ -53,6 +59,68 @@ const Premium = () => {
       ]
     }
   ];
+
+  const handlePurchase = async (packageId) => {
+    try {
+      setLoading(packageId);
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/payments/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          package_id: packageId,
+          origin_url: window.location.origin
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const data = await response.json();
+      
+      // Redirect to Stripe checkout
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        throw new Error('No checkout URL received');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error('Failed to start checkout. Please try again.');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // If user is already premium
+  if (user?.premium_status) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
+        <div className="text-center">
+          <div className="w-24 h-24 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center mx-auto mb-6">
+            <Star size={48} className="text-yellow-400 fill-yellow-400" />
+          </div>
+          <h1 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            You're Premium!
+          </h1>
+          <p className="text-gray-400 mb-8" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            You have full access to all premium features.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-8 py-3 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl font-semibold transition-all"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -150,7 +218,7 @@ const Premium = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {plans.map((plan) => (
                 <div 
-                  key={plan.duration}
+                  key={plan.id}
                   className={`p-8 rounded-2xl transition-all duration-300 hover:transform hover:scale-105 ${
                     plan.popular 
                       ? 'bg-[#7c3aed]/20 border-2 border-[#7c3aed] shadow-[0_0_40px_rgba(124,58,237,0.3)]' 
@@ -170,24 +238,33 @@ const Premium = () => {
                     </div>
                   </div>
                   <button
-                    className={`w-full py-3 rounded-xl font-bold transition-all duration-300 ${
+                    onClick={() => handlePurchase(plan.id)}
+                    disabled={loading === plan.id}
+                    className={`w-full py-3 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
                       plan.popular
                         ? 'bg-[#7c3aed] hover:bg-[#6d28d9] shadow-[0_0_20px_rgba(124,58,237,0.4)]'
                         : 'bg-white/10 hover:bg-white/20'
-                    }`}
-                    data-testid={`premium-${plan.duration.toLowerCase().replace(' ', '-')}-btn`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    data-testid={`premium-${plan.id}-btn`}
                     style={{ fontFamily: 'Manrope, sans-serif' }}
                   >
-                    Get Premium
+                    {loading === plan.id ? (
+                      <>
+                        <Loader2 size={20} className="animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Get Premium'
+                    )}
                   </button>
                 </div>
               ))}
             </div>
 
-            {/* Note */}
+            {/* Security Note */}
             <div className="mt-12 text-center">
               <p className="text-gray-500 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                Payment integration coming soon. This is a preview.
+                🔒 Secure payment powered by Stripe
               </p>
             </div>
           </div>

@@ -4,8 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { useMatching } from '@/hooks/useMatching';
 import { useChat } from '@/hooks/useChat';
+import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, SkipForward, Ban, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2 } from 'lucide-react';
+import { ArrowLeft, Send, SkipForward, Ban, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video } from 'lucide-react';
+import VideoChat from '@/components/VideoChat';
 
 // Raccoon facts for the loading screen
 const RACCOON_FACTS = [
@@ -38,7 +40,24 @@ const Match = () => {
   const [currentFact, setCurrentFact] = useState(0);
   const [factVisible, setFactVisible] = useState(true);
   const [showGames, setShowGames] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // WebRTC hook
+  const {
+    localVideoRef,
+    remoteVideoRef,
+    localStream,
+    remoteStream,
+    isVideoEnabled,
+    isAudioEnabled,
+    connectionState,
+    error: webrtcError,
+    startCall,
+    endCall,
+    toggleVideo,
+    toggleAudio
+  } = useWebRTC(socket, sessionId, partner?.user_id);
 
   useEffect(() => {
     if (!user) {
@@ -125,103 +144,113 @@ const Match = () => {
   // Searching state - enhanced UI
   if (state === 'searching') {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Animated background glow */}
-        <div className="absolute inset-0 overflow-hidden">
+      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Cinematic Background */}
+        <div className="fixed inset-0 z-0">
           <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
+            className="absolute inset-0"
             style={{
-              background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, rgba(124,58,237,0.1) 40%, transparent 70%)',
-              animation: 'pulse 4s ease-in-out infinite'
+              backgroundImage: 'url(https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'brightness(0.1) saturate(0.5)'
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510]/95 to-[#1a0a2e]/40" />
+        </div>
+
+        {/* Animated glow layers */}
+        <div className="absolute inset-0 overflow-hidden z-0">
+          <div 
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full"
+            style={{
+              background: 'radial-gradient(circle, rgba(124,58,237,0.35) 0%, rgba(124,58,237,0.1) 50%, transparent 70%)',
+              animation: 'breathe 4s ease-in-out infinite'
             }}
           />
           <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full"
             style={{
-              background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 60%)',
-              animation: 'pulse 4s ease-in-out infinite 1s'
+              background: 'radial-gradient(circle, rgba(76,29,149,0.2) 0%, transparent 60%)',
+              animation: 'breathe 4s ease-in-out infinite 1s'
             }}
           />
         </div>
 
-        {/* Back button - subtle */}
+        {/* Back button */}
         <button
           onClick={() => navigate('/dashboard')}
           className="absolute top-6 left-6 p-3 hover:bg-white/10 rounded-full transition-all z-20"
           data-testid="back-button"
         >
-          <ArrowLeft size={24} className="text-white/60" />
+          <ArrowLeft size={22} className="text-white/50 hover:text-white/80 transition-colors" />
         </button>
 
         {/* Main content */}
         <div className="relative z-10 text-center px-6">
-          {/* Main Raccoon - clean, centered */}
-          <div className="relative mb-10">
-            {/* Outer glow ring */}
+          {/* Raccoon with clean circular mask and glow */}
+          <div className="relative mb-12">
+            {/* Outer breathing glow */}
             <div 
-              className="absolute inset-0 -m-8 rounded-full"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full"
               style={{
-                background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)',
-                filter: 'blur(40px)',
-                animation: 'pulse 3s ease-in-out infinite'
+                background: 'radial-gradient(circle, rgba(124,58,237,0.5) 0%, rgba(124,58,237,0.2) 50%, transparent 70%)',
+                filter: 'blur(50px)',
+                animation: 'breathe 3s ease-in-out infinite'
               }}
             />
             
-            {/* Inner glow */}
+            {/* Raccoon container with circular mask */}
             <div 
-              className="absolute inset-0 -m-4 rounded-full bg-[#7c3aed]/20"
-              style={{ filter: 'blur(30px)' }}
-            />
-            
-            {/* Raccoon image */}
-            <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto overflow-hidden rounded-2xl">
+              className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto rounded-full overflow-hidden"
+              style={{
+                background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)'
+              }}
+            >
               <img 
                 src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
                 alt="Cool Raccoon"
-                className="relative z-10 w-full h-full object-cover scale-125"
+                className="w-full h-full object-cover scale-150"
                 style={{
-                  animation: 'float 3s ease-in-out infinite',
-                  filter: 'drop-shadow(0 0 30px rgba(124,58,237,0.5))',
-                  objectPosition: 'center 30%'
+                  objectPosition: 'center 30%',
+                  animation: 'float 4s ease-in-out infinite',
+                  filter: 'drop-shadow(0 0 40px rgba(124,58,237,0.5))'
                 }}
               />
             </div>
           </div>
 
-          {/* Title */}
+          {/* Title with clean typography */}
           <h2 
-            className="text-3xl sm:text-4xl font-bold mb-4"
-            style={{ 
-              fontFamily: 'Outfit, sans-serif',
-              textShadow: '0 0 30px rgba(124,58,237,0.5)'
-            }}
+            className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight"
+            style={{ fontFamily: 'Outfit, sans-serif' }}
           >
-            Finding a Match...
+            Finding a Match
           </h2>
 
-          {/* Rotating facts with fade animation */}
-          <div className="h-8 mb-8">
+          {/* Rotating facts */}
+          <div className="h-12 mb-10 max-w-md mx-auto">
             <p 
-              className="text-gray-400 text-base sm:text-lg transition-all duration-300"
+              className="text-gray-500 text-sm sm:text-base transition-all duration-500 leading-relaxed"
               style={{ 
                 fontFamily: 'Manrope, sans-serif',
                 opacity: factVisible ? 1 : 0,
-                transform: factVisible ? 'translateY(0)' : 'translateY(10px)'
+                transform: factVisible ? 'translateY(0)' : 'translateY(8px)'
               }}
             >
               {RACCOON_FACTS[currentFact]}
             </p>
           </div>
 
-          {/* Raccoon emoji wave */}
-          <div className="flex items-center justify-center gap-3">
+          {/* Raccoon emoji wave - cleaner spacing */}
+          <div className="flex items-center justify-center gap-4">
             {[0, 1, 2, 3, 4].map((i) => (
               <span 
                 key={i}
-                className="text-2xl"
+                className="text-2xl opacity-80"
                 style={{ 
-                  animation: 'raccoonWave 1.5s ease-in-out infinite',
-                  animationDelay: `${i * 0.15}s`
+                  animation: 'raccoonWave 2s ease-in-out infinite',
+                  animationDelay: `${i * 0.2}s`
                 }}
               >
                 🦝
@@ -233,16 +262,16 @@ const Match = () => {
         {/* CSS Animations */}
         <style>{`
           @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-15px); }
+            0%, 100% { transform: translateY(0) scale(1.5); }
+            50% { transform: translateY(-12px) scale(1.5); }
           }
-          @keyframes pulse {
+          @keyframes breathe {
             0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.1); }
+            50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.1); }
           }
           @keyframes raccoonWave {
             0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
+            50% { transform: translateY(-10px); }
           }
         `}</style>
       </div>
@@ -304,54 +333,106 @@ const Match = () => {
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center p-6 gap-6">
-        {/* Game Sidebar */}
-        <div className={`${showGames ? 'flex' : 'hidden lg:flex'} flex-col w-full lg:w-72 gap-4`}>
-          <h3 className="text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            <Gamepad2 size={20} className="text-[#7c3aed]" />
-            Play Together
-          </h3>
-          
-          {/* Raccoon Feud */}
-          <button
-            onClick={() => navigate('/game/feud')}
-            className="p-4 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 border border-[#ffd700]/30 rounded-xl hover:border-[#ffd700]/60 transition-all text-left group"
-            data-testid="play-feud-btn"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-lg flex items-center justify-center">
-                <Trophy size={20} className="text-[#1a237e]" />
-              </div>
-              <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</span>
+        {/* Left Sidebar - Games & Video */}
+        <div className={`${showGames || showVideo ? 'flex' : 'hidden lg:flex'} flex-col w-full lg:w-80 gap-4`}>
+          {/* Video Chat Section */}
+          {showVideo ? (
+            <div className="flex-1">
+              <VideoChat
+                localVideoRef={localVideoRef}
+                remoteVideoRef={remoteVideoRef}
+                localStream={localStream}
+                remoteStream={remoteStream}
+                isVideoEnabled={isVideoEnabled}
+                isAudioEnabled={isAudioEnabled}
+                connectionState={connectionState}
+                error={webrtcError}
+                onStartCall={startCall}
+                onEndCall={() => {
+                  endCall();
+                  setShowVideo(false);
+                }}
+                onToggleVideo={toggleVideo}
+                onToggleAudio={toggleAudio}
+                partnerUsername={partner?.username}
+              />
+              <button
+                onClick={() => setShowVideo(false)}
+                className="lg:hidden mt-4 w-full py-2 text-center text-gray-400 text-sm bg-white/5 rounded-xl"
+              >
+                Back to Chat
+              </button>
             </div>
-            <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Guess the top answers!
-            </p>
-          </button>
-          
-          {/* Truth or Dare */}
-          <button
-            onClick={() => navigate('/game/truth-or-dare')}
-            className="p-4 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 border border-pink-500/30 rounded-xl hover:border-pink-500/60 transition-all text-left group"
-            data-testid="play-tod-btn"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Sparkles size={20} className="text-white" />
-              </div>
-              <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</span>
-            </div>
-            <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Spin the bottle!
-            </p>
-          </button>
-          
-          {/* Mobile toggle */}
-          <button
-            onClick={() => setShowGames(false)}
-            className="lg:hidden mt-2 text-center text-gray-400 text-sm"
-          >
-            Back to Chat
-          </button>
+          ) : (
+            <>
+              <h3 className="text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                <Gamepad2 size={20} className="text-[#7c3aed]" />
+                Play Together
+              </h3>
+
+              {/* Video Call Button */}
+              <button
+                onClick={() => {
+                  setShowVideo(true);
+                  setShowGames(false);
+                }}
+                className="p-4 bg-gradient-to-br from-[#7c3aed]/30 to-[#4c1d95]/30 border border-[#7c3aed]/50 rounded-xl hover:border-[#7c3aed] transition-all text-left group"
+                data-testid="video-call-btn"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-lg flex items-center justify-center">
+                    <Video size={20} className="text-white" />
+                  </div>
+                  <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Video Chat</span>
+                </div>
+                <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Start a video call!
+                </p>
+              </button>
+              
+              {/* Raccoon Feud */}
+              <button
+                onClick={() => navigate('/game/feud')}
+                className="p-4 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 border border-[#ffd700]/30 rounded-xl hover:border-[#ffd700]/60 transition-all text-left group"
+                data-testid="play-feud-btn"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-lg flex items-center justify-center">
+                    <Trophy size={20} className="text-[#1a237e]" />
+                  </div>
+                  <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</span>
+                </div>
+                <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Guess the top answers!
+                </p>
+              </button>
+              
+              {/* Truth or Dare */}
+              <button
+                onClick={() => navigate('/game/truth-or-dare')}
+                className="p-4 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 border border-pink-500/30 rounded-xl hover:border-pink-500/60 transition-all text-left group"
+                data-testid="play-tod-btn"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <Sparkles size={20} className="text-white" />
+                  </div>
+                  <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</span>
+                </div>
+                <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Spin the bottle!
+                </p>
+              </button>
+              
+              {/* Mobile toggle */}
+              <button
+                onClick={() => setShowGames(false)}
+                className="lg:hidden mt-2 text-center text-gray-400 text-sm"
+              >
+                Back to Chat
+              </button>
+            </>
+          )}
         </div>
 
         {/* Chat Box */}
@@ -412,10 +493,24 @@ const Match = () => {
               {/* Mobile game toggle */}
               <button
                 type="button"
-                onClick={() => setShowGames(true)}
+                onClick={() => {
+                  setShowGames(true);
+                  setShowVideo(false);
+                }}
                 className="lg:hidden p-3 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/30 rounded-xl transition-all"
               >
                 <Gamepad2 size={20} className="text-[#7c3aed]" />
+              </button>
+              {/* Mobile video toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVideo(true);
+                  setShowGames(false);
+                }}
+                className="lg:hidden p-3 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/30 rounded-xl transition-all"
+              >
+                <Video size={20} className="text-[#7c3aed]" />
               </button>
               <input
                 type="text"

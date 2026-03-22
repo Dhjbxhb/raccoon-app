@@ -27,9 +27,11 @@ api_router = APIRouter(prefix="/api")
 from routes.auth import router as auth_router
 from routes.auth_multiple import router as auth_multiple_router
 from routes.admin import router as admin_router
+from routes.payments import router as payments_router
 api_router.include_router(auth_router)
 api_router.include_router(auth_multiple_router)
 api_router.include_router(admin_router)
+api_router.include_router(payments_router)
 
 # Basic route
 @api_router.get("/")
