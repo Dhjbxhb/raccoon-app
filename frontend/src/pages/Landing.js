@@ -30,15 +30,20 @@ const Landing = () => {
       <div className="relative z-10">
         {/* Navbar */}
         <nav className="px-6 py-6 flex justify-between items-center">
+          {/* Logo - Text Only */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2a1f4d]">
-              <img 
-                src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/0yj4w3zp_Screenshot%202026-03-22%20at%202.49.55%E2%80%AFPM.png"
-                alt="Raccoon"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
+            <span 
+              className="text-2xl font-black tracking-tight"
+              style={{ 
+                fontFamily: 'Outfit, sans-serif',
+                background: 'linear-gradient(135deg, #ffffff 0%, #7c3aed 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}
+            >
+              RACCOON APP
+            </span>
           </div>
           <div className="flex gap-4">
             <button
@@ -61,19 +66,21 @@ const Landing = () => {
         </nav>
 
         {/* Hero Section */}
-        <div className="container mx-auto px-6 pt-8 pb-20">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
+        <div className="container mx-auto px-6 pt-4 pb-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center max-w-7xl mx-auto">
             {/* Left: Text Content */}
-            <div className="space-y-8 order-2 lg:order-1">
-              {/* Badge */}
+            <div className="space-y-6 order-2 lg:order-1">
+              {/* Small Title - RACCOON APP */}
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#7c3aed]/20 border border-[#7c3aed]/50 rounded-full backdrop-blur-md">
                 <Sparkles size={16} className="text-[#7c3aed]" />
-                <span className="text-sm font-medium" style={{ fontFamily: 'Manrope, sans-serif' }}>18+ Real-time Matching Platform</span>
+                <span className="text-sm font-bold tracking-wider" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  RACCOON APP
+                </span>
               </div>
 
               {/* Main Heading */}
               <h1 
-                className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight"
+                className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-tight"
                 style={{ 
                   fontFamily: 'Outfit, sans-serif',
                   letterSpacing: '-0.02em',
@@ -88,7 +95,7 @@ const Landing = () => {
 
               {/* Subheading */}
               <p 
-                className="text-lg sm:text-xl text-gray-400 max-w-xl leading-relaxed"
+                className="text-base sm:text-lg text-gray-400 max-w-xl leading-relaxed"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
               >
                 Random video matching, real-time chat, and interactive games.
@@ -96,23 +103,22 @@ const Landing = () => {
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4">
                 <button
                   onClick={() => navigate('/signup')}
-                  className="group relative px-10 py-5 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-full transition-all duration-300 font-bold text-lg tracking-wide shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)] hover:scale-110"
+                  className="group relative px-10 py-4 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-full transition-all duration-300 font-bold text-base tracking-wide shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)] hover:scale-105"
                   data-testid="hero-start-button"
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 >
-                  <span className="flex items-center gap-3">
+                  <span className="flex items-center justify-center gap-2">
                     Start Matching
-                    <Zap size={20} className="group-hover:rotate-12 transition-transform" />
+                    <Zap size={18} className="group-hover:rotate-12 transition-transform" />
                   </span>
-                  <div className="absolute inset-0 rounded-full bg-white/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
                 </button>
                 
                 <button
                   onClick={() => navigate('/guest')}
-                  className="px-10 py-5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full transition-all duration-300 font-semibold text-lg"
+                  className="px-10 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full transition-all duration-300 font-semibold text-base"
                   data-testid="hero-guest-button"
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 >
@@ -121,62 +127,53 @@ const Landing = () => {
               </div>
             </div>
 
-            {/* Right: YOUR Cool Raccoon Character - FULL SCREEN */}
-            <div className="relative order-1 lg:order-2">
-              <div className="relative z-10 w-full h-full flex items-center justify-center">
+            {/* Right: YOUR Cool Raccoon - FULL CLEAN */}
+            <div className="relative order-1 lg:order-2 flex items-center justify-center min-h-[400px] lg:min-h-[500px]">
+              <div className="relative w-full max-w-xl">
+                {/* Purple glow behind */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-2xl aspect-square bg-[#7c3aed]/25 blur-[120px] rounded-full" />
+                {/* YOUR Raccoon - Clean & Centered */}
                 <img 
                   src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
                   alt="Cool Raccoon"
-                  className="w-full h-full max-w-2xl object-contain drop-shadow-2xl"
+                  className="relative z-10 w-full h-auto drop-shadow-2xl"
                   style={{
-                    animation: 'float 3s ease-in-out infinite'
+                    animation: 'float 3s ease-in-out infinite',
+                    imageRendering: '-webkit-optimize-contrast'
                   }}
                 />
               </div>
-              {/* Purple glow behind */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#7c3aed]/30 blur-[150px] rounded-full -z-10" />
             </div>
           </div>
 
           {/* Features Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mt-24">
-            <div className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="w-14 h-14 bg-[#7c3aed]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                <Users size={28} className="text-[#7c3aed]" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mt-20">
+            <div className="p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#7c3aed]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <Users size={24} className="text-[#7c3aed]" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Random Matching</h3>
-              <p className="text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Connect with strangers instantly. Skip anytime. No limits.</p>
+              <h3 className="text-lg sm:text-xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Random Matching</h3>
+              <p className="text-sm sm:text-base text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Connect with strangers instantly. Skip anytime. No limits.</p>
             </div>
 
-            <div className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="w-14 h-14 bg-[#10b981]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                <Zap size={28} className="text-[#10b981]" />
+            <div className="p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#10b981]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <Zap size={24} className="text-[#10b981]" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Interactive Games</h3>
-              <p className="text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Play Raccoon Feud and Truth or Dare together. Stay engaged.</p>
+              <h3 className="text-lg sm:text-xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Interactive Games</h3>
+              <p className="text-sm sm:text-base text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Play Raccoon Feud and Truth or Dare together. Stay engaged.</p>
             </div>
 
-            <div className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f43f5e]/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="w-14 h-14 bg-[#f43f5e]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                <Sparkles size={28} className="text-[#f43f5e]" />
+            <div className="p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f43f5e]/50 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#f43f5e]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <Sparkles size={24} className="text-[#f43f5e]" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium Features</h3>
-              <p className="text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Get verified badge. Stand out. Show you're serious.</p>
+              <h3 className="text-lg sm:text-xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium Features</h3>
+              <p className="text-sm sm:text-base text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Get verified badge. Stand out. Show you're serious.</p>
             </div>
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-20px);
-          }
-        }
-      `}</style>
     </div>
   );
 };
