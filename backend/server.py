@@ -53,15 +53,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Socket.IO event handlers
-@sio.event
-async def connect(sid, environ):
-    logger.info(f"Client connected: {sid}")
-    await sio.emit('connected', {'sid': sid}, room=sid)
-
-@sio.event
-async def disconnect(sid):
-    logger.info(f"Client disconnected: {sid}")
+# Register Socket.IO handlers
+@app.on_event("startup")
+async def startup_event():
+    from websocket.socket_handlers import register_socket_handlers
+    await register_socket_handlers(sio)
+    logger.info("Socket.IO handlers registered")
 
 # Shutdown handler
 @app.on_event("shutdown")
