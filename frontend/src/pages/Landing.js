@@ -121,20 +121,20 @@ const Landing = () => {
               </div>
             </div>
 
-            {/* Right: YOUR Cool Raccoon Character */}
+            {/* Right: YOUR Cool Raccoon Character - FULL SCREEN */}
             <div className="relative order-1 lg:order-2">
-              <div className="relative z-10 max-w-lg mx-auto">
+              <div className="relative z-10 w-full h-full flex items-center justify-center">
                 <img 
-                  src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/0yj4w3zp_Screenshot%202026-03-22%20at%202.49.55%E2%80%AFPM.png"
+                  src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
                   alt="Cool Raccoon"
-                  className="w-full drop-shadow-2xl"
+                  className="w-full h-full max-w-2xl object-contain drop-shadow-2xl"
                   style={{
                     animation: 'float 3s ease-in-out infinite'
                   }}
                 />
               </div>
               {/* Purple glow behind */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#7c3aed]/30 blur-[150px] rounded-full -z-10" />
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#7c3aed]/30 blur-[150px] rounded-full -z-10" />
             </div>
           </div>
 
