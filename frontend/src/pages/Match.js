@@ -37,7 +37,6 @@ const Match = () => {
   const [typingTimeout, setTypingTimeout] = useState(null);
   const [currentFact, setCurrentFact] = useState(0);
   const [factVisible, setFactVisible] = useState(true);
-  const [miniRaccoonPos, setMiniRaccoonPos] = useState({ x: 10, y: 80, direction: 1 });
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -67,33 +66,6 @@ const Match = () => {
         setFactVisible(true);
       }, 300);
     }, 3000);
-    
-    return () => clearInterval(interval);
-  }, [state]);
-
-  // Animate mini raccoon movement
-  useEffect(() => {
-    if (state !== 'searching') return;
-    
-    const interval = setInterval(() => {
-      setMiniRaccoonPos(prev => {
-        let newX = prev.x + (prev.direction * 0.5);
-        let newDirection = prev.direction;
-        
-        if (newX > 85) {
-          newDirection = -1;
-          newX = 85;
-        } else if (newX < 5) {
-          newDirection = 1;
-          newX = 5;
-        }
-        
-        // Slight vertical wobble
-        const newY = 80 + Math.sin(Date.now() / 500) * 3;
-        
-        return { x: newX, y: newY, direction: newDirection };
-      });
-    }, 50);
     
     return () => clearInterval(interval);
   }, [state]);
@@ -240,41 +212,21 @@ const Match = () => {
             </p>
           </div>
 
-          {/* Loading dots */}
+          {/* Raccoon emoji wave */}
           <div className="flex items-center justify-center gap-3">
-            <div 
-              className="w-3 h-3 bg-[#7c3aed] rounded-full"
-              style={{ animation: 'bounce 1s ease-in-out infinite' }}
-            />
-            <div 
-              className="w-3 h-3 bg-[#7c3aed] rounded-full"
-              style={{ animation: 'bounce 1s ease-in-out infinite 0.15s' }}
-            />
-            <div 
-              className="w-3 h-3 bg-[#7c3aed] rounded-full"
-              style={{ animation: 'bounce 1s ease-in-out infinite 0.3s' }}
-            />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <span 
+                key={i}
+                className="text-2xl"
+                style={{ 
+                  animation: 'raccoonWave 1.5s ease-in-out infinite',
+                  animationDelay: `${i * 0.15}s`
+                }}
+              >
+                🦝
+              </span>
+            ))}
           </div>
-        </div>
-
-        {/* Small walking raccoon */}
-        <div 
-          className="absolute z-20 transition-transform duration-100"
-          style={{
-            left: `${miniRaccoonPos.x}%`,
-            top: `${miniRaccoonPos.y}%`,
-            transform: `scaleX(${miniRaccoonPos.direction})`
-          }}
-        >
-          <img 
-            src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
-            alt="Mini Raccoon"
-            className="w-12 h-12 object-contain opacity-40"
-            style={{
-              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
-              animation: 'walk 0.5s ease-in-out infinite'
-            }}
-          />
         </div>
 
         {/* CSS Animations */}
@@ -287,14 +239,9 @@ const Match = () => {
             0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
             50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.1); }
           }
-          @keyframes bounce {
+          @keyframes raccoonWave {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-8px); }
-          }
-          @keyframes walk {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            25% { transform: translateY(-2px) rotate(-3deg); }
-            75% { transform: translateY(-2px) rotate(3deg); }
           }
         `}</style>
       </div>
