@@ -1,0 +1,166 @@
+{
+  "identity": {
+    "name": "RACCOON APP",
+    "mission": "The nocturnal playground for real-time connection. Fast, mischievous, and addictive.",
+    "emotional_archetype": "Electric & Neon",
+    "keywords": ["Nocturnal", "Electric", "Speed", "Mischief", "Connection"]
+  },
+  "typography": {
+    "headings": {
+      "family": "Outfit",
+      "weights": ["600", "700", "900"],
+      "letterSpacing": "-0.02em",
+      "usage": "Use for all section titles, hero text, and modal headers. Bold and tight."
+    },
+    "body": {
+      "family": "Manrope",
+      "weights": ["400", "500", "600"],
+      "usage": "Use for chat messages, UI labels, and long text. clean and legible at small sizes."
+    },
+    "monospace": {
+      "family": "JetBrains Mono",
+      "usage": "Use for stats, timers, and code snippets."
+    }
+  },
+  "colors": {
+    "background": {
+      "default": "#0a0a0a",
+      "paper": "#121212",
+      "glass": "rgba(18, 18, 18, 0.7)"
+    },
+    "primary": {
+      "DEFAULT": "#7c3aed",
+      "hover": "#6d28d9",
+      "glow": "0 0 20px rgba(124, 58, 237, 0.5)",
+      "text": "#ffffff"
+    },
+    "secondary": {
+      "DEFAULT": "#10b981",
+      "glow": "0 0 15px rgba(16, 185, 129, 0.4)"
+    },
+    "accent": {
+      "DEFAULT": "#f43f5e",
+      "glow": "0 0 15px rgba(244, 63, 94, 0.4)"
+    },
+    "text": {
+      "primary": "#ffffff",
+      "secondary": "#a1a1aa",
+      "muted": "#52525b"
+    },
+    "gradients": {
+      "brand": "linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)",
+      "glass": "linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": {
+      "heavy": "backdrop-filter: blur(16px); background: rgba(10, 10, 10, 0.8); border: 1px solid rgba(255, 255, 255, 0.1);",
+      "light": "backdrop-filter: blur(8px); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.05);"
+    },
+    "borders": {
+      "neon": "1px solid rgba(124, 58, 237, 0.5)",
+      "subtle": "1px solid rgba(255, 255, 255, 0.1)"
+    },
+    "shadows": {
+      "glow": "0 0 20px -5px rgba(124, 58, 237, 0.5)",
+      "depth": "0 10px 30px -10px rgba(0, 0, 0, 0.5)"
+    },
+    "radius": {
+      "default": "1rem",
+      "pill": "9999px",
+      "sharp": "0.25rem"
+    }
+  },
+  "layout_strategies": {
+    "landing_page": {
+      "structure": "Hero centered with massive typography. Background video or abstract 3D mesh. 'Start Matching' button pulsing.",
+      "grid": "Single column vertical scroll. Section overlap."
+    },
+    "dashboard": {
+      "structure": "Bento Grid. High density. 'Live Now' stats prominent. Game modes as large cards.",
+      "grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"
+    },
+    "match_interface": {
+      "structure": "Immersive Split Screen. User video (bottom right floating) + Stranger video (full screen or split). Chat overlay on left.",
+      "controls": "Floating pill bar at bottom (Skip, Next, Report)."
+    },
+    "chat_screen": {
+      "structure": "Sidebar (matches) + Main Chat Area + Game Panel (Right sidebar or Overlay).",
+      "density": "Comfortable but fast-paced."
+    }
+  },
+  "components": {
+    "Button": {
+      "styles": {
+        "primary": "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] hover:scale-105 transition-all duration-300 rounded-full font-bold tracking-wide uppercase",
+        "secondary": "bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-md transition-all rounded-full",
+        "danger": "bg-accent/20 text-accent border border-accent/50 hover:bg-accent hover:text-white transition-all rounded-full"
+      }
+    },
+    "Card": {
+      "default": "bg-card/50 backdrop-blur-xl border border-white/5 rounded-2xl hover:border-primary/50 transition-colors duration-300",
+      "interactive": "group relative overflow-hidden bg-card/50 hover:bg-card/80 transition-all cursor-pointer border border-white/5 hover:border-primary/50"
+    },
+    "Input": {
+      "default": "bg-black/50 border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 rounded-xl h-12 px-4 text-white placeholder:text-white/30"
+    },
+    "Badge": {
+      "premium": "bg-gradient-to-r from-amber-400 to-orange-500 text-black font-bold px-3 py-1 rounded-full text-xs shadow-lg shadow-amber-500/20",
+      "live": "bg-red-500 text-white animate-pulse px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider"
+    }
+  },
+  "motion": {
+    "transition": {
+      "default": "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      "bouncy": "all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)"
+    },
+    "animations": {
+      "fadeIn": "opacity-0 to opacity-100",
+      "slideUp": "translate-y-4 opacity-0 to translate-y-0 opacity-100",
+      "pulseGlow": "animate-[pulse-glow_2s_infinite]"
+    }
+  },
+  "image_urls": {
+    "hero_background": "https://images.unsplash.com/photo-1635931225069-4968458f04f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBjaXR5JTIwbmlnaHQlMjBibHVycmVkJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzQxNzU5Mjd8MA&ixlib=rb-4.1.0&q=85",
+    "logo_mascot": "https://images.unsplash.com/photo-1615812214207-34e3be6812df?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwxfHxuZW9uJTIwcmFjY29vbiUyMGxvZ28lMjBtYXNjb3R8ZW58MHx8fHwxNzc0MTc1OTI2fDA&ixlib=rb-4.1.0&q=85",
+    "avatars": [
+      "https://images.unsplash.com/photo-1646773777979-8242c6ee91c7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwyfHxjb29sJTIwY3liZXJwdW5rJTIwYXZhdGFyJTIwaWxsdXN0cmF0aW9ufGVufDB8fHx8MTc3NDE3NTkzNXww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1587321965030-035a856311d6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwzfHxjb29sJTIwY3liZXJwdW5rJTIwYXZhdGFyJTIwaWxsdXN0cmF0aW9ufGVufDB8fHx8MTc3NDE3NTkzNXww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1648526607833-aa72324d06a8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxjb29sJTIwY3liZXJwdW5rJTIwYXZhdGFyJTIwaWxsdXN0cmF0aW9ufGVufDB8fHx8MTc3NDE3NTkzNXww&ixlib=rb-4.1.0&q=85"
+    ],
+    "game_icons": {
+      "feud": "https://images.unsplash.com/photo-1635151947209-b60373e4ccc5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwyfHxuZW9uJTIwcmFjZSUyMGZsYWclMjB0cm9waHklMjBpY29ufGVufDB8fHx8MTc3NDE3NTkzNnww&ixlib=rb-4.1.0&q=85",
+      "truth_dare": "https://images.unsplash.com/photo-1755808558533-d66e340e4975?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxuZW9uJTIwcmFjZSUyMGZsYWclMjB0cm9waHklMjBpY29ufGVufDB8fHx8MTc3NDE3NTkzNnww&ixlib=rb-4.1.0&q=85",
+      "trophy": "https://images.pexels.com/photos/6532366/pexels-photo-6532366.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  },
+  "instructions_to_main_agent": [
+    "INSTALL FONTS: Ensure Outfit and Manrope are imported from Google Fonts in index.html.",
+    "TAILWIND CONFIG: Update tailwind.config.js to include the custom colors (primary: #7c3aed, background: #0a0a0a) and extend the theme.",
+    "GLASSMORPHISM: Create a reusable utility class or component for the 'Glass Card' effect.",
+    "GAME OVERLAYS: Implement games (Feud, Truth/Dare) as Modal/Overlay components that sit ON TOP of the video chat, with transparency so users can still see each other.",
+    "MATCHING LOGIC: Visual feedback is key. Use a scanning/radar animation while searching for a match.",
+    "MOBILE FIRST: Ensure the video chat controls are thumb-accessible at the bottom of the screen on mobile.",
+    "DATA-TESTID: Add data-testid to all interactive elements (buttons, inputs, cards) for testing."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy",
+    "Use glass-morphism effects with backdrop filters (12-24px blur)",
+    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Prioritize using pre-existing components from src/components/ui when applicable",
+    "Create new components that match the style and conventions of existing components when needed",
+    "Examine existing components to understand the project's component patterns before creating new ones",
+    "Components MUST use named exports (export const ComponentName = ...)",
+    "Pages MUST use default exports (export default function PageName() {...})",
+    "Use sonner for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
+  ]
+}
