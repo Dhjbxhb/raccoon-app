@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { 
   ArrowLeft, Shield, Users, Ban, Star, Search, 
   RefreshCcw, AlertTriangle, CheckCircle, XCircle,
-  Crown, Clock, TrendingUp
+  Crown, Clock, TrendingUp, MessageSquare, Activity, Zap
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -16,17 +16,21 @@ const Admin = () => {
   
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({ total: 0, premium: 0, banned: 0, active: 0 });
+  const [platformStats, setPlatformStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all, premium, banned
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Check admin access - for dev/testing, allow any authenticated user
-  // In production, enable the is_admin check
+  // Check admin access - ONLY admin users can access
   useEffect(() => {
     if (!user) {
       navigate('/dashboard');
       toast.error('Please login first');
+    } else if (!user.is_admin) {
+      setAccessDenied(true);
+      toast.error('Admin access required');
     }
   }, [user, navigate]);
 
@@ -53,6 +57,9 @@ const Admin = () => {
       } else if (response.status === 401) {
         toast.error('Session expired. Please login again.');
         navigate('/login');
+      } else if (response.status === 403) {
+        setAccessDenied(true);
+        toast.error('Admin access required');
       } else {
         toast.error('Failed to fetch users');
       }
@@ -64,9 +71,27 @@ const Admin = () => {
     }
   };
 
+  // Fetch platform stats
+  const fetchPlatformStats = async () => {
+    try {
+      const token = localStorage.getItem('raccoon_token');
+      const response = await fetch(`${API_URL}/api/admin/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPlatformStats(data);
+      }
+    } catch (error) {
+      console.error('Error fetching platform stats:', error);
+    }
+  };
+
   useEffect(() => {
-    if (user) {
+    if (user && user.is_admin) {
       fetchUsers();
+      fetchPlatformStats();
     }
   }, [user]);
 
@@ -148,6 +173,34 @@ const Admin = () => {
 
   if (!user) return null;
 
+  // Access denied screen
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+        <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a0a2e] to-[#0a0a0a]" />
+        <div className="relative z-10 text-center px-6">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Shield size={40} className="text-red-500" />
+          </div>
+          <h1 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            Access Denied
+          </h1>
+          <p className="text-gray-400 mb-8 max-w-md" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            You don't have permission to access the Admin Panel. 
+            Only authorized administrators can view this page.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-8 py-3 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl font-semibold transition-all"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       {/* Background */}
@@ -186,8 +239,8 @@ const Admin = () => {
 
         {/* Main Content */}
         <div className="container mx-auto px-6 py-8 max-w-7xl">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* Platform Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
             <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl">
               <div className="flex items-center gap-3 mb-2">
                 <Users size={20} className="text-[#7c3aed]" />
@@ -211,10 +264,31 @@ const Admin = () => {
             </div>
             <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl">
               <div className="flex items-center gap-3 mb-2">
-                <TrendingUp size={20} className="text-green-500" />
-                <span className="text-3xl font-bold">{stats.active}</span>
+                <Activity size={20} className="text-green-500" />
+                <span className="text-3xl font-bold">{platformStats?.active_sessions || 0}</span>
               </div>
               <p className="text-gray-400 text-sm">Active Today</p>
+            </div>
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl">
+              <div className="flex items-center gap-3 mb-2">
+                <Zap size={20} className="text-orange-400" />
+                <span className="text-3xl font-bold">{platformStats?.total_matches || 0}</span>
+              </div>
+              <p className="text-gray-400 text-sm">Total Matches</p>
+            </div>
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl">
+              <div className="flex items-center gap-3 mb-2">
+                <MessageSquare size={20} className="text-blue-400" />
+                <span className="text-3xl font-bold">{platformStats?.messages_today || 0}</span>
+              </div>
+              <p className="text-gray-400 text-sm">Messages Today</p>
+            </div>
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl">
+              <div className="flex items-center gap-3 mb-2">
+                <TrendingUp size={20} className="text-cyan-400" />
+                <span className="text-3xl font-bold">{platformStats?.total_guests || 0}</span>
+              </div>
+              <p className="text-gray-400 text-sm">Guest Users</p>
             </div>
           </div>
 

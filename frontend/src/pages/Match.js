@@ -539,56 +539,89 @@ const Match = () => {
           <div 
             className="absolute -inset-1 rounded-3xl opacity-50 z-0"
             style={{
-              background: 'linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(76,29,149,0.1) 50%, rgba(124,58,237,0.1) 100%)',
-              filter: 'blur(20px)'
+              background: 'linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(76,29,149,0.15) 50%, rgba(124,58,237,0.15) 100%)',
+              filter: 'blur(30px)',
+              animation: 'glowPulse 4s ease-in-out infinite'
             }}
           />
           
-          <div className="relative z-10 flex-1 flex flex-col bg-white/[0.02] backdrop-blur-xl border border-white/[0.06] rounded-2xl overflow-hidden">
+          <div className="relative z-10 flex-1 flex flex-col bg-gradient-to-br from-white/[0.03] to-white/[0.01] backdrop-blur-2xl border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl">
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4" data-testid="chat-messages">
+            <div className="flex-1 overflow-y-auto p-6 space-y-5" data-testid="chat-messages" style={{ scrollBehavior: 'smooth' }}>
               {messages.length === 0 && partner && (
-                <div className="text-center text-gray-600 py-16">
-                  <div className="text-4xl mb-4">👋</div>
-                  <p style={{ fontFamily: 'Manrope, sans-serif' }}>Say hi to {partner.username}!</p>
+                <div className="text-center py-20">
+                  <div className="relative inline-block mb-6">
+                    <div className="text-6xl animate-wave">👋</div>
+                    <div 
+                      className="absolute inset-0 blur-2xl opacity-50"
+                      style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)' }}
+                    />
+                  </div>
+                  <p className="text-gray-400 text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    Say hi to <span className="text-white font-semibold">{partner.username}</span>!
+                  </p>
+                  <p className="text-gray-600 text-sm mt-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    Start the conversation...
+                  </p>
                 </div>
               )}
               
               {messages.map((msg, index) => {
                 const isOwn = msg.sender_id === user.user_id || msg.sender_id === user.guest_id;
+                const showTimestamp = index === 0 || 
+                  (messages[index - 1] && messages[index - 1].sender_id !== msg.sender_id);
+                
                 return (
                   <div
                     key={index}
-                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-slideIn`}
-                    style={{ animationDelay: `${index * 0.05}s` }}
+                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'} messageEntry`}
+                    style={{ 
+                      animation: 'messageSlide 0.3s ease-out forwards',
+                      animationDelay: `${Math.min(index * 0.03, 0.2)}s`,
+                      opacity: 0
+                    }}
                   >
-                    <div
-                      className={`max-w-[70%] px-5 py-3 rounded-2xl transition-all duration-300 hover:scale-[1.01] ${
-                        isOwn
-                          ? 'bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white shadow-[0_4px_20px_rgba(124,58,237,0.3)]'
-                          : 'bg-white/[0.06] border border-white/[0.08] text-white'
-                      }`}
-                      style={{ fontFamily: 'Manrope, sans-serif' }}
-                    >
-                      {!isOwn && (
-                        <div className="flex items-center gap-1.5 mb-1.5 text-xs text-gray-400">
-                          <span className="font-semibold">{msg.sender_username}</span>
+                    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[75%]`}>
+                      {/* Sender info for partner messages */}
+                      {!isOwn && showTimestamp && (
+                        <div className="flex items-center gap-2 mb-1.5 ml-3">
+                          <div className="w-6 h-6 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-[10px] font-bold">
+                            {msg.sender_username?.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs text-gray-500 font-medium">{msg.sender_username}</span>
                           {msg.premium && <Star size={10} className="text-yellow-400 fill-yellow-400" />}
                         </div>
                       )}
-                      <p className="break-words leading-relaxed">{msg.content}</p>
+                      
+                      {/* Message bubble */}
+                      <div
+                        className={`relative px-5 py-3.5 transition-all duration-200 ${
+                          isOwn
+                            ? 'bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] text-white rounded-2xl rounded-br-md shadow-[0_4px_25px_rgba(124,58,237,0.35)] hover:shadow-[0_6px_30px_rgba(124,58,237,0.45)]'
+                            : 'bg-white/[0.04] border border-white/[0.1] text-white rounded-2xl rounded-bl-md hover:bg-white/[0.06]'
+                        }`}
+                        style={{ fontFamily: 'Manrope, sans-serif' }}
+                      >
+                        <p className="break-words leading-relaxed text-[15px]">{msg.content}</p>
+                      </div>
                     </div>
                   </div>
                 );
               })}
               
+              {/* Typing indicator */}
               {partnerTyping && (
-                <div className="flex justify-start">
-                  <div className="px-5 py-3 bg-white/[0.06] border border-white/[0.08] rounded-2xl">
-                    <div className="flex gap-1.5">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex justify-start messageEntry" style={{ animation: 'messageSlide 0.2s ease-out forwards' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-xs font-bold">
+                      {partner?.username?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="px-5 py-3.5 bg-white/[0.04] border border-white/[0.1] rounded-2xl rounded-bl-md">
+                      <div className="flex gap-1.5 items-center">
+                        <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-typingDot" style={{ animationDelay: '0ms' }} />
+                        <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-typingDot" style={{ animationDelay: '150ms' }} />
+                        <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-typingDot" style={{ animationDelay: '300ms' }} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -597,9 +630,9 @@ const Match = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Input */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/[0.06] bg-black/20">
-              <div className="flex gap-3">
+            {/* Message Input - Enhanced */}
+            <form onSubmit={handleSendMessage} className="p-5 border-t border-white/[0.06] bg-gradient-to-t from-black/40 to-transparent">
+              <div className="flex gap-3 items-center">
                 {/* Mobile toggles */}
                 <button
                   type="button"
@@ -607,7 +640,7 @@ const Match = () => {
                     setShowGames(true);
                     setShowVideo(false);
                   }}
-                  className="lg:hidden p-3 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-xl transition-all duration-300 hover:scale-105"
+                  className="lg:hidden p-3.5 bg-white/[0.05] hover:bg-[#7c3aed]/20 border border-white/[0.08] hover:border-[#7c3aed]/30 rounded-xl transition-all duration-300 hover:scale-110"
                 >
                   <Gamepad2 size={20} className="text-[#7c3aed]" />
                 </button>
@@ -617,28 +650,32 @@ const Match = () => {
                     setShowVideo(true);
                     setShowGames(false);
                   }}
-                  className="lg:hidden p-3 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-xl transition-all duration-300 hover:scale-105"
+                  className="lg:hidden p-3.5 bg-white/[0.05] hover:bg-[#7c3aed]/20 border border-white/[0.08] hover:border-[#7c3aed]/30 rounded-xl transition-all duration-300 hover:scale-110"
                 >
                   <Video size={20} className="text-[#7c3aed]" />
                 </button>
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={handleInputChange}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-white/[0.03] border border-white/[0.08] focus:border-[#7c3aed]/50 focus:bg-white/[0.05] rounded-xl h-12 px-5 text-white placeholder:text-white/30 outline-none transition-all duration-300"
-                  data-testid="message-input"
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
-                />
+                
+                {/* Input field */}
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={handleInputChange}
+                    placeholder="Type a message..."
+                    className="w-full bg-white/[0.04] border border-white/[0.1] focus:border-[#7c3aed]/60 focus:bg-white/[0.06] rounded-2xl h-14 px-6 text-white placeholder:text-white/25 outline-none transition-all duration-300 focus:shadow-[0_0_20px_rgba(124,58,237,0.15)]"
+                    data-testid="message-input"
+                    style={{ fontFamily: 'Manrope, sans-serif' }}
+                  />
+                </div>
+                
+                {/* Send button */}
                 <button
                   type="submit"
                   disabled={!messageInput.trim()}
-                  className="px-6 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-[0_4px_20px_rgba(124,58,237,0.4)] hover:shadow-[0_4px_30px_rgba(124,58,237,0.5)] hover:scale-105 disabled:hover:scale-100"
+                  className="p-4 bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] hover:from-[#8b5cf6] hover:to-[#6d28d9] rounded-2xl font-semibold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shadow-[0_4px_25px_rgba(124,58,237,0.4)] hover:shadow-[0_6px_35px_rgba(124,58,237,0.55)] hover:scale-110 disabled:hover:scale-100 active:scale-95"
                   data-testid="send-button"
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
                 >
-                  <Send size={18} />
-                  <span className="hidden sm:inline">Send</span>
+                  <Send size={20} className="text-white" />
                 </button>
               </div>
             </form>
@@ -654,9 +691,30 @@ const Match = () => {
           50% { transform: translate(-30px, 50px); }
           75% { transform: translate(-50px, -20px); }
         }
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes messageSlide {
+          from { opacity: 0; transform: translateY(15px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes typingDot {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-4px); opacity: 1; }
+        }
+        @keyframes glowPulse {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 0.7; }
+        }
+        @keyframes wave {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(20deg); }
+          75% { transform: rotate(-10deg); }
+        }
+        .animate-wave {
+          animation: wave 1.5s ease-in-out infinite;
+          display: inline-block;
+          transform-origin: 70% 70%;
+        }
+        .animate-typingDot {
+          animation: typingDot 1.4s ease-in-out infinite;
         }
       `}</style>
     </div>

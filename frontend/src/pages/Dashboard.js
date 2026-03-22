@@ -1,11 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown } from 'lucide-react';
+import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown, Lock } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, logout, isGuest } = useAuth();
+
+  const isPremium = user?.premium_status;
 
   const handleLogout = () => {
     logout();
@@ -14,6 +17,23 @@ const Dashboard = () => {
 
   const handleStartMatching = () => {
     navigate('/match');
+  };
+
+  const handlePremiumFeature = (feature) => {
+    if (!isPremium) {
+      toast.info(`${feature} is a Premium feature`);
+      navigate('/premium');
+      return false;
+    }
+    return true;
+  };
+
+  const handleGameClick = (game) => {
+    if (!isPremium) {
+      handlePremiumFeature(game);
+    } else {
+      navigate('/match');
+    }
   };
 
   if (!user) {
@@ -145,23 +165,38 @@ const Dashboard = () => {
 
           {/* Games Section */}
           <div className="max-w-5xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Outfit, sans-serif' }}>Games</h2>
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              Games
+              {!isPremium && (
+                <span className="text-sm font-normal text-gray-400 flex items-center gap-1">
+                  <Lock size={14} className="text-yellow-400" />
+                  Premium only
+                </span>
+              )}
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Raccoon Feud Card */}
               <div 
-                className="group p-8 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 backdrop-blur-xl border border-[#ffd700]/30 rounded-2xl hover:border-[#ffd700]/60 transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(255,215,0,0.2)]"
-                onClick={() => navigate('/match')}
+                className={`group relative p-8 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 backdrop-blur-xl border ${isPremium ? 'border-[#ffd700]/30 hover:border-[#ffd700]/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(255,215,0,0.2)]`}
+                onClick={() => handleGameClick('Raccoon Feud')}
                 data-testid="feud-game-card"
               >
+                {!isPremium && (
+                  <div className="absolute top-4 right-4 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center border border-yellow-400/30">
+                    <Lock size={16} className="text-yellow-400" />
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-2xl flex items-center justify-center">
                     <Trophy size={28} className="text-[#1a237e]" />
                   </div>
-                  <span className="px-3 py-1 bg-[#ffd700]/20 text-[#ffd700] rounded-full text-xs font-bold">PLAY NOW</span>
+                  <span className={`px-3 py-1 ${isPremium ? 'bg-[#ffd700]/20 text-[#ffd700]' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
+                    {isPremium ? 'PLAY NOW' : 'PREMIUM'}
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</h3>
                 <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  Guess the top answers and compete with your match!
+                  {isPremium ? 'Guess the top answers and compete with your match!' : 'Unlock with Premium to play!'}
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-[#ffd700]/60 text-sm">
                   <span>🎯 Survey Says Style</span>
@@ -172,19 +207,26 @@ const Dashboard = () => {
 
               {/* Truth or Dare Card */}
               <div 
-                className="group p-8 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 backdrop-blur-xl border border-pink-500/30 rounded-2xl hover:border-pink-500/60 transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(236,72,153,0.2)]"
-                onClick={() => navigate('/match')}
+                className={`group relative p-8 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 backdrop-blur-xl border ${isPremium ? 'border-pink-500/30 hover:border-pink-500/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(236,72,153,0.2)]`}
+                onClick={() => handleGameClick('Truth or Dare')}
                 data-testid="tod-game-card"
               >
+                {!isPremium && (
+                  <div className="absolute top-4 right-4 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center border border-yellow-400/30">
+                    <Lock size={16} className="text-yellow-400" />
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center">
                     <Sparkles size={28} className="text-white" />
                   </div>
-                  <span className="px-3 py-1 bg-pink-500/20 text-pink-400 rounded-full text-xs font-bold">PLAY NOW</span>
+                  <span className={`px-3 py-1 ${isPremium ? 'bg-pink-500/20 text-pink-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
+                    {isPremium ? 'PLAY NOW' : 'PREMIUM'}
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</h3>
                 <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  Spin the bottle and challenge your match!
+                  {isPremium ? 'Spin the bottle and challenge your match!' : 'Unlock with Premium to play!'}
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-pink-500/60 text-sm">
                   <span>🍾 Bottle Spin</span>
@@ -193,6 +235,25 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
+
+            {/* Premium Upgrade Banner (shown for non-premium users) */}
+            {!isPremium && (
+              <button
+                onClick={() => navigate('/premium')}
+                className="mt-8 w-full p-6 bg-gradient-to-r from-[#7c3aed]/20 to-[#4c1d95]/20 border border-[#7c3aed]/40 rounded-2xl hover:border-[#7c3aed]/60 transition-all text-center hover:scale-[1.01] group"
+                data-testid="upgrade-banner"
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <Crown size={24} className="text-yellow-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-xl font-bold text-[#a78bfa]" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                    Unlock All Premium Features
+                  </span>
+                </div>
+                <p className="text-gray-400 mt-2 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Get access to games, filters, and more!
+                </p>
+              </button>
+            )}
           </div>
         </div>
       </div>
