@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Clock, TrendingUp } from 'lucide-react';
+import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -45,11 +45,25 @@ const Dashboard = () => {
             <span className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full">
+            {!user.premium_status && (
+              <button
+                onClick={() => navigate('/premium')}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#7c3aed] to-[#4c1d95] rounded-full hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] transition-all"
+                data-testid="get-premium-btn"
+              >
+                <Crown size={16} />
+                <span style={{ fontFamily: 'Manrope, sans-serif' }}>Get Premium</span>
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full transition-all"
+              data-testid="profile-btn"
+            >
               <User size={18} />
               <span style={{ fontFamily: 'Manrope, sans-serif' }}>{user.username}</span>
               {user.premium_status && <Star size={16} className="text-yellow-400 fill-yellow-400" />}
-            </div>
+            </button>
             <button
               onClick={handleLogout}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all"
@@ -129,17 +143,54 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Coming Soon Features */}
+          {/* Games Section */}
           <div className="max-w-5xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Outfit, sans-serif' }}>Coming Soon</h2>
+            <h2 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Outfit, sans-serif' }}>Games</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl opacity-60">
-                <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</h3>
-                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>Play Family Feud-style games with your matches</p>
+              {/* Raccoon Feud Card */}
+              <div 
+                className="group p-8 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 backdrop-blur-xl border border-[#ffd700]/30 rounded-2xl hover:border-[#ffd700]/60 transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(255,215,0,0.2)]"
+                onClick={() => navigate('/match')}
+                data-testid="feud-game-card"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-2xl flex items-center justify-center">
+                    <Trophy size={28} className="text-[#1a237e]" />
+                  </div>
+                  <span className="px-3 py-1 bg-[#ffd700]/20 text-[#ffd700] rounded-full text-xs font-bold">PLAY NOW</span>
+                </div>
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</h3>
+                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Guess the top answers and compete with your match!
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-[#ffd700]/60 text-sm">
+                  <span>🎯 Survey Says Style</span>
+                  <span>•</span>
+                  <span>2 Players</span>
+                </div>
               </div>
-              <div className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl opacity-60">
-                <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</h3>
-                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>Spin the bottle and have fun with challenges</p>
+
+              {/* Truth or Dare Card */}
+              <div 
+                className="group p-8 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 backdrop-blur-xl border border-pink-500/30 rounded-2xl hover:border-pink-500/60 transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(236,72,153,0.2)]"
+                onClick={() => navigate('/match')}
+                data-testid="tod-game-card"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center">
+                    <Sparkles size={28} className="text-white" />
+                  </div>
+                  <span className="px-3 py-1 bg-pink-500/20 text-pink-400 rounded-full text-xs font-bold">PLAY NOW</span>
+                </div>
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</h3>
+                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Spin the bottle and challenge your match!
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-pink-500/60 text-sm">
+                  <span>🍾 Bottle Spin</span>
+                  <span>•</span>
+                  <span>2 Players</span>
+                </div>
               </div>
             </div>
           </div>

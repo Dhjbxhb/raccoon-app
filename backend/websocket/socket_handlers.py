@@ -332,3 +332,238 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         except Exception as e:
             logger.error(f"Error blocking user: {e}")
+
+    # ============================================
+    # RACCOON FEUD GAME HANDLERS
+    # ============================================
+    
+    @sio.event
+    async def start_feud_game(sid):
+        """Start a Raccoon Feud game"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('error', {'message': 'No active match session'}, room=sid)
+                return
+            
+            session_id = session_data['session_id']
+            player1_id = session_data['user1']['user_id']
+            player2_id = session_data['user2']['user_id']
+            
+            # Create game
+            game = feud_service.create_game(session_id, player1_id, player2_id)
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('feud_game_started', {'game_state': game}, room=player1_socket)
+            await sio.emit('feud_game_started', {'game_state': game}, room=player2_socket)
+            
+            logger.info(f"Feud game started for session {session_id}")
+        
+        except Exception as e:
+            logger.error(f"Error starting Feud game: {e}")
+            await sio.emit('error', {'message': 'Failed to start game'}, room=sid)
+    
+    @sio.event
+    async def feud_guess(sid, data):
+        """Submit a guess in Raccoon Feud"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            guess = data.get('guess', '')
+            
+            result = feud_service.submit_guess(session_id, user_id, guess)
+            
+            if 'error' in result:
+                await sio.emit('error', {'message': result['error']}, room=sid)
+                return
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('feud_guess_result', result, room=player1_socket)
+            await sio.emit('feud_guess_result', result, room=player2_socket)
+            
+            # Check if game ended
+            if result['game_state']['status'] == 'finished':
+                await sio.emit('feud_game_ended', result, room=player1_socket)
+                await sio.emit('feud_game_ended', result, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error in Feud guess: {e}")
+
+    # ============================================
+    # TRUTH OR DARE GAME HANDLERS
+    # ============================================
+    
+    @sio.event
+    async def start_tod_game(sid):
+        """Start a Truth or Dare game"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('error', {'message': 'No active match session'}, room=sid)
+                return
+            
+            session_id = session_data['session_id']
+            player1_id = session_data['user1']['user_id']
+            player2_id = session_data['user2']['user_id']
+            
+            # Create game
+            game = truth_or_dare_service.create_game(session_id, player1_id, player2_id)
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('tod_game_started', {'game_state': game}, room=player1_socket)
+            await sio.emit('tod_game_started', {'game_state': game}, room=player2_socket)
+            
+            logger.info(f"Truth or Dare game started for session {session_id}")
+        
+        except Exception as e:
+            logger.error(f"Error starting ToD game: {e}")
+            await sio.emit('error', {'message': 'Failed to start game'}, room=sid)
+    
+    @sio.event
+    async def tod_spin_bottle(sid):
+        """Spin the bottle in Truth or Dare"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            result = truth_or_dare_service.spin_bottle(session_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('error', {'message': result['error']}, room=sid)
+                return
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('tod_spin_result', result, room=player1_socket)
+            await sio.emit('tod_spin_result', result, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error in ToD spin: {e}")
+    
+    @sio.event
+    async def tod_choose(sid, data):
+        """Choose truth or dare"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            choice = data.get('choice')
+            
+            result = truth_or_dare_service.choose_truth_or_dare(session_id, user_id, choice)
+            
+            if 'error' in result:
+                await sio.emit('error', {'message': result['error']}, room=sid)
+                return
+            
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('tod_choice_made', result, room=player1_socket)
+            await sio.emit('tod_choice_made', result, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error in ToD choice: {e}")
+    
+    @sio.event
+    async def tod_submit_question(sid, data):
+        """Submit truth/dare question"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            question = data.get('question')
+            
+            result = truth_or_dare_service.submit_question(session_id, user_id, question)
+            
+            if 'error' in result:
+                await sio.emit('error', {'message': result['error']}, room=sid)
+                return
+            
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('tod_question_submitted', result, room=player1_socket)
+            await sio.emit('tod_question_submitted', result, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error in ToD question: {e}")
+    
+    @sio.event
+    async def tod_complete_round(sid):
+        """Complete current round"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            result = truth_or_dare_service.complete_round(session_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('error', {'message': result['error']}, room=sid)
+                return
+            
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('tod_round_complete', result, room=player1_socket)
+            await sio.emit('tod_round_complete', result, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error in ToD round complete: {e}")
+

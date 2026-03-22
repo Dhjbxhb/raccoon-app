@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import { useMatching } from '@/hooks/useMatching';
 import { useChat } from '@/hooks/useChat';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, SkipForward, Ban, Loader2, Star, Globe } from 'lucide-react';
+import { ArrowLeft, Send, SkipForward, Ban, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2 } from 'lucide-react';
 
 // Raccoon facts for the loading screen
 const RACCOON_FACTS = [
@@ -37,6 +37,7 @@ const Match = () => {
   const [typingTimeout, setTypingTimeout] = useState(null);
   const [currentFact, setCurrentFact] = useState(0);
   const [factVisible, setFactVisible] = useState(true);
+  const [showGames, setShowGames] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -302,8 +303,59 @@ const Match = () => {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-4xl h-[600px] flex flex-col bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center p-6 gap-6">
+        {/* Game Sidebar */}
+        <div className={`${showGames ? 'flex' : 'hidden lg:flex'} flex-col w-full lg:w-72 gap-4`}>
+          <h3 className="text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            <Gamepad2 size={20} className="text-[#7c3aed]" />
+            Play Together
+          </h3>
+          
+          {/* Raccoon Feud */}
+          <button
+            onClick={() => navigate('/game/feud')}
+            className="p-4 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 border border-[#ffd700]/30 rounded-xl hover:border-[#ffd700]/60 transition-all text-left group"
+            data-testid="play-feud-btn"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-lg flex items-center justify-center">
+                <Trophy size={20} className="text-[#1a237e]" />
+              </div>
+              <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</span>
+            </div>
+            <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Guess the top answers!
+            </p>
+          </button>
+          
+          {/* Truth or Dare */}
+          <button
+            onClick={() => navigate('/game/truth-or-dare')}
+            className="p-4 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 border border-pink-500/30 rounded-xl hover:border-pink-500/60 transition-all text-left group"
+            data-testid="play-tod-btn"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <Sparkles size={20} className="text-white" />
+              </div>
+              <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</span>
+            </div>
+            <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Spin the bottle!
+            </p>
+          </button>
+          
+          {/* Mobile toggle */}
+          <button
+            onClick={() => setShowGames(false)}
+            className="lg:hidden mt-2 text-center text-gray-400 text-sm"
+          >
+            Back to Chat
+          </button>
+        </div>
+
+        {/* Chat Box */}
+        <div className={`${showGames ? 'hidden lg:flex' : 'flex'} flex-col w-full max-w-4xl h-[600px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden`}>
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4" data-testid="chat-messages">
             {messages.length === 0 && partner && (
@@ -357,6 +409,14 @@ const Match = () => {
           {/* Message Input */}
           <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10">
             <div className="flex gap-3">
+              {/* Mobile game toggle */}
+              <button
+                type="button"
+                onClick={() => setShowGames(true)}
+                className="lg:hidden p-3 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/30 rounded-xl transition-all"
+              >
+                <Gamepad2 size={20} className="text-[#7c3aed]" />
+              </button>
               <input
                 type="text"
                 value={messageInput}

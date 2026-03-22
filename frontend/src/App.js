@@ -10,6 +10,10 @@ import Guest from '@/pages/Guest';
 import Dashboard from '@/pages/Dashboard';
 import Match from '@/pages/Match';
 import Premium from '@/pages/Premium';
+import GameFeud from '@/pages/GameFeud';
+import GameTruthOrDare from '@/pages/GameTruthOrDare';
+import Admin from '@/pages/Admin';
+import Profile from '@/pages/Profile';
 import '@/App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -47,6 +51,38 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Match />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/game/feud" 
+        element={
+          <ProtectedRoute>
+            <GameFeud />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/game/truth-or-dare" 
+        element={
+          <ProtectedRoute>
+            <GameTruthOrDare />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin" 
+        element={
+          <ProtectedRoute>
+            <Admin />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/profile" 
+        element={
+          <ProtectedRoute>
+            <Profile />
           </ProtectedRoute>
         } 
       />
