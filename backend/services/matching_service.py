@@ -19,7 +19,7 @@ class MatchingQueue:
         # User to session mapping: {user_id: session_id}
         self.user_sessions: Dict[str, str] = {}
     
-    def add_to_queue(self, user_id: str, user_data: dict, gender_filter: str = 'any') -> Optional[dict]:
+    def add_to_queue(self, user_id: str, user_data: dict, gender_filter: str = 'any', country_filter: str = 'ANY') -> Optional[dict]:
         """Add user to queue and try to find a match"""
         # Check if user already in a session
         if user_id in self.user_sessions:
@@ -31,8 +31,12 @@ class MatchingQueue:
         if gender_filter not in ['male', 'female', 'any']:
             gender_filter = 'any'
         
+        # Normalize country filter
+        country_filter = country_filter.upper() if country_filter else 'ANY'
+        
         user_data['joined_at'] = datetime.now(timezone.utc).isoformat()
         user_data['gender_filter'] = gender_filter
+        user_data['country_filter'] = country_filter
         
         # Try to find a match first
         match = self._find_match(user_id, user_data)
@@ -51,7 +55,9 @@ class MatchingQueue:
     def _find_match(self, user_id: str, user_data: dict) -> Optional[dict]:
         """Try to find a match for the user"""
         gender_filter = user_data['gender_filter']
+        country_filter = user_data.get('country_filter', 'ANY')
         user_gender = user_data.get('gender', 'any')
+        user_country = user_data.get('country', '')
         
         # Search order: specific gender queue first, then 'any' queue
         search_queues = [gender_filter]
@@ -65,6 +71,8 @@ class MatchingQueue:
                 partner_id = potential_match['user_id']
                 partner_gender = potential_match.get('gender', 'any')
                 partner_filter = potential_match['gender_filter']
+                partner_country = potential_match.get('country', '')
+                partner_country_filter = potential_match.get('country_filter', 'ANY')
                 
                 # Don't match with self
                 if partner_id == user_id:
@@ -83,7 +91,20 @@ class MatchingQueue:
                     user_gender == 'any'
                 )
                 
-                if user_matches_partner and partner_matches_user:
+                # Check country preferences
+                user_country_matches = (
+                    country_filter == 'ANY' or
+                    country_filter == partner_country or
+                    not partner_country
+                )
+                
+                partner_country_matches = (
+                    partner_country_filter == 'ANY' or
+                    partner_country_filter == user_country or
+                    not user_country
+                )
+                
+                if user_matches_partner and partner_matches_user and user_country_matches and partner_country_matches:
                     # Match found! Remove from queue
                     self.queues[queue_name].pop(i)
                     

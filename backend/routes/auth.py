@@ -261,3 +261,122 @@ async def get_current_user(request: Request):
             total_sessions=user_dict.get('total_sessions', 0),
             total_time_spent=user_dict.get('total_time_spent', 0)
         )
+
+
+class SocialAuthRequest(BaseModel):
+    uid: str
+    email: str | None = None
+    displayName: str | None = None
+    photoURL: str | None = None
+    phoneNumber: str | None = None
+    provider: str
+    idToken: str
+
+@router.post("/social", response_model=AuthResponse)
+async def social_auth(data: SocialAuthRequest, request: Request):
+    """Handle social authentication (Google, Apple, Phone)"""
+    users = get_users_collection()
+    
+    # Auto-detect country from IP
+    client_ip = request.client.host
+    country_info = CountryService.get_country_from_ip(client_ip)
+    
+    # Check if user exists by Firebase UID or email
+    existing_user = None
+    if data.email:
+        existing_user = await users.find_one({"email": data.email}, {"_id": 0})
+    
+    if not existing_user and data.phoneNumber:
+        existing_user = await users.find_one({"phone_number": data.phoneNumber}, {"_id": 0})
+    
+    if not existing_user:
+        existing_user = await users.find_one({"firebase_uid": data.uid}, {"_id": 0})
+    
+    if existing_user:
+        # Update existing user with Firebase UID if not set
+        if not existing_user.get('firebase_uid'):
+            await users.update_one(
+                {"user_id": existing_user['user_id']},
+                {"$set": {
+                    "firebase_uid": data.uid,
+                    "last_active": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+        
+        # Check if banned
+        if existing_user.get('is_banned', False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been banned"
+            )
+        
+        # Create token
+        token = AuthService.create_token(
+            existing_user['user_id'],
+            is_admin=existing_user.get('is_admin', False)
+        )
+        
+        user_response = UserResponse(
+            user_id=existing_user['user_id'],
+            email=existing_user.get('email', ''),
+            username=existing_user['username'],
+            country=existing_user.get('country', country_info['country']),
+            gender=existing_user.get('gender', 'any'),
+            premium_status=existing_user.get('premium_status', False),
+            is_admin=existing_user.get('is_admin', False),
+            total_sessions=existing_user.get('total_sessions', 0),
+            total_time_spent=existing_user.get('total_time_spent', 0)
+        )
+        
+        return AuthResponse(token=token, user=user_response)
+    
+    # Create new user
+    user_id = str(uuid.uuid4())
+    username = data.displayName or f"User{random.randint(1000, 9999)}"
+    
+    # Ensure username is unique
+    existing_username = await users.find_one({"username": username}, {"_id": 0})
+    if existing_username:
+        username = f"{username}{random.randint(100, 999)}"
+    
+    new_user = {
+        "user_id": user_id,
+        "firebase_uid": data.uid,
+        "email": data.email or "",
+        "phone_number": data.phoneNumber,
+        "username": username,
+        "password_hash": "",  # No password for social auth
+        "country": country_info['country'],
+        "country_code": country_info['countryCode'],
+        "country_flag": country_info['flag'],
+        "gender": "any",  # Will be set later in profile
+        "date_of_birth": None,
+        "premium_status": False,
+        "is_admin": False,
+        "is_banned": False,
+        "total_sessions": 0,
+        "total_time_spent": 0,
+        "auth_provider": data.provider,
+        "photo_url": data.photoURL,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_active": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await users.insert_one(new_user)
+    
+    # Create token
+    token = AuthService.create_token(user_id)
+    
+    user_response = UserResponse(
+        user_id=user_id,
+        email=data.email or "",
+        username=username,
+        country=country_info['country'],
+        gender="any",
+        premium_status=False,
+        is_admin=False,
+        total_sessions=0,
+        total_time_spent=0
+    )
+    
+    return AuthResponse(token=token, user=user_response)

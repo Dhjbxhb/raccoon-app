@@ -120,9 +120,10 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             user_data['premium'] = user_data.get('premium_status', False)
             
             gender_filter = data.get('gender_filter', 'any')
+            country_filter = data.get('country_filter', 'ANY')
             
             # Try to match
-            match = matching_queue.add_to_queue(user_id, user_data, gender_filter)
+            match = matching_queue.add_to_queue(user_id, user_data, gender_filter, country_filter)
             
             if match:
                 # Match found immediately!

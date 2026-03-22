@@ -6,8 +6,9 @@ import { useMatching } from '@/hooks/useMatching';
 import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video, Lock, Crown } from 'lucide-react';
+import { ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video, Lock, Crown, Filter } from 'lucide-react';
 import VideoChat from '@/components/VideoChat';
+import MatchingFilters from '@/components/MatchingFilters';
 
 // Raccoon facts for the loading screen
 const RACCOON_FACTS = [
@@ -41,6 +42,8 @@ const Match = () => {
   const [factVisible, setFactVisible] = useState(true);
   const [showGames, setShowGames] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
   const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });
   const messagesEndRef = useRef(null);
 
@@ -74,9 +77,19 @@ const Match = () => {
 
   useEffect(() => {
     if (state === 'idle' && user) {
-      startMatching('any');
+      startMatching(matchingFilters.gender, matchingFilters.country);
     }
   }, [state, user]);
+
+  // Handle filter application
+  const handleApplyFilters = (filters) => {
+    setMatchingFilters(filters);
+    // If currently searching, restart with new filters
+    if (state === 'searching') {
+      startMatching(filters.gender, filters.country);
+    }
+    toast.success('Filters applied!');
+  };
 
   // Rotate raccoon facts every 3 seconds
   useEffect(() => {
@@ -215,6 +228,35 @@ const Match = () => {
         >
           <ArrowLeft size={22} className="text-white/50 hover:text-white/80 transition-colors" />
         </button>
+
+        {/* Filter button */}
+        <button
+          onClick={() => setShowFilters(true)}
+          className={`absolute top-6 right-6 p-3 rounded-full transition-all duration-300 hover:scale-110 z-20 flex items-center gap-2 ${
+            matchingFilters.gender !== 'any' || matchingFilters.country !== 'ANY'
+              ? 'bg-[#7c3aed] text-white'
+              : 'hover:bg-white/10 text-white/50 hover:text-white/80'
+          }`}
+          data-testid="filter-button"
+        >
+          <Filter size={22} />
+          {(matchingFilters.gender !== 'any' || matchingFilters.country !== 'ANY') && (
+            <span className="text-sm font-medium">Filtered</span>
+          )}
+        </button>
+
+        {/* Matching Filters Modal */}
+        <MatchingFilters
+          isOpen={showFilters}
+          onClose={() => setShowFilters(false)}
+          onApply={handleApplyFilters}
+          isPremium={isPremium}
+          onPremiumRequired={() => {
+            toast.info('Filters are a Premium feature');
+            navigate('/premium');
+          }}
+          initialFilters={matchingFilters}
+        />
 
         {/* Main content */}
         <div className="relative z-10 text-center px-6">

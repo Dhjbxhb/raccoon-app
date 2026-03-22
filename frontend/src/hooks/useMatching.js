@@ -42,9 +42,12 @@ export const useMatching = (socket) => {
     };
   }, [socket]);
 
-  const startMatching = (genderFilter = 'any') => {
+  const startMatching = (genderFilter = 'any', countryFilter = 'ANY') => {
     if (socket) {
-      socket.emit('join_queue', { gender_filter: genderFilter });
+      socket.emit('join_queue', { 
+        gender_filter: genderFilter,
+        country_filter: countryFilter 
+      });
       setState('searching');
     }
   };
