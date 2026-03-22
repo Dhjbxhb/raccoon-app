@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Mail, Lock, User, MapPin, Calendar, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, User, Calendar, ArrowLeft } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -14,8 +14,7 @@ const Signup = () => {
     email: '',
     username: '',
     password: '',
-    country: '',
-    gender: 'any',
+    gender: 'male',
     date_of_birth: ''
   });
   const [loading, setLoading] = useState(false);
@@ -129,37 +128,11 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Country */}
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>Country</label>
-              <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <select
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  className="w-full bg-black/50 border border-white/10 focus:border-[#7c3aed]/50 focus:ring-1 focus:ring-[#7c3aed]/50 rounded-xl h-11 pl-11 pr-4 text-white outline-none transition-all text-sm"
-                  required
-                  data-testid="signup-country-select"
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
-                >
-                  <option value="">Select your country</option>
-                  <option value="United States">United States</option>
-                  <option value="United Kingdom">United Kingdom</option>
-                  <option value="Canada">Canada</option>
-                  <option value="Australia">Australia</option>
-                  <option value="Germany">Germany</option>
-                  <option value="France">France</option>
-                  <option value="India">India</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
             {/* Gender */}
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>Gender</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['Male', 'Female', 'Any'].map((gender) => (
+              <div className="grid grid-cols-2 gap-2">
+                {['Male', 'Female'].map((gender) => (
                   <button
                     key={gender}
                     type="button"
@@ -193,6 +166,13 @@ const Signup = () => {
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 />
               </div>
+            </div>
+
+            {/* Country Auto-detect Notice */}
+            <div className="p-3 bg-[#7c3aed]/10 border border-[#7c3aed]/30 rounded-xl">
+              <p className="text-xs text-[#7c3aed]" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                🌍 Your country will be automatically detected
+              </p>
             </div>
 
             {/* Submit */}

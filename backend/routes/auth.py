@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Request
 from pydantic import BaseModel, EmailStr
 from services.auth_service import AuthService
 from services.db_service import get_users_collection, get_guests_collection
+from services.country_service import CountryService
 from models.user import User, UserResponse
 from models.guest import Guest, GuestResponse
 from utils.validators import validate_age, validate_password, validate_username
@@ -16,7 +17,6 @@ class SignupRequest(BaseModel):
     email: EmailStr
     username: str
     password: str
-    country: str
     gender: str
     date_of_birth: str
 
@@ -32,7 +32,7 @@ class AuthResponse(BaseModel):
     user: UserResponse | GuestResponse
 
 @router.post("/signup", response_model=AuthResponse)
-async def signup(data: SignupRequest):
+async def signup(data: SignupRequest, request: Request):
     """Register new user"""
     users = get_users_collection()
     
@@ -75,12 +75,16 @@ async def signup(data: SignupRequest):
             detail="Username already taken"
         )
     
-    # Validate gender
-    if data.gender.lower() not in ['male', 'female', 'any']:
+    # Validate gender (Male or Female only)
+    if data.gender.lower() not in ['male', 'female']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid gender selection"
+            detail="Gender must be Male or Female"
         )
+    
+    # Auto-detect country from IP
+    client_ip = request.client.host
+    country_info = CountryService.get_country_from_ip(client_ip)
     
     # Create user
     user_id = str(uuid.uuid4())
@@ -91,7 +95,7 @@ async def signup(data: SignupRequest):
         email=data.email,
         username=data.username,
         password_hash=password_hash,
-        country=data.country,
+        country=country_info['country'],
         gender=data.gender.lower(),
         date_of_birth=data.date_of_birth
     )
@@ -100,6 +104,8 @@ async def signup(data: SignupRequest):
     user_dict = user.model_dump()
     user_dict['created_at'] = user_dict['created_at'].isoformat()
     user_dict['last_active'] = user_dict['last_active'].isoformat()
+    user_dict['country_code'] = country_info['countryCode']
+    user_dict['country_flag'] = country_info['flag']
     await users.insert_one(user_dict)
     
     # Create token
@@ -109,7 +115,7 @@ async def signup(data: SignupRequest):
         user_id=user.user_id,
         email=user.email,
         username=user.username,
-        country=user.country,
+        country=country_info['country'],
         gender=user.gender,
         premium_status=user.premium_status,
         is_admin=user.is_admin,
@@ -173,16 +179,20 @@ async def login(data: LoginRequest):
     return AuthResponse(token=token, user=user_response)
 
 @router.post("/guest", response_model=AuthResponse)
-async def guest_login(data: GuestRequest):
+async def guest_login(data: GuestRequest, request: Request):
     """Create guest session"""
     guests = get_guests_collection()
     
-    # Validate gender
-    if data.gender.lower() not in ['male', 'female', 'any']:
+    # Validate gender (Male or Female only)
+    if data.gender.lower() not in ['male', 'female']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid gender selection"
+            detail="Gender must be Male or Female"
         )
+    
+    # Auto-detect country from IP
+    client_ip = request.client.host
+    country_info = CountryService.get_country_from_ip(client_ip)
     
     # Generate guest ID and username
     guest_id = str(uuid.uuid4())
@@ -208,6 +218,9 @@ async def guest_login(data: GuestRequest):
     guest_dict = guest.model_dump()
     guest_dict['created_at'] = guest_dict['created_at'].isoformat()
     guest_dict['session_expires_at'] = guest_dict['session_expires_at'].isoformat()
+    guest_dict['country'] = country_info['country']
+    guest_dict['country_code'] = country_info['countryCode']
+    guest_dict['country_flag'] = country_info['flag']
     await guests.insert_one(guest_dict)
     
     # Create token (1 day expiry for guests)

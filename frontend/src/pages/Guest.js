@@ -10,7 +10,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 const Guest = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [gender, setGender] = useState('any');
+  const [gender, setGender] = useState('male');
   const [loading, setLoading] = useState(false);
 
   const handleGuestLogin = async () => {
@@ -70,9 +70,9 @@ const Guest = () => {
 
           {/* Gender Selection */}
           <div className="mb-8">
-            <label className="block text-sm font-medium mb-3 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Select your gender preference</label>
-            <div className="grid grid-cols-3 gap-3">
-              {['Male', 'Female', 'Any'].map((g) => (
+            <label className="block text-sm font-medium mb-3 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Select your gender</label>
+            <div className="grid grid-cols-2 gap-3">
+              {['Male', 'Female'].map((g) => (
                 <button
                   key={g}
                   type="button"

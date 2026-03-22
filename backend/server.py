@@ -25,7 +25,9 @@ api_router = APIRouter(prefix="/api")
 
 # Import and include auth routes
 from routes.auth import router as auth_router
+from routes.auth_multiple import router as auth_multiple_router
 api_router.include_router(auth_router)
+api_router.include_router(auth_multiple_router)
 
 # Basic route
 @api_router.get("/")
