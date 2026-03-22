@@ -1,12 +1,14 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { SocketProvider } from '@/contexts/SocketContext';
 import { Toaster } from 'sonner';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Guest from '@/pages/Guest';
 import Dashboard from '@/pages/Dashboard';
+import Match from '@/pages/Match';
 import '@/App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -38,6 +40,14 @@ function AppRoutes() {
           </ProtectedRoute>
         } 
       />
+      <Route 
+        path="/match" 
+        element={
+          <ProtectedRoute>
+            <Match />
+          </ProtectedRoute>
+        } 
+      />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
@@ -47,21 +57,23 @@ function App() {
   return (
     <div className="App">
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: 'rgba(18, 18, 18, 0.9)',
-                color: '#fff',
-                border: '1px solid rgba(124, 58, 237, 0.3)',
-                backdropFilter: 'blur(16px)',
-                fontFamily: 'Manrope, sans-serif'
-              }
-            }}
-          />
-        </BrowserRouter>
+        <SocketProvider>
+          <BrowserRouter>
+            <AppRoutes />
+            <Toaster 
+              position="top-right"
+              toastOptions={{
+                style: {
+                  background: 'rgba(18, 18, 18, 0.9)',
+                  color: '#fff',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                  backdropFilter: 'blur(16px)',
+                  fontFamily: 'Manrope, sans-serif'
+                }
+              }}
+            />
+          </BrowserRouter>
+        </SocketProvider>
       </AuthProvider>
     </div>
   );
