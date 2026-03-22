@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Sparkles, Zap, Users } from 'lucide-react';
+import { Sparkles, Zap, Users, Star, Gamepad2 } from 'lucide-react';
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -14,22 +14,29 @@ const Landing = () => {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-hidden">
-      {/* Background Image */}
-      <div 
-        className="fixed inset-0 z-0 opacity-30"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1635931225069-4968458f04f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBjaXR5JTIwbmlnaHQlMjBibHVycmVkJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzQxNzU5Mjd8MA&ixlib=rb-4.1.0&q=85)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(3px)'
-        }}
-      />
+    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-hidden relative">
+      {/* Premium City Background with Purple Overlay */}
+      <div className="fixed inset-0 z-0">
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'url(https://images.unsplash.com/photo-1703833345949-0a2aca1f0e9c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwyfHxuaWdodCUyMGNpdHklMjBza3lsaW5lJTIwcHVycGxlJTIwbmVvbiUyMGxpZ2h0cyUyMG1vZGVybiUyMGJ1aWxkaW5nc3xlbnwwfHx8cHVycGxlfDE3NzQxODYwOTV8MA&ixlib=rb-4.1.0&q=85)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            filter: 'blur(2px)'
+          }}
+        />
+        {/* Purple Gradient Overlay - Blended Across Page */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#7c3aed]/40 via-[#0a0a0a]/80 to-[#0a0a0a]/95" />
+        {/* Additional Purple Glow */}
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#7c3aed]/20 blur-[150px] rounded-full" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#4c1d95]/20 blur-[120px] rounded-full" />
+      </div>
 
       {/* Content */}
       <div className="relative z-10">
         {/* Navbar */}
-        <nav className="px-6 py-6 flex justify-between items-center">
+        <nav className="px-6 py-6 flex justify-between items-center backdrop-blur-sm">
           {/* Logo - Text Only */}
           <div className="flex items-center gap-3">
             <span 
@@ -84,7 +91,7 @@ const Landing = () => {
                 style={{ 
                   fontFamily: 'Outfit, sans-serif',
                   letterSpacing: '-0.02em',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #7c3aed 100%)',
+                  background: 'linear-gradient(135deg, #ffffff 0%, #a78bfa 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
@@ -95,7 +102,7 @@ const Landing = () => {
 
               {/* Subheading */}
               <p 
-                className="text-base sm:text-lg text-gray-400 max-w-xl leading-relaxed"
+                className="text-base sm:text-lg text-gray-300 max-w-xl leading-relaxed"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
               >
                 Random video matching, real-time chat, and interactive games.
@@ -127,11 +134,11 @@ const Landing = () => {
               </div>
             </div>
 
-            {/* Right: YOUR Cool Raccoon - FULLY INTEGRATED */}
+            {/* Right: Cool Raccoon - Integrated */}
             <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-hidden -mt-8 lg:mt-0">
-              {/* Purple glow - BIGGER & MORE PROMINENT */}
+              {/* Purple Glow - Prominent */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-[#7c3aed]/35 blur-[180px] rounded-full" />
-              {/* Raccoon Container - Crop borders with clip-path */}
+              {/* Raccoon - Clean Integration */}
               <div 
                 className="relative z-10 w-full max-w-2xl -mx-12"
                 style={{
@@ -151,31 +158,46 @@ const Landing = () => {
             </div>
           </div>
 
-          {/* Features Grid */}
+          {/* Features Grid - FUNCTIONAL BUTTONS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mt-20">
-            <div className="p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#7c3aed]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+            {/* Random Matching - Functional */}
+            <button
+              onClick={() => navigate('/match')}
+              className="group p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-[0_0_40px_rgba(124,58,237,0.3)] cursor-pointer text-left"
+              data-testid="feature-matching"
+            >
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#7c3aed]/20 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:bg-[#7c3aed]/30 transition-all">
                 <Users size={24} className="text-[#7c3aed]" />
               </div>
               <h3 className="text-lg sm:text-xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Random Matching</h3>
               <p className="text-sm sm:text-base text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Connect with strangers instantly. Skip anytime. No limits.</p>
-            </div>
+            </button>
 
-            <div className="p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#10b981]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                <Zap size={24} className="text-[#10b981]" />
+            {/* Interactive Games - Functional */}
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="group p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] cursor-pointer text-left"
+              data-testid="feature-games"
+            >
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#10b981]/20 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:bg-[#10b981]/30 transition-all">
+                <Gamepad2 size={24} className="text-[#10b981]" />
               </div>
               <h3 className="text-lg sm:text-xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Interactive Games</h3>
               <p className="text-sm sm:text-base text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Play Raccoon Feud and Truth or Dare together. Stay engaged.</p>
-            </div>
+            </button>
 
-            <div className="p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f43f5e]/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#f43f5e]/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                <Sparkles size={24} className="text-[#f43f5e]" />
+            {/* Premium Features - Functional */}
+            <button
+              onClick={() => navigate('/premium')}
+              className="group p-6 sm:p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f43f5e]/50 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-[0_0_40px_rgba(244,63,94,0.3)] cursor-pointer text-left"
+              data-testid="feature-premium"
+            >
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#f43f5e]/20 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:bg-[#f43f5e]/30 transition-all">
+                <Star size={24} className="text-[#f43f5e]" />
               </div>
               <h3 className="text-lg sm:text-xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium Features</h3>
               <p className="text-sm sm:text-base text-gray-400 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>Get verified badge. Stand out. Show you're serious.</p>
-            </div>
+            </button>
           </div>
         </div>
       </div>

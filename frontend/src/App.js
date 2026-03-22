@@ -9,6 +9,7 @@ import Signup from '@/pages/Signup';
 import Guest from '@/pages/Guest';
 import Dashboard from '@/pages/Dashboard';
 import Match from '@/pages/Match';
+import Premium from '@/pages/Premium';
 import '@/App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -32,6 +33,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/guest" element={<Guest />} />
+      <Route path="/premium" element={<Premium />} />
       <Route 
         path="/dashboard" 
         element={

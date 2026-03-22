@@ -15,14 +15,6 @@ const Login = () => {
     password: ''
   });
   const [loading, setLoading] = useState(false);
-  const [authMethods, setAuthMethods] = useState(null);
-
-  useEffect(() => {
-    // Fetch available auth methods
-    axios.get(`${API_URL}/auth/methods`)
-      .then(res => setAuthMethods(res.data))
-      .catch(err => console.error('Failed to fetch auth methods:', err));
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,12 +40,12 @@ const Login = () => {
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-6">
       {/* Background */}
       <div 
-        className="fixed inset-0 z-0 opacity-20"
+        className="fixed inset-0 z-0 opacity-15"
         style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1635931225069-4968458f04f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBjaXR5JTIwbmlnaHQlMjBibHVycmVkJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzQxNzU5Mjd8MA&ixlib=rb-4.1.0&q=85)',
+          backgroundImage: 'url(https://images.unsplash.com/photo-1575195372639-373ecc8590f9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxuaWdodCUyMGNpdHklMjBza3lsaW5lJTIwcHVycGxlJTIwbmVvbiUyMGxpZ2h0cyUyMG1vZGVybiUyMGJ1aWxkaW5nc3xlbnwwfHx8cHVycGxlfDE3NzQxODYwOTV8MA&ixlib=rb-4.1.0&q=85)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'blur(5px)'
+          filter: 'blur(4px)'
         }}
       />
 
@@ -69,18 +61,10 @@ const Login = () => {
           <span style={{ fontFamily: 'Manrope, sans-serif' }}>Back to Home</span>
         </button>
 
-        {/* Card */}
+        {/* Card - Clean, No Branding */}
         <div className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_0_30px_rgba(124,58,237,0.2)]">
-          {/* Logo */}
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-2xl">
-              🦝
-            </div>
-            <span className="text-3xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
-          </div>
-
-          <h2 className="text-2xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Welcome Back</h2>
-          <p className="text-gray-400 text-center mb-8" style={{ fontFamily: 'Manrope, sans-serif' }}>Login to continue matching</p>
+          <h2 className="text-3xl font-bold mb-2 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Sign In</h2>
+          <p className="text-gray-400 text-center mb-8" style={{ fontFamily: 'Manrope, sans-serif' }}>Welcome back</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}
@@ -127,7 +111,7 @@ const Login = () => {
               data-testid="login-submit-button"
               style={{ fontFamily: 'Manrope, sans-serif' }}
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
@@ -138,11 +122,11 @@ const Login = () => {
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
-          {/* Social Login Buttons */}
-          <div className="space-y-3">
+          {/* Social Login Buttons - Clean Grid */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
             <button
               onClick={() => handleSocialLogin('Google')}
-              className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-3 border border-white/10"
+              className="py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 border border-white/10"
               data-testid="login-google-button"
               style={{ fontFamily: 'Manrope, sans-serif' }}
             >
@@ -152,40 +136,33 @@ const Login = () => {
                 <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              Continue with Google
+              Google
             </button>
 
             <button
               onClick={() => handleSocialLogin('Apple')}
-              className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-3 border border-white/10"
+              className="py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 border border-white/10"
               data-testid="login-apple-button"
               style={{ fontFamily: 'Manrope, sans-serif' }}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
               </svg>
-              Continue with Apple
-            </button>
-
-            <button
-              onClick={() => handleSocialLogin('Phone')}
-              className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-3 border border-white/10"
-              data-testid="login-phone-button"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              Continue with Phone
+              Apple
             </button>
           </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>or</span>
-            <div className="flex-1 h-px bg-white/10" />
-          </div>
+          <button
+            onClick={() => handleSocialLogin('Phone')}
+            className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 border border-white/10 mb-6"
+            data-testid="login-phone-button"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            Phone Number
+          </button>
 
           {/* Guest Mode */}
           <button
@@ -194,7 +171,7 @@ const Login = () => {
             data-testid="login-guest-button"
             style={{ fontFamily: 'Manrope, sans-serif' }}
           >
-            Continue as Guest
+            Sign in as Guest
           </button>
 
           {/* Sign Up Link */}
