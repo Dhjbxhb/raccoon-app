@@ -101,8 +101,12 @@ const Match = () => {
               <ArrowLeft size={20} />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-lg">
-                🦝
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-[#2a1f4d]">
+                <img 
+                  src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/0yj4w3zp_Screenshot%202026-03-22%20at%202.49.55%E2%80%AFPM.png"
+                  alt="Raccoon"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
             </div>
@@ -151,12 +155,21 @@ const Match = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         {state === 'searching' && (
           <div className="text-center">
-            <div className="mb-8">
-              <div className="w-32 h-32 mx-auto relative">
+            <div className="mb-8 relative">
+              <div className="w-80 h-80 mx-auto relative">
+                {/* Pulsing purple glow */}
                 <div className="absolute inset-0 bg-[#7c3aed]/20 rounded-full animate-ping" />
-                <div className="absolute inset-0 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-6xl">
-                  🦝
-                </div>
+                {/* YOUR Cool Raccoon */}
+                <img 
+                  src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/0yj4w3zp_Screenshot%202026-03-22%20at%202.49.55%E2%80%AFPM.png"
+                  alt="Searching Raccoon"
+                  className="relative z-10 w-full h-full object-contain drop-shadow-2xl"
+                  style={{
+                    animation: 'float 3s ease-in-out infinite'
+                  }}
+                />
+                {/* Purple glow behind */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#7c3aed]/30 blur-[100px] rounded-full -z-10" />
               </div>
             </div>
             <h2 className="text-3xl font-bold mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
