@@ -127,19 +127,24 @@ const Landing = () => {
               </div>
             </div>
 
-            {/* Right: YOUR Cool Raccoon - FULL CLEAN */}
-            <div className="relative order-1 lg:order-2 flex items-center justify-center min-h-[400px] lg:min-h-[500px]">
-              <div className="relative w-full max-w-xl">
-                {/* Purple glow behind */}
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-2xl aspect-square bg-[#7c3aed]/25 blur-[120px] rounded-full" />
-                {/* YOUR Raccoon - Clean & Centered */}
+            {/* Right: YOUR Cool Raccoon - FULLY INTEGRATED */}
+            <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-hidden -mt-8 lg:mt-0">
+              {/* Purple glow - BIGGER & MORE PROMINENT */}
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-[#7c3aed]/35 blur-[180px] rounded-full" />
+              {/* Raccoon Container - Crop borders with clip-path */}
+              <div 
+                className="relative z-10 w-full max-w-2xl -mx-12"
+                style={{
+                  clipPath: 'inset(0 25% 0 25%)'
+                }}
+              >
                 <img 
                   src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
                   alt="Cool Raccoon"
-                  className="relative z-10 w-full h-auto drop-shadow-2xl"
+                  className="w-full h-auto drop-shadow-2xl scale-[2] lg:scale-[1.8]"
                   style={{
                     animation: 'float 3s ease-in-out infinite',
-                    imageRendering: '-webkit-optimize-contrast'
+                    filter: 'drop-shadow(0 25px 50px rgba(124, 58, 237, 0.4))'
                   }}
                 />
               </div>
