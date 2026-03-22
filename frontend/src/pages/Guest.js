@@ -53,17 +53,9 @@ const Guest = () => {
           <span style={{ fontFamily: 'Manrope, sans-serif' }}>Back to Home</span>
         </button>
 
-        {/* Card */}
+        {/* Card - Clean, Minimal Design */}
         <div className="p-10 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_0_30px_rgba(124,58,237,0.2)]">
-          {/* Logo */}
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-2xl">
-              🦝
-            </div>
-            <span className="text-3xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
-          </div>
-
-          <h2 className="text-3xl font-bold mb-3 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Try as Guest</h2>
+          <h2 className="text-3xl font-bold mb-3 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>Quick Start</h2>
           <p className="text-gray-400 text-center mb-8" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Jump right in. No signup needed.<br />Your session lasts until you close the tab.
           </p>

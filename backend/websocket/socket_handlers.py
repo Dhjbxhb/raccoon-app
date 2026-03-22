@@ -3,6 +3,7 @@ import logging
 from services.matching_service import matching_queue
 from services.auth_service import AuthService
 from services.db_service import get_users_collection, get_guests_collection, get_blocked_users_collection, get_messages_collection, get_matches_collection
+from services.game_service import feud_service, truth_or_dare_service
 from datetime import datetime, timezone
 import uuid
 
@@ -83,15 +84,15 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'is_guest': is_guest
             }, room=sid)
             
-            logger.info(f\"User {user_id} authenticated on socket {sid}\")
+            logger.info(f"User {user_id} authenticated on socket {sid}")
             
         except Exception as e:
-            logger.error(f\"Authentication error: {e}\")
+            logger.error(f"Authentication error: {e}")
             await sio.emit('error', {'message': 'Authentication failed'}, room=sid)
     
     @sio.event
     async def join_queue(sid, data):
-        \"\"\"Add user to matching queue\"\"\"
+        """Add user to matching queue"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -150,7 +151,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'partner': match['user1']
                 }, room=user2_socket)
                 
-                logger.info(f\"Match created: {match['user1']['user_id']} <-> {match['user2']['user_id']}\")
+                logger.info(f"Match created: {match['user1']['user_id']} <-> {match['user2']['user_id']}")
             else:
                 # Added to queue, waiting
                 position = matching_queue.get_queue_position(user_id)
@@ -160,12 +161,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 }, room=sid)
         
         except Exception as e:
-            logger.error(f\"Error joining queue: {e}\")
+            logger.error(f"Error joining queue: {e}")
             await sio.emit('error', {'message': 'Failed to join queue'}, room=sid)
     
     @sio.event
     async def leave_queue(sid):
-        \"\"\"Remove user from queue\"\"\"
+        """Remove user from queue"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -173,11 +174,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     matching_queue.remove_from_queue(user_id)
                     await sio.emit('queue_left', {'message': 'Left queue'}, room=sid)
         except Exception as e:
-            logger.error(f\"Error leaving queue: {e}\")
+            logger.error(f"Error leaving queue: {e}")
     
     @sio.event
     async def send_message(sid, data):
-        \"\"\"Send message to partner\"\"\"
+        """Send message to partner"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -230,11 +231,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             await sio.emit('receive_message', message, room=sid)
             
         except Exception as e:
-            logger.error(f\"Error sending message: {e}\")
+            logger.error(f"Error sending message: {e}")
     
     @sio.event
     async def typing_start(sid):
-        \"\"\"Notify partner that user is typing\"\"\"
+        """Notify partner that user is typing"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -245,11 +246,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if partner_socket:
                 await sio.emit('partner_typing', room=partner_socket)
         except Exception as e:
-            logger.error(f\"Error in typing_start: {e}\")
+            logger.error(f"Error in typing_start: {e}")
     
     @sio.event
     async def typing_stop(sid):
-        \"\"\"Notify partner that user stopped typing\"\"\"
+        """Notify partner that user stopped typing"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -260,11 +261,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if partner_socket:
                 await sio.emit('partner_stopped_typing', room=partner_socket)
         except Exception as e:
-            logger.error(f\"Error in typing_stop: {e}\")
+            logger.error(f"Error in typing_stop: {e}")
     
     @sio.event
     async def skip_match(sid):
-        \"\"\"Skip current match\"\"\"
+        """Skip current match"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -290,14 +291,14 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     }}
                 )
                 
-                logger.info(f\"Match skipped by {user_id}\")
+                logger.info(f"Match skipped by {user_id}")
         
         except Exception as e:
-            logger.error(f\"Error skipping match: {e}\")
+            logger.error(f"Error skipping match: {e}")
     
     @sio.event
     async def block_user(sid, data):
-        \"\"\"Block a user\"\"\"
+        """Block a user"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -327,7 +328,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     await sio.emit('match_ended', {'reason': 'partner_left'}, room=partner_socket)
             
             await sio.emit('user_blocked', {'blocked_id': blocked_id}, room=sid)
-            logger.info(f\"User {user_id} blocked {blocked_id}\")
+            logger.info(f"User {user_id} blocked {blocked_id}")
         
         except Exception as e:
-            logger.error(f\"Error blocking user: {e}\")
+            logger.error(f"Error blocking user: {e}")

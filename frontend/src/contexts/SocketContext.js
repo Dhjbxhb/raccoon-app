@@ -16,10 +16,12 @@ export const SocketProvider = ({ children }) => {
 
     // Create socket connection
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
+      path: '/api/socket.io',
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      timeout: 20000
     });
 
     newSocket.on('connect', () => {
@@ -37,6 +39,10 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('authenticated', (data) => {
       console.log('Socket authenticated:', data);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error.message);
     });
 
     newSocket.on('error', (error) => {

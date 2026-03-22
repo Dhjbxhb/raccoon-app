@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Check, Zap } from 'lucide-react';
+import { ArrowLeft, Star, Gamepad2, Sparkles, Target, MessageCircle } from 'lucide-react';
 
 const Premium = () => {
   const navigate = useNavigate();
@@ -11,13 +11,47 @@ const Premium = () => {
     { duration: '3 Months', price: 28, period: '3 months', popular: false }
   ];
 
-  const benefits = [
-    'Verified badge ⭐ next to your username',
-    'Stand out in matches',
-    'Priority matching',
-    'Exclusive profile customization',
-    'Ad-free experience',
-    'Early access to new features'
+  const featureCategories = [
+    {
+      icon: Gamepad2,
+      title: 'Games',
+      color: '#7c3aed',
+      features: [
+        'Play any game anytime',
+        'Choose which game you want to play',
+        'Raccoon Feud, Truth or Dare & more'
+      ]
+    },
+    {
+      icon: Sparkles,
+      title: 'Filters',
+      color: '#f43f5e',
+      features: [
+        'Funny filters (big head, raccoon mask)',
+        'Beauty filters',
+        'Switch filters anytime during chat'
+      ]
+    },
+    {
+      icon: Target,
+      title: 'Matching Control',
+      color: '#10b981',
+      features: [
+        'Choose gender filter',
+        'Choose country filter',
+        'More control over who you match with'
+      ]
+    },
+    {
+      icon: MessageCircle,
+      title: 'Chat Control',
+      color: '#3b82f6',
+      features: [
+        'Choose chat preferences',
+        'Better matching experience',
+        'Priority in the queue'
+      ]
+    }
   ];
 
   return (
@@ -36,7 +70,7 @@ const Premium = () => {
       {/* Content */}
       <div className="relative z-10">
         {/* Header */}
-        <div className="px-6 py-6 border-b border-white/5">
+        <div className="px-6 py-6 border-b border-white/5 backdrop-blur-md">
           <div className="max-w-6xl mx-auto flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -45,7 +79,7 @@ const Premium = () => {
             >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium Features</h1>
+            <h1 className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium</h1>
           </div>
         </div>
 
@@ -53,13 +87,13 @@ const Premium = () => {
         <div className="container mx-auto px-6 py-12">
           <div className="max-w-5xl mx-auto">
             {/* Header Section */}
-            <div className="text-center mb-16">
+            <div className="text-center mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#7c3aed]/20 border border-[#7c3aed]/50 rounded-full backdrop-blur-md mb-6">
-                <Star size={16} className="text-[#7c3aed] fill-[#7c3aed]" />
+                <Star size={16} className="text-yellow-400 fill-yellow-400" />
                 <span className="text-sm font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>PREMIUM</span>
               </div>
               <h2 
-                className="text-5xl font-black mb-4"
+                className="text-4xl sm:text-5xl font-black mb-4"
                 style={{ 
                   fontFamily: 'Outfit, sans-serif',
                   background: 'linear-gradient(135deg, #ffffff 0%, #7c3aed 100%)',
@@ -67,19 +101,49 @@ const Premium = () => {
                   WebkitTextFillColor: 'transparent'
                 }}
               >
-                Stand Out. Get Noticed.
+                Unlock Everything
               </h2>
-              <p className="text-xl text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>Upgrade to premium and show everyone you're serious</p>
+              <p className="text-lg text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Get full access to games, filters & matching controls
+              </p>
             </div>
 
-            {/* Benefits Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-16">
-              {benefits.map((benefit, index) => (
-                <div key={index} className="flex items-center gap-3 p-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl">
-                  <Check size={20} className="text-[#7c3aed] flex-shrink-0" />
-                  <span style={{ fontFamily: 'Manrope, sans-serif' }}>{benefit}</span>
-                </div>
-              ))}
+            {/* Feature Categories */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+              {featureCategories.map((category, index) => {
+                const Icon = category.icon;
+                return (
+                  <div 
+                    key={index} 
+                    className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-white/20 transition-all"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center"
+                        style={{ backgroundColor: `${category.color}20` }}
+                      >
+                        <Icon size={20} style={{ color: category.color }} />
+                      </div>
+                      <h3 className="text-xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                        {category.title}
+                      </h3>
+                    </div>
+                    <ul className="space-y-3">
+                      {category.features.map((feature, fIndex) => (
+                        <li key={fIndex} className="flex items-start gap-3">
+                          <div 
+                            className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
+                            style={{ backgroundColor: category.color }}
+                          />
+                          <span className="text-gray-300" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                            {feature}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Pricing Cards */}
@@ -95,7 +159,7 @@ const Premium = () => {
                 >
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 px-4 py-1 bg-[#7c3aed] rounded-full text-sm font-bold">
-                      MOST POPULAR
+                      BEST VALUE
                     </div>
                   )}
                   <div className="text-center mb-6">
@@ -111,6 +175,7 @@ const Premium = () => {
                         ? 'bg-[#7c3aed] hover:bg-[#6d28d9] shadow-[0_0_20px_rgba(124,58,237,0.4)]'
                         : 'bg-white/10 hover:bg-white/20'
                     }`}
+                    data-testid={`premium-${plan.duration.toLowerCase().replace(' ', '-')}-btn`}
                     style={{ fontFamily: 'Manrope, sans-serif' }}
                   >
                     Get Premium
@@ -122,7 +187,7 @@ const Premium = () => {
             {/* Note */}
             <div className="mt-12 text-center">
               <p className="text-gray-500 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                Premium features coming soon. This is a preview of our pricing plans.
+                Payment integration coming soon. This is a preview.
               </p>
             </div>
           </div>
