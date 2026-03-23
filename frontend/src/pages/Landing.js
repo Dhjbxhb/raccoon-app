@@ -138,6 +138,14 @@ const Landing = () => {
         </div>
       </div>
 
+      {/* Footer Links */}
+      <div className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-center gap-6 text-sm text-gray-500">
+        <a href="/terms" className="hover:text-gray-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>Terms</a>
+        <a href="/privacy" className="hover:text-gray-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>Privacy</a>
+        <a href="/guidelines" className="hover:text-gray-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>Guidelines</a>
+        <span className="text-gray-600">18+ only</span>
+      </div>
+
       {/* Animations */}
       <style>{`
         @keyframes pulse {

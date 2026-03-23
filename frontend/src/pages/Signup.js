@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Calendar, ArrowLeft, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Calendar, ArrowLeft, Sparkles, Check } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -18,9 +18,16 @@ const Signup = () => {
     date_of_birth: ''
   });
   const [loading, setLoading] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!agreedToTerms) {
+      toast.error('Please agree to the Terms of Service and Privacy Policy');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -161,10 +168,32 @@ const Signup = () => {
                 </p>
               </div>
 
+              {/* Terms & Privacy Checkbox */}
+              <div className="flex items-start gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAgreedToTerms(!agreedToTerms)}
+                  className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                    agreedToTerms 
+                      ? 'bg-[#7c3aed] border-[#7c3aed]' 
+                      : 'border-white/30 hover:border-[#7c3aed]/50'
+                  }`}
+                  data-testid="terms-checkbox"
+                >
+                  {agreedToTerms && <Check size={14} className="text-white" />}
+                </button>
+                <label className="text-sm text-gray-400 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  I am 18+ and agree to the{' '}
+                  <Link to="/terms" className="text-[#7c3aed] hover:underline">Terms of Service</Link>
+                  {' '}and{' '}
+                  <Link to="/privacy" className="text-[#7c3aed] hover:underline">Privacy Policy</Link>
+                </label>
+              </div>
+
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !agreedToTerms}
                 className="w-full py-3.5 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl font-bold tracking-wide shadow-[0_0_20px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="signup-submit-button"
                 style={{ fontFamily: 'Manrope, sans-serif' }}

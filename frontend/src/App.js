@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SocketProvider } from '@/contexts/SocketContext';
 import { Toaster } from 'sonner';
+import AgeVerificationModal from '@/components/AgeVerificationModal';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
@@ -15,6 +16,10 @@ import GameFeud from '@/pages/GameFeud';
 import GameTruthOrDare from '@/pages/GameTruthOrDare';
 import Admin from '@/pages/Admin';
 import Profile from '@/pages/Profile';
+import Terms from '@/pages/Terms';
+import Privacy from '@/pages/Privacy';
+import Guidelines from '@/pages/Guidelines';
+import Refund from '@/pages/Refund';
 import '@/App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -40,6 +45,13 @@ function AppRoutes() {
       <Route path="/guest" element={<Guest />} />
       <Route path="/premium" element={<Premium />} />
       <Route path="/premium/success" element={<PremiumSuccess />} />
+      
+      {/* Legal Pages */}
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/guidelines" element={<Guidelines />} />
+      <Route path="/refund" element={<Refund />} />
+      
       <Route 
         path="/dashboard" 
         element={
@@ -99,6 +111,7 @@ function App() {
       <AuthProvider>
         <SocketProvider>
           <BrowserRouter>
+            <AgeVerificationModal />
             <AppRoutes />
             <Toaster 
               position="top-right"

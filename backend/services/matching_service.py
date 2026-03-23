@@ -1,11 +1,16 @@
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
 import logging
+import uuid
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 class MatchingQueue:
-    """Manages matching queue for real-time user pairing"""
+    """
+    Optimized matching queue for real-time user pairing.
+    Target: Match within 2-5 seconds using relaxed filters if needed.
+    """
     
     def __init__(self):
         # Queue structure: {gender_filter: [user_data]}
@@ -18,28 +23,35 @@ class MatchingQueue:
         self.active_sessions: Dict[str, dict] = {}
         # User to session mapping: {user_id: session_id}
         self.user_sessions: Dict[str, str] = {}
+        # Track when users joined queue for timeout matching
+        self.queue_timestamps: Dict[str, datetime] = {}
     
     def add_to_queue(self, user_id: str, user_data: dict, gender_filter: str = 'any', country_filter: str = 'ANY') -> Optional[dict]:
-        """Add user to queue and try to find a match"""
+        """
+        Add user to queue and try to find a match.
+        Uses progressive filter relaxation for fast matching.
+        """
         # Check if user already in a session
         if user_id in self.user_sessions:
             logger.warning(f"User {user_id} already in active session")
             return None
         
-        # Normalize gender filter
-        gender_filter = gender_filter.lower()
+        # Remove from any existing queue first
+        self.remove_from_queue(user_id)
+        
+        # Normalize filters
+        gender_filter = gender_filter.lower() if gender_filter else 'any'
         if gender_filter not in ['male', 'female', 'any']:
             gender_filter = 'any'
         
-        # Normalize country filter
         country_filter = country_filter.upper() if country_filter else 'ANY'
         
-        user_data['joined_at'] = datetime.now(timezone.utc).isoformat()
+        user_data['joined_at'] = datetime.now(timezone.utc)
         user_data['gender_filter'] = gender_filter
         user_data['country_filter'] = country_filter
         
-        # Try to find a match first
-        match = self._find_match(user_id, user_data)
+        # Try to find a match with progressive relaxation
+        match = self._find_match_progressive(user_id, user_data)
         if match:
             return match
         
@@ -48,26 +60,75 @@ class MatchingQueue:
             'user_id': user_id,
             **user_data
         })
+        self.queue_timestamps[user_id] = datetime.now(timezone.utc)
         
-        logger.info(f"User {user_id} added to {gender_filter} queue. Queue size: {len(self.queues[gender_filter])}")
+        logger.info(f"User {user_id} added to {gender_filter} queue. Queue sizes: male={len(self.queues['male'])}, female={len(self.queues['female'])}, any={len(self.queues['any'])}")
         return None
     
-    def _find_match(self, user_id: str, user_data: dict) -> Optional[dict]:
-        """Try to find a match for the user"""
+    def _find_match_progressive(self, user_id: str, user_data: dict) -> Optional[dict]:
+        """
+        Progressive matching strategy:
+        1. First try perfect match (exact filters)
+        2. Then try relaxed country filter
+        3. Finally try relaxed gender filter (any)
+        
+        This ensures fast matching while respecting preferences when possible.
+        """
         gender_filter = user_data['gender_filter']
         country_filter = user_data.get('country_filter', 'ANY')
         user_gender = user_data.get('gender', 'any')
         user_country = user_data.get('country', '')
         
-        # Search order: specific gender queue first, then 'any' queue
-        search_queues = [gender_filter]
+        # Stage 1: Perfect match (exact filters)
+        match = self._try_match(user_id, user_data, strict_country=True, strict_gender=True)
+        if match:
+            logger.info(f"Perfect match found for {user_id}")
+            return match
+        
+        # Stage 2: Relaxed country (gender still respected)
+        if country_filter != 'ANY':
+            match = self._try_match(user_id, user_data, strict_country=False, strict_gender=True)
+            if match:
+                logger.info(f"Match found with relaxed country filter for {user_id}")
+                return match
+        
+        # Stage 3: Relaxed both (match anyone available)
         if gender_filter != 'any':
-            search_queues.append('any')
+            match = self._try_match(user_id, user_data, strict_country=False, strict_gender=False)
+            if match:
+                logger.info(f"Match found with relaxed filters for {user_id}")
+                return match
+        
+        return None
+    
+    def _try_match(self, user_id: str, user_data: dict, strict_country: bool = True, strict_gender: bool = True) -> Optional[dict]:
+        """
+        Try to find a match with specified strictness levels.
+        """
+        gender_filter = user_data['gender_filter']
+        country_filter = user_data.get('country_filter', 'ANY')
+        user_gender = user_data.get('gender', 'any')
+        user_country = user_data.get('country', '')
+        
+        # Determine which queues to search
+        if strict_gender and gender_filter != 'any':
+            # Only search the specific gender queue
+            search_queues = [gender_filter]
+        else:
+            # Search all queues
+            search_queues = ['male', 'female', 'any']
         
         for queue_name in search_queues:
             queue = self.queues[queue_name]
             
-            for i, potential_match in enumerate(queue):
+            # Sort by wait time (oldest first) for fairness
+            sorted_queue = sorted(
+                enumerate(queue),
+                key=lambda x: x[1].get('joined_at', datetime.now(timezone.utc)),
+                reverse=False
+            )
+            
+            for original_idx, potential_match in sorted_queue:
                 partner_id = potential_match['user_id']
                 partner_gender = potential_match.get('gender', 'any')
                 partner_filter = potential_match['gender_filter']
@@ -78,46 +139,55 @@ class MatchingQueue:
                 if partner_id == user_id:
                     continue
                 
-                # Check if gender preferences match
-                user_matches_partner = (
-                    gender_filter == 'any' or 
-                    gender_filter == partner_gender or
-                    partner_gender == 'any'
-                )
+                # Check gender compatibility
+                if strict_gender:
+                    user_matches_partner = (
+                        gender_filter == 'any' or 
+                        gender_filter == partner_gender or
+                        partner_gender == 'any'
+                    )
+                    partner_matches_user = (
+                        partner_filter == 'any' or 
+                        partner_filter == user_gender or
+                        user_gender == 'any'
+                    )
+                    if not (user_matches_partner and partner_matches_user):
+                        continue
                 
-                partner_matches_user = (
-                    partner_filter == 'any' or 
-                    partner_filter == user_gender or
-                    user_gender == 'any'
-                )
+                # Check country compatibility
+                if strict_country:
+                    user_country_matches = (
+                        country_filter == 'ANY' or
+                        country_filter == partner_country or
+                        not partner_country
+                    )
+                    partner_country_matches = (
+                        partner_country_filter == 'ANY' or
+                        partner_country_filter == user_country or
+                        not user_country
+                    )
+                    if not (user_country_matches and partner_country_matches):
+                        continue
                 
-                # Check country preferences
-                user_country_matches = (
-                    country_filter == 'ANY' or
-                    country_filter == partner_country or
-                    not partner_country
-                )
+                # Match found! Remove from queue
+                # Find actual index in the original queue
+                for i, u in enumerate(queue):
+                    if u['user_id'] == partner_id:
+                        queue.pop(i)
+                        break
                 
-                partner_country_matches = (
-                    partner_country_filter == 'ANY' or
-                    partner_country_filter == user_country or
-                    not user_country
-                )
+                # Clean up timestamp
+                if partner_id in self.queue_timestamps:
+                    del self.queue_timestamps[partner_id]
                 
-                if user_matches_partner and partner_matches_user and user_country_matches and partner_country_matches:
-                    # Match found! Remove from queue
-                    self.queues[queue_name].pop(i)
-                    
-                    # Create session
-                    session = self._create_session(user_id, user_data, partner_id, potential_match)
-                    logger.info(f"Match created: {user_id} <-> {partner_id}")
-                    return session
+                # Create session
+                session = self._create_session(user_id, user_data, partner_id, potential_match)
+                return session
         
         return None
     
     def _create_session(self, user1_id: str, user1_data: dict, user2_id: str, user2_data: dict) -> dict:
         """Create a new match session"""
-        import uuid
         session_id = str(uuid.uuid4())
         
         session = {
@@ -146,6 +216,7 @@ class MatchingQueue:
         self.user_sessions[user1_id] = session_id
         self.user_sessions[user2_id] = session_id
         
+        logger.info(f"Session {session_id} created: {user1_id} <-> {user2_id}")
         return session
     
     def remove_from_queue(self, user_id: str) -> bool:
@@ -158,6 +229,10 @@ class MatchingQueue:
                     logger.info(f"User {user_id} removed from {queue_name} queue")
                     removed = True
                     break
+        
+        if user_id in self.queue_timestamps:
+            del self.queue_timestamps[user_id]
+        
         return removed
     
     def end_session(self, user_id: str) -> Optional[dict]:
@@ -225,6 +300,16 @@ class MatchingQueue:
                 if user['user_id'] == user_id:
                     return i + 1
         return None
+    
+    def get_queue_stats(self) -> dict:
+        """Get current queue statistics"""
+        return {
+            'male_queue': len(self.queues['male']),
+            'female_queue': len(self.queues['female']),
+            'any_queue': len(self.queues['any']),
+            'total_waiting': sum(len(q) for q in self.queues.values()),
+            'active_sessions': len(self.active_sessions)
+        }
 
 # Global queue instance
 matching_queue = MatchingQueue()
