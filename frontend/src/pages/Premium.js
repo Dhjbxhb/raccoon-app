@@ -2,270 +2,259 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, Star, Gamepad2, Sparkles, Target, MessageCircle, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, Crown, Check, Zap, Users, Globe, Sparkles, Star, Shield, X } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const PLANS = [
+  {
+    id: 'weekly',
+    name: 'Weekly',
+    price: 2.99,
+    period: 'week',
+    features: ['Gender filter', 'Country filter', 'Unlimited skips'],
+    popular: false
+  },
+  {
+    id: 'monthly',
+    name: 'Monthly',
+    price: 7.99,
+    period: 'month',
+    originalPrice: 11.96,
+    features: ['Gender filter', 'Country filter', 'Unlimited skips', 'Priority matching', 'All camera filters'],
+    popular: true,
+    tag: 'BEST VALUE'
+  },
+  {
+    id: 'quarterly',
+    name: '3 Months',
+    price: 19.99,
+    period: '3 months',
+    originalPrice: 35.88,
+    features: ['Gender filter', 'Country filter', 'Unlimited skips', 'Priority matching', 'All camera filters', 'All games'],
+    popular: false,
+    tag: 'SAVE 44%'
+  }
+];
+
+const FEATURES = [
+  { icon: Users, text: 'Choose gender preference', color: 'text-pink-400' },
+  { icon: Globe, text: 'Choose country preference', color: 'text-blue-400' },
+  { icon: Zap, text: 'Priority matching queue', color: 'text-yellow-400' },
+  { icon: Sparkles, text: 'All camera filters', color: 'text-purple-400' },
+  { icon: Star, text: 'Unlimited skips', color: 'text-orange-400' },
+  { icon: Shield, text: 'Ad-free experience', color: 'text-green-400' }
+];
 
 const Premium = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [loading, setLoading] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState('monthly');
+  const [loading, setLoading] = useState(false);
 
-  const plans = [
-    { id: 'weekly', duration: 'Weekly', price: 4, period: 'week', popular: false },
-    { id: 'monthly', duration: 'Monthly', price: 12, period: 'month', popular: true },
-    { id: 'quarterly', duration: '3 Months', price: 28, period: '3 months', popular: false }
-  ];
-
-  const featureCategories = [
-    {
-      icon: Gamepad2,
-      title: 'Games',
-      color: '#7c3aed',
-      features: [
-        'Play any game anytime',
-        'Choose which game you want to play',
-        'Raccoon Feud, Truth or Dare & more'
-      ]
-    },
-    {
-      icon: Sparkles,
-      title: 'Filters',
-      color: '#f43f5e',
-      features: [
-        'Funny filters (big head, raccoon mask)',
-        'Beauty filters',
-        'Switch filters anytime during chat'
-      ]
-    },
-    {
-      icon: Target,
-      title: 'Matching Control',
-      color: '#10b981',
-      features: [
-        'Choose gender filter',
-        'Choose country filter',
-        'More control over who you match with'
-      ]
-    },
-    {
-      icon: MessageCircle,
-      title: 'Chat Control',
-      color: '#3b82f6',
-      features: [
-        'Choose chat preferences',
-        'Better matching experience',
-        'Priority in the queue'
-      ]
+  const handleSubscribe = async (planId) => {
+    if (!user) {
+      toast.info('Please sign in first');
+      navigate('/login');
+      return;
     }
-  ];
 
-  const handlePurchase = async (packageId) => {
+    setLoading(true);
     try {
-      setLoading(packageId);
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/payments/checkout`, {
+      const token = localStorage.getItem('raccoon_token');
+      const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          package_id: packageId,
-          origin_url: window.location.origin
-        })
+        body: JSON.stringify({ plan_id: planId })
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
 
       const data = await response.json();
       
-      // Redirect to Stripe checkout
       if (data.checkout_url) {
         window.location.href = data.checkout_url;
+      } else if (data.message) {
+        toast.info(data.message);
       } else {
-        throw new Error('No checkout URL received');
+        toast.error('Payment system is being configured');
       }
     } catch (error) {
-      console.error('Payment error:', error);
-      toast.error('Failed to start checkout. Please try again.');
+      toast.error('Unable to process. Please try again.');
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   };
 
-  // If user is already premium
-  if (user?.premium_status) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
-        <div className="text-center">
-          <div className="w-24 h-24 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center mx-auto mb-6">
-            <Star size={48} className="text-yellow-400 fill-yellow-400" />
-          </div>
-          <h1 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            You're Premium!
-          </h1>
-          <p className="text-gray-400 mb-8" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            You have full access to all premium features.
-          </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="px-8 py-3 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl font-semibold transition-all"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const currentPlan = PLANS.find(p => p.id === selectedPlan);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#030305] text-white overflow-hidden">
       {/* Background */}
-      <div 
-        className="fixed inset-0 z-0 opacity-15"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1575195372639-373ecc8590f9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxuaWdodCUyMGNpdHklMjBza3lsaW5lJTIwcHVycGxlJTIwbmVvbiUyMGxpZ2h0cyUyMG1vZGVybiUyMGJ1aWxkaW5nc3xlbnwwfHx8cHVycGxlfDE3NzQxODYwOTV8MA&ixlib=rb-4.1.0&q=85)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(4px)'
-        }}
-      />
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
+        <div 
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] rounded-full opacity-30"
+          style={{
+            background: 'radial-gradient(ellipse, rgba(251,191,36,0.15) 0%, rgba(124,58,237,0.1) 50%, transparent 70%)',
+            filter: 'blur(80px)'
+          }}
+        />
+      </div>
 
       {/* Content */}
-      <div className="relative z-10">
+      <div className="relative z-10 min-h-screen">
         {/* Header */}
-        <div className="px-6 py-6 border-b border-white/5 backdrop-blur-md">
-          <div className="max-w-6xl mx-auto flex items-center gap-4">
+        <div className="sticky top-0 z-20 bg-[#030305]/80 backdrop-blur-xl border-b border-white/5">
+          <div className="container mx-auto px-6 py-4 flex items-center justify-between">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 hover:bg-white/10 rounded-full transition-all"
-              data-testid="back-button"
+              className="p-2 hover:bg-white/10 rounded-xl transition-all"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={20} className="text-gray-400" />
             </button>
-            <h1 className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium</h1>
+            <div className="flex items-center gap-2">
+              <Crown size={20} className="text-yellow-400" />
+              <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium</span>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="p-2 hover:bg-white/10 rounded-xl transition-all"
+            >
+              <X size={20} className="text-gray-400" />
+            </button>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="container mx-auto px-6 py-12">
-          <div className="max-w-5xl mx-auto">
-            {/* Header Section */}
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#7c3aed]/20 border border-[#7c3aed]/50 rounded-full backdrop-blur-md mb-6">
-                <Star size={16} className="text-yellow-400 fill-yellow-400" />
-                <span className="text-sm font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>PREMIUM</span>
-              </div>
-              <h2 
-                className="text-4xl sm:text-5xl font-black mb-4"
-                style={{ 
-                  fontFamily: 'Outfit, sans-serif',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #7c3aed 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent'
-                }}
+        {/* Main */}
+        <div className="container mx-auto px-6 py-8 max-w-4xl">
+          {/* Hero */}
+          <div className="text-center mb-12">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-[0_0_60px_rgba(251,191,36,0.4)]">
+              <Crown size={40} className="text-white" />
+            </div>
+            <h1 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              Upgrade Your Experience
+            </h1>
+            <p className="text-gray-400 text-lg max-w-md mx-auto" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Match faster, choose who you meet, unlock all features
+            </p>
+          </div>
+
+          {/* Plans */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+            {PLANS.map((plan) => (
+              <button
+                key={plan.id}
+                onClick={() => setSelectedPlan(plan.id)}
+                className={`relative p-6 rounded-3xl transition-all text-left ${
+                  plan.popular
+                    ? selectedPlan === plan.id
+                      ? 'bg-gradient-to-br from-yellow-400/20 to-orange-500/10 border-2 border-yellow-400 shadow-[0_0_40px_rgba(251,191,36,0.3)] scale-105'
+                      : 'bg-gradient-to-br from-yellow-400/10 to-orange-500/5 border-2 border-yellow-400/50 hover:border-yellow-400'
+                    : selectedPlan === plan.id
+                      ? 'bg-white/10 border-2 border-[#7c3aed] shadow-[0_0_30px_rgba(124,58,237,0.3)]'
+                      : 'bg-white/5 border border-white/10 hover:bg-white/[0.07] hover:border-white/20'
+                }`}
               >
-                Unlock Everything
-              </h2>
-              <p className="text-lg text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                Get full access to games, filters & matching controls
-              </p>
-            </div>
-
-            {/* Feature Categories */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
-              {featureCategories.map((category, index) => {
-                const Icon = category.icon;
-                return (
-                  <div 
-                    key={index} 
-                    className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-white/20 transition-all"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div 
-                        className="w-10 h-10 rounded-xl flex items-center justify-center"
-                        style={{ backgroundColor: `${category.color}20` }}
-                      >
-                        <Icon size={20} style={{ color: category.color }} />
-                      </div>
-                      <h3 className="text-xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                        {category.title}
-                      </h3>
-                    </div>
-                    <ul className="space-y-3">
-                      {category.features.map((feature, fIndex) => (
-                        <li key={fIndex} className="flex items-start gap-3">
-                          <div 
-                            className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
-                            style={{ backgroundColor: category.color }}
-                          />
-                          <span className="text-gray-300" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                {plan.tag && (
+                  <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold ${
+                    plan.popular ? 'bg-yellow-400 text-black' : 'bg-[#7c3aed] text-white'
+                  }`}>
+                    {plan.tag}
                   </div>
-                );
-              })}
-            </div>
+                )}
 
-            {/* Pricing Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {plans.map((plan) => (
-                <div 
-                  key={plan.id}
-                  className={`p-8 rounded-2xl transition-all duration-300 hover:transform hover:scale-105 ${
-                    plan.popular 
-                      ? 'bg-[#7c3aed]/20 border-2 border-[#7c3aed] shadow-[0_0_40px_rgba(124,58,237,0.3)]' 
-                      : 'bg-white/5 border border-white/10'
-                  } backdrop-blur-xl relative`}
-                >
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 px-4 py-1 bg-[#7c3aed] rounded-full text-sm font-bold">
-                      BEST VALUE
-                    </div>
+                <div className="mb-4">
+                  <h3 className="text-lg font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                    {plan.name}
+                  </h3>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-4xl font-bold ${plan.popular ? 'text-yellow-400' : ''}`}>
+                      ${plan.price}
+                    </span>
+                    <span className="text-gray-500">/{plan.period}</span>
+                  </div>
+                  {plan.originalPrice && (
+                    <p className="text-sm text-gray-500 line-through">
+                      ${plan.originalPrice}/{plan.period}
+                    </p>
                   )}
-                  <div className="text-center mb-6">
-                    <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{plan.duration}</h3>
-                    <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-5xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>${plan.price}</span>
-                      <span className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>/{plan.period}</span>
+                </div>
+
+                <div className="space-y-2">
+                  {plan.features.slice(0, 3).map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-gray-400">
+                      <Check size={14} className={plan.popular ? 'text-yellow-400' : 'text-[#7c3aed]'} />
+                      {feature}
                     </div>
+                  ))}
+                  {plan.features.length > 3 && (
+                    <p className="text-xs text-gray-500">+{plan.features.length - 3} more</p>
+                  )}
+                </div>
+
+                {/* Selection indicator */}
+                <div className={`absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                  selectedPlan === plan.id
+                    ? plan.popular ? 'border-yellow-400 bg-yellow-400' : 'border-[#7c3aed] bg-[#7c3aed]'
+                    : 'border-white/30'
+                }`}>
+                  {selectedPlan === plan.id && <Check size={14} className="text-black" />}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Features List */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-8 mb-8">
+            <h3 className="text-xl font-bold mb-6 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              Everything You Get
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              {FEATURES.map((feature, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl bg-white/5 ${feature.color}`}>
+                    <feature.icon size={20} />
                   </div>
-                  <button
-                    onClick={() => handlePurchase(plan.id)}
-                    disabled={loading === plan.id}
-                    className={`w-full py-3 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
-                      plan.popular
-                        ? 'bg-[#7c3aed] hover:bg-[#6d28d9] shadow-[0_0_20px_rgba(124,58,237,0.4)]'
-                        : 'bg-white/10 hover:bg-white/20'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    data-testid={`premium-${plan.id}-btn`}
-                    style={{ fontFamily: 'Manrope, sans-serif' }}
-                  >
-                    {loading === plan.id ? (
-                      <>
-                        <Loader2 size={20} className="animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      'Get Premium'
-                    )}
-                  </button>
+                  <span className="text-sm text-gray-300" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    {feature.text}
+                  </span>
                 </div>
               ))}
             </div>
+          </div>
 
-            {/* Security Note */}
-            <div className="mt-12 text-center">
-              <p className="text-gray-500 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                🔒 Secure payment powered by Stripe
-              </p>
+          {/* CTA */}
+          <button
+            onClick={() => handleSubscribe(selectedPlan)}
+            disabled={loading}
+            className={`w-full py-5 rounded-2xl font-bold text-xl transition-all flex items-center justify-center gap-3 ${
+              PLANS.find(p => p.id === selectedPlan)?.popular
+                ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:shadow-[0_0_40px_rgba(251,191,36,0.5)]'
+                : 'bg-gradient-to-r from-[#7c3aed] to-[#9333ea] text-white hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]'
+            } hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70`}
+            style={{ fontFamily: 'Outfit, sans-serif' }}
+          >
+            {loading ? (
+              <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Zap size={24} />
+                Get {currentPlan?.name} - ${currentPlan?.price}
+              </>
+            )}
+          </button>
+
+          {/* Trust badges */}
+          <div className="mt-8 flex items-center justify-center gap-8 text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <Shield size={16} />
+              <span>Secure payment</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>Cancel anytime</span>
             </div>
           </div>
         </div>

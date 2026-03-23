@@ -1,203 +1,267 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import axios from 'axios';
 import { toast } from 'sonner';
-import { ArrowLeft, Zap, Sparkles } from 'lucide-react';
+import axios from 'axios';
+import { Play, Lock, Crown, Globe, Users, Zap, Loader2 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const Guest = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [gender, setGender] = useState('male');
+  const { loginAsGuest, user } = useAuth();
+  const [selectedGender, setSelectedGender] = useState('any');
+  const [selectedCountry, setSelectedCountry] = useState('ANY');
+  const [preferGender, setPreferGender] = useState('any');
   const [loading, setLoading] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [detectedCountry, setDetectedCountry] = useState(null);
 
-  const handleGuestLogin = async () => {
+  // Check if user is already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/match');
+    }
+  }, [user, navigate]);
+
+  // Detect country from IP
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const response = await axios.get('https://ipapi.co/json/');
+        if (response.data) {
+          setDetectedCountry({
+            name: response.data.country_name,
+            code: response.data.country_code,
+            flag: response.data.country_code ? 
+              String.fromCodePoint(...[...response.data.country_code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) 
+              : '🌍'
+          });
+        }
+      } catch (error) {
+        console.log('Could not detect country');
+      }
+    };
+    detectCountry();
+  }, []);
+
+  const isPremium = user?.premium_status || false;
+
+  const handleLockedFeature = (feature) => {
+    setShowPremiumModal(true);
+  };
+
+  const handleStartMatching = async () => {
     setLoading(true);
-
     try {
-      const response = await axios.post(`${API_URL}/auth/guest`, { gender });
-      login(response.data.token, response.data.user);
-      toast.success(`Welcome ${response.data.user.username}!`);
-      navigate('/dashboard');
+      await loginAsGuest(selectedGender);
+      
+      // Store preferences
+      sessionStorage.setItem('match_preferences', JSON.stringify({
+        gender: preferGender,
+        country: selectedCountry
+      }));
+      
+      navigate('/match');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Guest login failed');
-    } finally {
+      toast.error('Failed to start. Please try again.');
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Cinematic Background */}
+    <div className="min-h-screen bg-[#030305] text-white overflow-hidden relative">
+      {/* Background */}
       <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
         <div 
-          className="absolute inset-0"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-20"
           style={{
-            backgroundImage: 'url(https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            filter: 'brightness(0.15) saturate(0.6)'
+            background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 60%)',
+            filter: 'blur(100px)'
           }}
         />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510]/95 to-[#1a0a2e]/30" />
       </div>
 
-      {/* Animated glow orbs */}
-      <div 
-        className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)',
-          filter: 'blur(80px)',
-          animation: 'pulse 5s ease-in-out infinite'
-        }}
-      />
-      <div 
-        className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, rgba(76,29,149,0.2) 0%, transparent 70%)',
-          filter: 'blur(60px)',
-          animation: 'pulse 5s ease-in-out infinite 1s'
-        }}
-      />
-
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/')}
-          className="mb-8 flex items-center gap-2 text-gray-500 hover:text-white transition-all duration-300 group"
-          data-testid="back-button"
-        >
-          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Back</span>
-        </button>
-
-        {/* Card */}
-        <div className="relative">
-          {/* Card glow */}
-          <div 
-            className="absolute -inset-1 rounded-3xl opacity-50"
-            style={{
-              background: 'linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(76,29,149,0.2) 100%)',
-              filter: 'blur(20px)'
-            }}
-          />
-          
-          <div className="relative p-10 bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl">
-            {/* Badge */}
-            <div className="flex justify-center mb-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#7c3aed]/10 border border-[#7c3aed]/30 rounded-full">
-                <Sparkles size={14} className="text-[#7c3aed]" />
-                <span className="text-xs font-semibold text-[#a78bfa]" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  QUICK START
-                </span>
+      {/* Main Content */}
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md">
+          {/* Card */}
+          <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center shadow-[0_0_40px_rgba(124,58,237,0.4)]">
+                <span className="text-3xl">🦝</span>
               </div>
+              <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                Quick Match
+              </h1>
+              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Set your preferences and start instantly
+              </p>
             </div>
 
-            <h2 className="text-3xl font-bold mb-3 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              Jump Right In
-            </h2>
-            <p className="text-gray-500 text-center mb-10 text-sm leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              No signup required. Start matching instantly.<br />
-              Session lasts until you close the tab.
-            </p>
-
-            {/* Gender Selection */}
-            <div className="mb-8">
-              <label className="block text-xs font-medium mb-4 text-gray-500 text-center tracking-wider" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                SELECT YOUR GENDER
+            {/* Your Gender */}
+            <div className="mb-6">
+              <label className="text-sm text-gray-400 mb-3 block" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                I am
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                {['Male', 'Female'].map((g) => (
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { value: 'male', label: 'Male', icon: '👨' },
+                  { value: 'female', label: 'Female', icon: '👩' }
+                ].map((option) => (
                   <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGender(g.toLowerCase())}
-                    className={`relative py-4 rounded-xl font-semibold transition-all duration-300 ${
-                      gender === g.toLowerCase()
-                        ? 'bg-[#7c3aed] text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] scale-[1.02]'
-                        : 'bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] border border-white/[0.06]'
+                    key={option.value}
+                    onClick={() => setSelectedGender(option.value)}
+                    className={`p-4 rounded-2xl transition-all flex items-center justify-center gap-3 ${
+                      selectedGender === option.value
+                        ? 'bg-[#7c3aed] text-white shadow-[0_0_25px_rgba(124,58,237,0.4)]'
+                        : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
                     }`}
-                    data-testid={`guest-gender-${g.toLowerCase()}`}
-                    style={{ fontFamily: 'Manrope, sans-serif' }}
                   >
-                    {gender === g.toLowerCase() && (
-                      <div 
-                        className="absolute inset-0 rounded-xl opacity-50"
-                        style={{
-                          background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)'
-                        }}
-                      />
-                    )}
-                    <span className="relative">{g}</span>
+                    <span className="text-2xl">{option.icon}</span>
+                    <span className="font-medium">{option.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Match Preferences */}
+            <div className="mb-6">
+              <label className="text-sm text-gray-400 mb-3 flex items-center gap-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                <Users size={14} />
+                Match me with
+                {!isPremium && <Lock size={12} className="text-yellow-400 ml-1" />}
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'any', label: 'Anyone' },
+                  { value: 'male', label: 'Male' },
+                  { value: 'female', label: 'Female' }
+                ].map((option) => {
+                  const isLocked = !isPremium && option.value !== 'any';
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => isLocked ? handleLockedFeature('gender') : setPreferGender(option.value)}
+                      className={`relative p-3 rounded-xl transition-all text-sm ${
+                        preferGender === option.value && !isLocked
+                          ? 'bg-[#7c3aed] text-white'
+                          : isLocked 
+                            ? 'bg-white/5 text-gray-500 border border-white/5 cursor-pointer'
+                            : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
+                      }`}
+                    >
+                      {isLocked && (
+                        <Lock size={10} className="absolute top-2 right-2 text-yellow-400" />
+                      )}
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Country Filter */}
+            <div className="mb-8">
+              <label className="text-sm text-gray-400 mb-3 flex items-center gap-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                <Globe size={14} />
+                Country
+                {!isPremium && <Lock size={12} className="text-yellow-400 ml-1" />}
+              </label>
+              <button
+                onClick={() => !isPremium ? handleLockedFeature('country') : null}
+                className={`w-full p-4 rounded-xl transition-all flex items-center justify-between ${
+                  isPremium 
+                    ? 'bg-white/5 hover:bg-white/10 border border-white/10'
+                    : 'bg-white/5 border border-white/5 cursor-pointer'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{detectedCountry?.flag || '🌍'}</span>
+                  <span className={isPremium ? 'text-white' : 'text-gray-500'}>
+                    {isPremium ? (detectedCountry?.name || 'Any Country') : 'Any Country'}
+                  </span>
+                </div>
+                {!isPremium && <Lock size={14} className="text-yellow-400" />}
+              </button>
+              
+              {detectedCountry && (
+                <p className="text-xs text-gray-600 mt-2 flex items-center gap-1">
+                  <span>Detected:</span>
+                  <span>{detectedCountry.flag}</span>
+                  <span>{detectedCountry.name}</span>
+                </p>
+              )}
+            </div>
+
             {/* Start Button */}
             <button
-              onClick={handleGuestLogin}
+              onClick={handleStartMatching}
               disabled={loading}
-              className="relative w-full py-4 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl font-bold text-base tracking-wide transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group"
-              data-testid="guest-start-button"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
+              className="w-full py-4 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              style={{ fontFamily: 'Outfit, sans-serif' }}
+              data-testid="start-matching-btn"
             >
-              {/* Button glow effect */}
-              <div 
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)'
-                }}
-              />
-              <div 
-                className="absolute -inset-1 rounded-xl opacity-50 group-hover:opacity-70 transition-opacity"
-                style={{
-                  background: 'radial-gradient(circle at center, rgba(124,58,237,0.6) 0%, transparent 70%)',
-                  filter: 'blur(15px)'
-                }}
-              />
-              
-              <span className="relative flex items-center justify-center gap-3">
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    Start Matching
-                    <Zap size={18} className="group-hover:rotate-12 transition-transform" />
-                  </>
-                )}
-              </span>
+              {loading ? (
+                <Loader2 size={24} className="animate-spin" />
+              ) : (
+                <>
+                  <Zap size={24} />
+                  Start Matching
+                </>
+              )}
             </button>
 
-            {/* Info */}
-            <p className="mt-8 text-center text-xs text-gray-600" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Guest mode has limited features.{' '}
-              <button 
-                onClick={() => navigate('/signup')}
-                className="text-[#7c3aed] hover:text-[#a78bfa] transition-colors"
+            {/* Already have account link */}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => navigate('/login')}
+                className="text-sm text-gray-500 hover:text-[#7c3aed] transition-colors"
+                style={{ fontFamily: 'Manrope, sans-serif' }}
               >
-                Create account
+                Already have an account? <span className="text-[#7c3aed]">Sign in</span>
               </button>
-              {' '}for full access.
-            </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Animations */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
-        }
-      `}</style>
+      {/* Premium Modal */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowPremiumModal(false)} />
+          <div className="relative w-full max-w-sm bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-3xl p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+              <Crown size={32} className="text-white" />
+            </div>
+            <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              Unlock Premium
+            </h3>
+            <p className="text-gray-400 text-sm mb-6" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Upgrade to choose who you match with
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setShowPremiumModal(false);
+                  navigate('/premium');
+                }}
+                className="w-full py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold rounded-xl hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all"
+              >
+                View Plans
+              </button>
+              <button
+                onClick={() => setShowPremiumModal(false)}
+                className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl transition-all"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
