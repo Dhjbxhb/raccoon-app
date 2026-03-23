@@ -6,9 +6,11 @@ import { useMatching } from '@/hooks/useMatching';
 import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video, Lock, Crown, Filter } from 'lucide-react';
+import { ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video, Lock, Crown, Filter, Flag, X } from 'lucide-react';
 import VideoChat from '@/components/VideoChat';
 import MatchingFilters from '@/components/MatchingFilters';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 // Raccoon facts for the loading screen
 const RACCOON_FACTS = [
@@ -43,6 +45,7 @@ const Match = () => {
   const [showGames, setShowGames] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
   const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });
   const messagesEndRef = useRef(null);
@@ -432,6 +435,15 @@ const Match = () => {
                   <span className="text-sm">Skip</span>
                 </button>
                 <button
+                  onClick={() => setShowReportModal(true)}
+                  className="px-4 py-2.5 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 hover:border-orange-500/30 text-orange-400 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-105"
+                  data-testid="report-button"
+                  style={{ fontFamily: 'Manrope, sans-serif' }}
+                >
+                  <Flag size={16} />
+                  <span className="text-sm">Report</span>
+                </button>
+                <button
                   onClick={handleBlock}
                   className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/30 text-rose-400 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-105"
                   data-testid="block-button"
@@ -759,6 +771,159 @@ const Match = () => {
           animation: typingDot 1.4s ease-in-out infinite;
         }
       `}</style>
+
+      {/* Report Modal */}
+      {showReportModal && partner && (
+        <ReportModal 
+          partner={partner}
+          sessionId={sessionId}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+// Report Modal Component
+const ReportModal = ({ partner, sessionId, onClose }) => {
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const REPORT_REASONS = [
+    'Inappropriate behavior',
+    'Harassment',
+    'Spam',
+    'Fake profile',
+    'Underage user',
+    'Scam/Fraud',
+    'Hate speech',
+    'Other'
+  ];
+
+  const handleSubmit = async () => {
+    if (!reason) {
+      toast.error('Please select a reason');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem('raccoon_token');
+      const response = await fetch(`${API_URL}/api/reports/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          reported_id: partner.user_id || partner.guest_id,
+          reason,
+          details: details || null,
+          session_id: sessionId
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Report submitted. Thank you for keeping Raccoon safe!');
+        onClose();
+      } else {
+        const data = await response.json();
+        toast.error(data.detail || 'Failed to submit report');
+      }
+    } catch (error) {
+      toast.error('Failed to submit report');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-2xl overflow-hidden">
+        {/* Header */}
+        <div className="p-6 border-b border-white/10">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              <Flag size={24} className="text-orange-400" />
+              Report User
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-full transition-all"
+            >
+              <X size={20} className="text-gray-400" />
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mt-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            Reporting: <span className="text-white font-medium">{partner.username}</span>
+          </p>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-3 block" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Reason for report *
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {REPORT_REASONS.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setReason(r)}
+                  className={`p-3 rounded-xl text-sm transition-all text-left ${
+                    reason === r
+                      ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50'
+                      : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-400 mb-2 block" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Additional details (optional)
+            </label>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Provide more context about this report..."
+              className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder:text-gray-600 outline-none resize-none h-24 focus:border-orange-500/50"
+              style={{ fontFamily: 'Manrope, sans-serif' }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-white/10 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-semibold transition-all"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!reason || submitting}
+            className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            {submitting ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <>
+                <Flag size={18} />
+                Submit Report
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

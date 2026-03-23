@@ -42,3 +42,11 @@ def get_messages_collection():
 def get_blocked_users_collection():
     db = DatabaseService.get_db()
     return db.blocked_users
+
+def get_reports_collection():
+    db = DatabaseService.get_db()
+    return db.reports
+
+def get_sessions_collection():
+    db = DatabaseService.get_db()
+    return db.sessions
