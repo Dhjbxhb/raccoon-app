@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video, Lock, Crown, Filter, Flag, X } from 'lucide-react';
 import VideoChat from '@/components/VideoChat';
 import MatchingFilters from '@/components/MatchingFilters';
+import TruthOrDareGame from '@/components/TruthOrDareGame';
+import RaccoonFeudGame from '@/components/RaccoonFeudGame';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -49,22 +51,32 @@ const Match = () => {
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
   const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });
   const messagesEndRef = useRef(null);
+  
+  // Game states
+  const [showTruthOrDare, setShowTruthOrDare] = useState(false);
+  const [showFeud, setShowFeud] = useState(false);
+  const [myScore, setMyScore] = useState(0);
+  const [partnerScore, setPartnerScore] = useState(0);
 
-  // WebRTC hook
+  // WebRTC hook - auto start when matched
   const {
     localVideoRef,
     remoteVideoRef,
+    canvasRef,
     localStream,
     remoteStream,
     isVideoEnabled,
     isAudioEnabled,
     connectionState,
     error: webrtcError,
+    currentFilter,
     startCall,
     endCall,
     toggleVideo,
-    toggleAudio
-  } = useWebRTC(socket, sessionId, partner?.user_id);
+    toggleAudio,
+    changeFilter,
+    getFilterStyle
+  } = useWebRTC(socket, sessionId, partner?.user_id, true); // true = autoStart
 
   const isPremium = user?.premium_status;
 
@@ -415,6 +427,13 @@ const Match = () => {
                         <Star size={12} className="text-yellow-400 fill-yellow-400" />
                       </div>
                     )}
+                    {/* Points display */}
+                    {(showFeud || showTruthOrDare) && (
+                      <div className="px-2 py-0.5 bg-[#ffd700]/20 rounded-full flex items-center gap-1">
+                        <Trophy size={12} className="text-[#ffd700]" />
+                        <span className="text-xs font-bold text-[#ffd700]">{partnerScore}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-gray-500">
                     <Globe size={10} />
@@ -422,6 +441,15 @@ const Match = () => {
                   </div>
                 </div>
               </div>
+
+              {/* My score when playing games */}
+              {(showFeud || showTruthOrDare) && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#7c3aed]/20 border border-[#7c3aed]/30 rounded-full">
+                  <span className="text-xs text-gray-400">You:</span>
+                  <Trophy size={14} className="text-[#ffd700]" />
+                  <span className="font-bold text-[#ffd700]">{myScore}</span>
+                </div>
+              )}
 
               {/* Action buttons - modern style */}
               <div className="flex gap-2">
@@ -484,6 +512,9 @@ const Match = () => {
                 partnerUsername={partner?.username}
                 isPremium={isPremium}
                 onPremiumRequired={() => handlePremiumFeature('Camera filters')}
+                currentFilter={currentFilter}
+                onFilterChange={changeFilter}
+                getFilterStyle={getFilterStyle}
               />
               <button
                 onClick={() => setShowVideo(false)}
@@ -521,7 +552,14 @@ const Match = () => {
               
               {/* Raccoon Feud - Premium locked */}
               <button
-                onClick={() => isPremium ? navigate('/game/feud') : handlePremiumFeature('Raccoon Feud')}
+                onClick={() => {
+                  if (!isPremium) {
+                    handlePremiumFeature('Raccoon Feud');
+                  } else {
+                    setShowFeud(true);
+                    setShowGames(false);
+                  }
+                }}
                 className={`relative p-4 bg-gradient-to-br from-[#1a237e]/40 to-[#0d1442]/40 border ${isPremium ? 'border-[#ffd700]/30 hover:border-[#ffd700]/60' : 'border-white/10'} rounded-xl transition-all duration-300 text-left group hover:scale-[1.02]`}
                 data-testid="play-feud-btn"
               >
@@ -543,7 +581,14 @@ const Match = () => {
               
               {/* Truth or Dare - Premium locked */}
               <button
-                onClick={() => isPremium ? navigate('/game/truth-or-dare') : handlePremiumFeature('Truth or Dare')}
+                onClick={() => {
+                  if (!isPremium) {
+                    handlePremiumFeature('Truth or Dare');
+                  } else {
+                    setShowTruthOrDare(true);
+                    setShowGames(false);
+                  }
+                }}
                 className={`relative p-4 bg-gradient-to-br from-[#4a1a6b]/40 to-[#2d1b4e]/40 border ${isPremium ? 'border-pink-500/30 hover:border-pink-500/60' : 'border-white/10'} rounded-xl transition-all duration-300 text-left group hover:scale-[1.02]`}
                 data-testid="play-tod-btn"
               >
@@ -780,6 +825,27 @@ const Match = () => {
           onClose={() => setShowReportModal(false)}
         />
       )}
+
+      {/* Truth or Dare Game Overlay */}
+      <TruthOrDareGame
+        isOpen={showTruthOrDare}
+        onClose={() => setShowTruthOrDare(false)}
+        myScore={myScore}
+        partnerScore={partnerScore}
+        onScoreUpdate={(points) => setMyScore(prev => prev + points)}
+        isPremium={isPremium}
+      />
+
+      {/* Raccoon Feud Game Panel */}
+      <RaccoonFeudGame
+        isOpen={showFeud}
+        onClose={() => setShowFeud(false)}
+        myScore={myScore}
+        partnerScore={partnerScore}
+        partnerUsername={partner?.username || 'Partner'}
+        onScoreUpdate={(points) => setMyScore(prev => prev + points)}
+        isPremium={isPremium}
+      />
     </div>
   );
 };

@@ -5,6 +5,7 @@ from services.auth_service import AuthService
 from services.db_service import get_users_collection, get_guests_collection, get_blocked_users_collection, get_messages_collection, get_matches_collection
 from services.game_service import feud_service, truth_or_dare_service
 from services.moderation_service import content_moderator
+from services.chat_moderation import filter_message, is_message_allowed
 from datetime import datetime, timezone
 import uuid
 
@@ -191,7 +192,17 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if not content:
                 return
             
-            # Moderate content
+            # Apply basic chat moderation filter first
+            is_allowed, block_reason = is_message_allowed(content)
+            if not is_allowed:
+                # Filter the message instead of blocking completely
+                content = filter_message(content)
+                await sio.emit('message_warning', {
+                    'reason': 'Your message was filtered for inappropriate content.',
+                    'message': 'Please keep the conversation respectful.'
+                }, room=sid)
+            
+            # Moderate content with AI if available
             moderation_result = await content_moderator.moderate(content, user_id, use_ai=True)
             
             if moderation_result.is_flagged:

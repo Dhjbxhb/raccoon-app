@@ -17,19 +17,27 @@ const VideoChat = ({
   onToggleAudio,
   partnerUsername,
   isPremium,
-  onPremiumRequired
+  onPremiumRequired,
+  currentFilter: externalFilter,
+  onFilterChange,
+  getFilterStyle: externalGetFilterStyle
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState('none');
+  const [localFilter, setLocalFilter] = useState('none');
   const canvasRef = useRef(null);
-  const animationRef = useRef(null);
+  
+  // Use external filter if provided, otherwise use local state
+  const currentFilter = externalFilter !== undefined ? externalFilter : localFilter;
   
   const isConnected = connectionState === 'connected';
   const isConnecting = connectionState === 'connecting';
 
-  // Get CSS filter style
+  // Get CSS filter style - use external function if provided
   const getFilterStyle = (filter) => {
+    if (externalGetFilterStyle) {
+      return externalGetFilterStyle(filter);
+    }
     switch (filter) {
       case 'beauty':
         return 'brightness(1.05) contrast(1.1) saturate(1.1)';
@@ -63,7 +71,12 @@ const VideoChat = ({
       onPremiumRequired?.();
       return;
     }
-    setCurrentFilter(filterKey);
+    // Use external handler if provided, otherwise use local state
+    if (onFilterChange) {
+      onFilterChange(filterKey);
+    } else {
+      setLocalFilter(filterKey);
+    }
   };
 
   // If no call is active and not connecting
