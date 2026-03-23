@@ -6,11 +6,15 @@ import { useMatching } from '@/hooks/useMatching';
 import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, Sparkles, Gamepad2, Video, Lock, Crown, Filter, Flag, X } from 'lucide-react';
-import VideoChat from '@/components/VideoChat';
+import { 
+  ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, 
+  Sparkles, Gamepad2, Video, VideoOff, Mic, MicOff, PhoneOff, 
+  Lock, Crown, Filter, Flag, X, Maximize2, Minimize2 
+} from 'lucide-react';
 import MatchingFilters from '@/components/MatchingFilters';
 import TruthOrDareGame from '@/components/TruthOrDareGame';
 import RaccoonFeudGame from '@/components/RaccoonFeudGame';
+import { CAMERA_FILTERS } from '@/hooks/useCameraFilters';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -20,17 +24,7 @@ const RACCOON_FACTS = [
   "They can remember solutions for up to 3 years",
   "Raccoons have very sensitive hands like humans",
   "They are great problem solvers",
-  "Raccoons can run up to 15 mph",
-  "Their name means 'one who scratches with hands'",
-  "They can rotate their back feet 180 degrees",
-  "Raccoons have excellent night vision",
-  "Baby raccoons are called 'kits'",
-  "They wash their food before eating it",
-  "Raccoons are mostly nocturnal creatures",
-  "They can make over 50 different sounds",
-  "A group of raccoons is called a 'gaze'",
-  "They're native to North America",
-  "Raccoons can live up to 20 years in captivity"
+  "Raccoons can run up to 15 mph"
 ];
 
 const Match = () => {
@@ -43,13 +37,11 @@ const Match = () => {
   const [messageInput, setMessageInput] = useState('');
   const [typingTimeout, setTypingTimeout] = useState(null);
   const [currentFact, setCurrentFact] = useState(0);
-  const [factVisible, setFactVisible] = useState(true);
-  const [showGames, setShowGames] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
-  const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });
+  const [showFilterSelector, setShowFilterSelector] = useState(false);
+  const [videoExpanded, setVideoExpanded] = useState(false);
   const messagesEndRef = useRef(null);
   
   // Game states
@@ -58,11 +50,10 @@ const Match = () => {
   const [myScore, setMyScore] = useState(0);
   const [partnerScore, setPartnerScore] = useState(0);
 
-  // WebRTC hook - auto start when matched
+  // WebRTC hook - AUTO START when matched
   const {
     localVideoRef,
     remoteVideoRef,
-    canvasRef,
     localStream,
     remoteStream,
     isVideoEnabled,
@@ -76,7 +67,7 @@ const Match = () => {
     toggleAudio,
     changeFilter,
     getFilterStyle
-  } = useWebRTC(socket, sessionId, partner?.user_id, true); // true = autoStart
+  } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
   const isPremium = user?.premium_status;
 
@@ -96,44 +87,22 @@ const Match = () => {
     }
   }, [state, user]);
 
-  // Handle filter application
+  // Rotate raccoon facts
+  useEffect(() => {
+    if (state !== 'searching') return;
+    const interval = setInterval(() => {
+      setCurrentFact(prev => (prev + 1) % RACCOON_FACTS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [state]);
+
   const handleApplyFilters = (filters) => {
     setMatchingFilters(filters);
-    // If currently searching, restart with new filters
     if (state === 'searching') {
       startMatching(filters.gender, filters.country);
     }
     toast.success('Filters applied!');
   };
-
-  // Rotate raccoon facts every 3 seconds
-  useEffect(() => {
-    if (state !== 'searching') return;
-    
-    const interval = setInterval(() => {
-      setFactVisible(false);
-      setTimeout(() => {
-        setCurrentFact(prev => (prev + 1) % RACCOON_FACTS.length);
-        setFactVisible(true);
-      }, 300);
-    }, 3000);
-    
-    return () => clearInterval(interval);
-  }, [state]);
-
-  // Animate background glow position
-  useEffect(() => {
-    if (state !== 'searching') return;
-    
-    const interval = setInterval(() => {
-      setGlowPosition(prev => ({
-        x: 50 + Math.sin(Date.now() / 2000) * 10,
-        y: 50 + Math.cos(Date.now() / 2500) * 10
-      }));
-    }, 50);
-    
-    return () => clearInterval(interval);
-  }, [state]);
 
   const handleSendMessage = (e) => {
     e.preventDefault();
@@ -146,27 +115,26 @@ const Match = () => {
 
   const handleInputChange = (e) => {
     setMessageInput(e.target.value);
-    
     if (!typingTimeout) {
       startTyping();
     }
-    
     clearTimeout(typingTimeout);
     const timeout = setTimeout(() => {
       stopTyping();
       setTypingTimeout(null);
     }, 1000);
-    
     setTypingTimeout(timeout);
   };
 
   const handleSkip = () => {
+    endCall();
     skipMatch();
     toast.info('Finding next match...');
   };
 
   const handleBlock = () => {
     if (window.confirm('Block this user? You won\'t be matched again.')) {
+      endCall();
       blockUser();
       toast.success('User blocked');
     }
@@ -179,654 +147,422 @@ const Match = () => {
     }
   };
 
+  const handleFilterSelect = (filterKey) => {
+    const filter = CAMERA_FILTERS[filterKey];
+    if (filter.premium && !isPremium) {
+      handlePremiumFeature('Camera filters');
+      return;
+    }
+    changeFilter(filterKey);
+    setShowFilterSelector(false);
+  };
+
   // Connecting state
   if (!connected) {
     return (
       <div className="min-h-screen bg-[#050508] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-[#7c3aed] animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Connecting...
-          </p>
+          <p className="text-white text-lg">Connecting...</p>
         </div>
       </div>
     );
   }
 
-  // Searching state - enhanced UI
+  // Searching state
   if (state === 'searching') {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Cinematic Background */}
+      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center relative overflow-hidden px-4">
+        {/* Background */}
         <div className="fixed inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510] to-[#1a0a2e]/40" />
           <div 
-            className="absolute inset-0"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-40"
             style={{
-              backgroundImage: 'url(https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: 'brightness(0.1) saturate(0.5)'
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510]/95 to-[#1a0a2e]/40" />
-        </div>
-
-        {/* Moving animated glow layers */}
-        <div className="absolute inset-0 overflow-hidden z-0">
-          <div 
-            className="absolute w-[700px] h-[700px] rounded-full transition-all duration-1000"
-            style={{
-              left: `${glowPosition.x}%`,
-              top: `${glowPosition.y}%`,
-              transform: 'translate(-50%, -50%)',
-              background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, rgba(124,58,237,0.15) 50%, transparent 70%)',
-              animation: 'breathe 4s ease-in-out infinite'
-            }}
-          />
-          <div 
-            className="absolute w-[900px] h-[900px] rounded-full"
-            style={{
-              left: `${100 - glowPosition.x}%`,
-              top: `${100 - glowPosition.y}%`,
-              transform: 'translate(-50%, -50%)',
-              background: 'radial-gradient(circle, rgba(76,29,149,0.25) 0%, transparent 60%)',
-              animation: 'breathe 4s ease-in-out infinite 1s'
+              background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)',
+              filter: 'blur(80px)',
+              animation: 'pulse 4s ease-in-out infinite'
             }}
           />
         </div>
 
-        {/* Back button */}
+        {/* Back & Filter buttons */}
         <button
           onClick={() => navigate('/dashboard')}
-          className="absolute top-6 left-6 p-3 hover:bg-white/10 rounded-full transition-all duration-300 hover:scale-110 z-20"
-          data-testid="back-button"
+          className="absolute top-4 left-4 p-3 hover:bg-white/10 rounded-full z-20"
         >
-          <ArrowLeft size={22} className="text-white/50 hover:text-white/80 transition-colors" />
+          <ArrowLeft size={20} className="text-white/60" />
         </button>
-
-        {/* Filter button */}
         <button
           onClick={() => setShowFilters(true)}
-          className={`absolute top-6 right-6 p-3 rounded-full transition-all duration-300 hover:scale-110 z-20 flex items-center gap-2 ${
-            matchingFilters.gender !== 'any' || matchingFilters.country !== 'ANY'
-              ? 'bg-[#7c3aed] text-white'
-              : 'hover:bg-white/10 text-white/50 hover:text-white/80'
-          }`}
-          data-testid="filter-button"
+          className="absolute top-4 right-4 p-3 hover:bg-white/10 rounded-full z-20"
         >
-          <Filter size={22} />
-          {(matchingFilters.gender !== 'any' || matchingFilters.country !== 'ANY') && (
-            <span className="text-sm font-medium">Filtered</span>
-          )}
+          <Filter size={20} className="text-white/60" />
         </button>
 
-        {/* Matching Filters Modal */}
         <MatchingFilters
           isOpen={showFilters}
           onClose={() => setShowFilters(false)}
           onApply={handleApplyFilters}
           isPremium={isPremium}
-          onPremiumRequired={() => {
-            toast.info('Filters are a Premium feature');
-            navigate('/premium');
-          }}
+          onPremiumRequired={() => navigate('/premium')}
           initialFilters={matchingFilters}
         />
 
-        {/* Main content */}
-        <div className="relative z-10 text-center px-6">
-          {/* Raccoon with clean circular mask and breathing glow */}
-          <div className="relative mb-12">
-            {/* Outer breathing glow */}
-            <div 
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full"
-              style={{
-                background: 'radial-gradient(circle, rgba(124,58,237,0.5) 0%, rgba(124,58,237,0.2) 50%, transparent 70%)',
-                filter: 'blur(50px)',
-                animation: 'breathe 3s ease-in-out infinite'
-              }}
+        {/* Content */}
+        <div className="relative z-10 text-center">
+          <div className="w-32 h-32 mx-auto mb-8 rounded-full overflow-hidden bg-[#7c3aed]/20 animate-pulse">
+            <img 
+              src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
+              alt="Raccoon"
+              className="w-full h-full object-cover scale-150"
+              style={{ objectPosition: 'center 30%' }}
             />
-            
-            {/* Raccoon container with circular mask */}
-            <div 
-              className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto rounded-full overflow-hidden"
-              style={{
-                background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)',
-                animation: 'pulse 4s ease-in-out infinite'
-              }}
-            >
-              <img 
-                src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
-                alt="Cool Raccoon"
-                className="w-full h-full object-cover scale-150"
-                style={{
-                  objectPosition: 'center 30%',
-                  animation: 'float 4s ease-in-out infinite',
-                  filter: 'drop-shadow(0 0 40px rgba(124,58,237,0.5))'
-                }}
-              />
-            </div>
           </div>
-
-          {/* Title with clean typography */}
-          <h2 
-            className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight"
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-          >
-            Finding a Match
-          </h2>
-
-          {/* Rotating facts */}
-          <div className="h-12 mb-10 max-w-md mx-auto">
-            <p 
-              className="text-gray-500 text-sm sm:text-base transition-all duration-500 leading-relaxed"
-              style={{ 
-                fontFamily: 'Manrope, sans-serif',
-                opacity: factVisible ? 1 : 0,
-                transform: factVisible ? 'translateY(0)' : 'translateY(8px)'
-              }}
-            >
-              {RACCOON_FACTS[currentFact]}
-            </p>
-          </div>
-
-          {/* Raccoon emoji wave - floating animation */}
-          <div className="flex items-center justify-center gap-5">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span 
-                key={i}
-                className="text-2xl"
-                style={{ 
-                  animation: 'floatEmoji 2.5s ease-in-out infinite',
-                  animationDelay: `${i * 0.3}s`
-                }}
-              >
-                🦝
-              </span>
+          <h2 className="text-2xl font-bold mb-2">Finding a Match</h2>
+          <p className="text-gray-400 text-sm mb-8 transition-opacity duration-300">
+            {RACCOON_FACTS[currentFact]}
+          </p>
+          <div className="flex justify-center gap-2">
+            {[0,1,2,3,4].map(i => (
+              <span key={i} className="text-xl animate-bounce" style={{ animationDelay: `${i * 0.1}s` }}>🦝</span>
             ))}
           </div>
         </div>
 
-        {/* CSS Animations */}
         <style>{`
-          @keyframes float {
-            0%, 100% { transform: translateY(0) scale(1.5); }
-            50% { transform: translateY(-12px) scale(1.5); }
-          }
-          @keyframes breathe {
-            0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.15); }
-          }
-          @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4); }
-            50% { box-shadow: 0 0 40px 20px rgba(124,58,237,0.2); }
-          }
-          @keyframes floatEmoji {
-            0%, 100% { transform: translateY(0) rotate(-5deg); }
-            25% { transform: translateY(-12px) rotate(0deg); }
-            50% { transform: translateY(-5px) rotate(5deg); }
-            75% { transform: translateY(-15px) rotate(0deg); }
-          }
+          @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.6; } }
         `}</style>
       </div>
     );
   }
 
-  // Matched state - Chat UI with premium design
+  // MATCHED STATE - Main Chat & Video UI
   return (
-    <div className="min-h-screen bg-[#050508] text-white flex flex-col relative overflow-hidden">
-      {/* Animated background */}
-      <div className="fixed inset-0 z-0">
-        <div 
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'url(https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            filter: 'brightness(0.05) saturate(0.3)'
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510]/98 to-[#1a0a2e]/20" />
-        
-        {/* Subtle animated gradient orbs */}
-        <div 
-          className="absolute top-1/4 right-1/4 w-[600px] h-[600px] rounded-full opacity-30"
-          style={{
-            background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)',
-            filter: 'blur(80px)',
-            animation: 'drift 20s ease-in-out infinite'
-          }}
-        />
-      </div>
-
-      {/* Header - Premium design */}
-      <div className="relative z-10 px-6 py-4 border-b border-white/[0.06] backdrop-blur-xl bg-black/30">
-        <div className="flex items-center justify-between max-w-6xl mx-auto">
+    <div className="h-screen bg-[#050508] text-white flex flex-col overflow-hidden">
+      {/* Header - Compact for mobile */}
+      <div className="relative z-20 px-3 py-2 md:px-6 md:py-3 border-b border-white/10 bg-black/50 backdrop-blur-xl flex-shrink-0">
+        <div className="flex items-center justify-between">
+          {/* Left: Back button */}
           <button
             onClick={() => navigate('/dashboard')}
-            className="p-2.5 hover:bg-white/10 rounded-xl transition-all duration-300 hover:scale-105"
+            className="p-2 hover:bg-white/10 rounded-xl"
             data-testid="back-button"
           >
-            <ArrowLeft size={20} className="text-white/60" />
+            <ArrowLeft size={18} className="text-white/60" />
           </button>
           
+          {/* Center: Partner info */}
           {partner && (
-            <div className="flex items-center gap-5">
-              {/* Partner info - premium style */}
-              <div className="flex items-center gap-3 px-4 py-2 bg-white/[0.03] border border-white/[0.06] rounded-2xl">
-                <div className="w-10 h-10 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-xl flex items-center justify-center text-lg font-bold">
-                  {partner.username?.charAt(0).toUpperCase()}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-lg flex items-center justify-center text-sm font-bold">
+                {partner.username?.charAt(0).toUpperCase()}
+              </div>
+              <div className="hidden sm:block">
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold text-sm">{partner.username}</span>
+                  {partner.premium && <Star size={12} className="text-yellow-400 fill-yellow-400" />}
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                      {partner.username}
-                    </span>
-                    {partner.premium && (
-                      <div className="px-1.5 py-0.5 bg-yellow-500/20 rounded-md">
-                        <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                      </div>
-                    )}
-                    {/* Points display */}
-                    {(showFeud || showTruthOrDare) && (
-                      <div className="px-2 py-0.5 bg-[#ffd700]/20 rounded-full flex items-center gap-1">
-                        <Trophy size={12} className="text-[#ffd700]" />
-                        <span className="text-xs font-bold text-[#ffd700]">{partnerScore}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Globe size={10} />
-                    <span>{partner.country || 'Unknown'}</span>
-                  </div>
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Globe size={10} />
+                  <span>{partner.country || 'Unknown'}</span>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* My score when playing games */}
-              {(showFeud || showTruthOrDare) && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#7c3aed]/20 border border-[#7c3aed]/30 rounded-full">
-                  <span className="text-xs text-gray-400">You:</span>
-                  <Trophy size={14} className="text-[#ffd700]" />
-                  <span className="font-bold text-[#ffd700]">{myScore}</span>
+          {/* Right: Action buttons */}
+          <div className="flex items-center gap-1 md:gap-2">
+            <button
+              onClick={handleSkip}
+              className="px-3 py-1.5 md:px-4 md:py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs md:text-sm flex items-center gap-1"
+              data-testid="skip-button"
+            >
+              <SkipForward size={14} />
+              <span className="hidden sm:inline">Skip</span>
+            </button>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="p-1.5 md:p-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg"
+              data-testid="report-button"
+            >
+              <Flag size={14} />
+            </button>
+            <button
+              onClick={handleBlock}
+              className="p-1.5 md:p-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg"
+              data-testid="block-button"
+            >
+              <UserX size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        {/* VIDEO SECTION - Always visible, large and centered */}
+        <div className={`${videoExpanded ? 'fixed inset-0 z-50' : 'relative lg:w-1/2 xl:w-3/5'} bg-black flex-shrink-0`}>
+          {/* Remote Video (Main) */}
+          <div className="relative w-full h-48 sm:h-64 lg:h-full">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+            
+            {/* Placeholder if no remote stream */}
+            {!remoteStream && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-[#7c3aed]/20 rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse">
+                    <Video size={32} className="text-[#7c3aed]" />
+                  </div>
+                  <p className="text-gray-400 text-sm">Waiting for {partner?.username}...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Local Video (PIP) with filter */}
+            <div className="absolute bottom-4 right-4 w-24 sm:w-32 aspect-video bg-gray-800 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                style={{ filter: getFilterStyle(currentFilter) }}
+              />
+              {currentFilter !== 'none' && (
+                <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-[#7c3aed]/80 rounded text-[8px] text-white">
+                  {CAMERA_FILTERS[currentFilter]?.icon}
                 </div>
               )}
+              {!isVideoEnabled && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                  <VideoOff size={20} className="text-gray-500" />
+                </div>
+              )}
+            </div>
 
-              {/* Action buttons - modern style */}
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSkip}
-                  className="px-4 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-105"
-                  data-testid="skip-button"
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
-                >
-                  <SkipForward size={16} />
-                  <span className="text-sm">Skip</span>
+            {/* Video Controls */}
+            <div className="absolute bottom-4 left-4 right-24 sm:right-36 flex items-center gap-2">
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilterSelector(!showFilterSelector)}
+                className={`p-2.5 rounded-full transition-all ${
+                  currentFilter !== 'none' ? 'bg-[#7c3aed] text-white' : 'bg-black/50 text-white hover:bg-black/70'
+                }`}
+                data-testid="filter-btn"
+              >
+                <Sparkles size={18} />
+              </button>
+
+              {/* Video Toggle */}
+              <button
+                onClick={toggleVideo}
+                className={`p-2.5 rounded-full transition-all ${
+                  isVideoEnabled ? 'bg-black/50 text-white' : 'bg-red-500/80 text-white'
+                }`}
+                data-testid="toggle-video-btn"
+              >
+                {isVideoEnabled ? <Video size={18} /> : <VideoOff size={18} />}
+              </button>
+
+              {/* Audio Toggle */}
+              <button
+                onClick={toggleAudio}
+                className={`p-2.5 rounded-full transition-all ${
+                  isAudioEnabled ? 'bg-black/50 text-white' : 'bg-red-500/80 text-white'
+                }`}
+                data-testid="toggle-audio-btn"
+              >
+                {isAudioEnabled ? <Mic size={18} /> : <MicOff size={18} />}
+              </button>
+
+              {/* End Call */}
+              <button
+                onClick={endCall}
+                className="p-2.5 bg-red-500 hover:bg-red-600 rounded-full text-white"
+                data-testid="end-call-btn"
+              >
+                <PhoneOff size={18} />
+              </button>
+
+              {/* Fullscreen */}
+              <button
+                onClick={() => setVideoExpanded(!videoExpanded)}
+                className="p-2.5 bg-black/50 hover:bg-black/70 rounded-full text-white"
+              >
+                {videoExpanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+            </div>
+
+            {/* Connection status */}
+            {connectionState === 'connecting' && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded-full text-yellow-400 text-xs flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                Connecting...
+              </div>
+            )}
+          </div>
+
+          {/* Filter Selector Overlay */}
+          {showFilterSelector && (
+            <div className="absolute bottom-20 left-4 right-4 bg-black/90 backdrop-blur-xl rounded-xl p-3 border border-white/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sparkles size={14} className="text-[#7c3aed]" /> Filters
+                </span>
+                <button onClick={() => setShowFilterSelector(false)} className="p-1 hover:bg-white/10 rounded">
+                  <X size={16} className="text-gray-400" />
                 </button>
-                <button
-                  onClick={() => setShowReportModal(true)}
-                  className="px-4 py-2.5 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 hover:border-orange-500/30 text-orange-400 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-105"
-                  data-testid="report-button"
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
-                >
-                  <Flag size={16} />
-                  <span className="text-sm">Report</span>
-                </button>
-                <button
-                  onClick={handleBlock}
-                  className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/30 text-rose-400 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-105"
-                  data-testid="block-button"
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
-                >
-                  <UserX size={16} />
-                  <span className="text-sm">Block</span>
-                </button>
+              </div>
+              <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
+                {Object.entries(CAMERA_FILTERS).map(([key, filter]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleFilterSelect(key)}
+                    className={`p-2 rounded-lg transition-all flex flex-col items-center ${
+                      currentFilter === key ? 'bg-[#7c3aed] text-white' : 'bg-white/5 hover:bg-white/10 text-white'
+                    } ${filter.premium && !isPremium ? 'opacity-50' : ''}`}
+                  >
+                    <span className="text-lg">{filter.icon}</span>
+                    <span className="text-[8px] mt-0.5 truncate w-full text-center">{filter.name}</span>
+                    {filter.premium && !isPremium && <Lock size={8} className="text-yellow-400 mt-0.5" />}
+                  </button>
+                ))}
               </div>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Chat Area */}
-      <div className="relative z-10 flex-1 flex flex-col lg:flex-row items-stretch justify-center p-6 gap-6">
-        {/* Left Sidebar - Games & Video */}
-        <div className={`${showGames || showVideo ? 'flex' : 'hidden lg:flex'} flex-col w-full lg:w-80 gap-4`}>
-          {/* Video Chat Section */}
-          {showVideo ? (
-            <div className="flex-1">
-              <VideoChat
-                localVideoRef={localVideoRef}
-                remoteVideoRef={remoteVideoRef}
-                localStream={localStream}
-                remoteStream={remoteStream}
-                isVideoEnabled={isVideoEnabled}
-                isAudioEnabled={isAudioEnabled}
-                connectionState={connectionState}
-                error={webrtcError}
-                onStartCall={startCall}
-                onEndCall={() => {
-                  endCall();
-                  setShowVideo(false);
-                }}
-                onToggleVideo={toggleVideo}
-                onToggleAudio={toggleAudio}
-                partnerUsername={partner?.username}
-                isPremium={isPremium}
-                onPremiumRequired={() => handlePremiumFeature('Camera filters')}
-                currentFilter={currentFilter}
-                onFilterChange={changeFilter}
-                getFilterStyle={getFilterStyle}
-              />
-              <button
-                onClick={() => setShowVideo(false)}
-                className="lg:hidden mt-4 w-full py-2 text-center text-gray-400 text-sm bg-white/5 rounded-xl"
-              >
-                Back to Chat
-              </button>
-            </div>
-          ) : (
-            <>
-              <h3 className="text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                <Gamepad2 size={20} className="text-[#7c3aed]" />
-                Play Together
-              </h3>
+        {/* CHAT SECTION */}
+        <div className="flex-1 flex flex-col lg:w-1/2 xl:w-2/5 relative overflow-hidden">
+          {/* Background glow */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full opacity-20"
+              style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)', filter: 'blur(60px)' }}
+            />
+          </div>
 
-              {/* Video Call Button */}
-              <button
-                onClick={() => {
-                  setShowVideo(true);
-                  setShowGames(false);
-                }}
-                className="p-4 bg-gradient-to-br from-[#7c3aed]/20 to-[#4c1d95]/20 border border-[#7c3aed]/30 rounded-xl hover:border-[#7c3aed]/60 transition-all duration-300 text-left group hover:scale-[1.02]"
-                data-testid="video-call-btn"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Video size={20} className="text-white" />
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 relative z-10" data-testid="chat-messages">
+            {messages.length === 0 && partner && (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3 animate-bounce">👋</div>
+                <p className="text-gray-400 text-sm">Say hi to <span className="text-white font-semibold">{partner.username}</span>!</p>
+              </div>
+            )}
+            
+            {messages.map((msg, index) => {
+              const isOwn = msg.sender_id === user?.user_id || msg.sender_id === user?.guest_id;
+              return (
+                <div key={index} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] sm:max-w-[70%] ${isOwn ? 'order-2' : ''}`}>
+                    {!isOwn && (
+                      <div className="flex items-center gap-2 mb-1 ml-2">
+                        <div className="w-5 h-5 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-[8px] font-bold">
+                          {msg.sender_username?.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-xs text-gray-500">{msg.sender_username}</span>
+                      </div>
+                    )}
+                    <div className={`relative px-4 py-2.5 rounded-2xl ${
+                      isOwn
+                        ? 'bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] text-white rounded-br-md shadow-[0_4px_20px_rgba(124,58,237,0.3)]'
+                        : 'bg-white/[0.06] border border-white/10 text-white rounded-bl-md'
+                    }`}>
+                      <p className="break-words text-sm leading-relaxed">{msg.content}</p>
+                    </div>
                   </div>
-                  <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Video Chat</span>
                 </div>
-                <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  Start a video call!
-                </p>
-              </button>
-              
-              {/* Raccoon Feud - Premium locked */}
-              <button
-                onClick={() => {
-                  if (!isPremium) {
-                    handlePremiumFeature('Raccoon Feud');
-                  } else {
-                    setShowFeud(true);
-                    setShowGames(false);
-                  }
-                }}
-                className={`relative p-4 bg-gradient-to-br from-[#1a237e]/40 to-[#0d1442]/40 border ${isPremium ? 'border-[#ffd700]/30 hover:border-[#ffd700]/60' : 'border-white/10'} rounded-xl transition-all duration-300 text-left group hover:scale-[1.02]`}
-                data-testid="play-feud-btn"
-              >
-                {!isPremium && (
-                  <div className="absolute top-3 right-3 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center">
-                    <Lock size={12} className="text-yellow-400" />
+              );
+            })}
+            
+            {/* Typing indicator */}
+            {partnerTyping && (
+              <div className="flex justify-start">
+                <div className="px-4 py-2.5 bg-white/[0.06] border border-white/10 rounded-2xl rounded-bl-md">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
-                )}
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Trophy size={20} className="text-[#1a237e]" />
-                  </div>
-                  <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</span>
                 </div>
-                <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  {isPremium ? 'Guess the top answers!' : 'Premium only'}
-                </p>
-              </button>
-              
-              {/* Truth or Dare - Premium locked */}
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Game buttons & Input */}
+          <div className="relative z-10 p-3 border-t border-white/10 bg-black/30 backdrop-blur-xl flex-shrink-0">
+            {/* Game buttons row */}
+            <div className="flex gap-2 mb-3">
               <button
                 onClick={() => {
                   if (!isPremium) {
                     handlePremiumFeature('Truth or Dare');
                   } else {
-                    setShowTruthOrDare(true);
-                    setShowGames(false);
+                    setShowTruthOrDare(!showTruthOrDare);
+                    setShowFeud(false);
                   }
                 }}
-                className={`relative p-4 bg-gradient-to-br from-[#4a1a6b]/40 to-[#2d1b4e]/40 border ${isPremium ? 'border-pink-500/30 hover:border-pink-500/60' : 'border-white/10'} rounded-xl transition-all duration-300 text-left group hover:scale-[1.02]`}
-                data-testid="play-tod-btn"
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  showTruthOrDare ? 'bg-pink-500/30 text-pink-300 border border-pink-500/50' : 'bg-white/5 text-gray-300 border border-white/10'
+                }`}
+                data-testid="tod-btn"
               >
-                {!isPremium && (
-                  <div className="absolute top-3 right-3 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center">
-                    <Lock size={12} className="text-yellow-400" />
-                  </div>
-                )}
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Sparkles size={20} className="text-white" />
-                  </div>
-                  <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</span>
-                </div>
-                <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  {isPremium ? 'Spin the bottle!' : 'Premium only'}
-                </p>
+                <Sparkles size={14} />
+                <span>Truth/Dare</span>
+                {!isPremium && <Lock size={10} className="text-yellow-400" />}
               </button>
-
-              {/* Upgrade banner for non-premium */}
-              {!isPremium && (
-                <button
-                  onClick={() => navigate('/premium')}
-                  className="p-4 bg-gradient-to-r from-[#7c3aed]/20 to-[#4c1d95]/20 border border-[#7c3aed]/40 rounded-xl hover:border-[#7c3aed]/60 transition-all duration-300 text-center hover:scale-[1.02]"
-                >
-                  <div className="flex items-center justify-center gap-2 text-[#a78bfa]">
-                    <Crown size={18} />
-                    <span className="font-bold text-sm">Unlock All Features</span>
-                  </div>
-                </button>
-              )}
-              
-              {/* Mobile toggle */}
               <button
-                onClick={() => setShowGames(false)}
-                className="lg:hidden mt-2 text-center text-gray-400 text-sm"
+                onClick={() => {
+                  if (!isPremium) {
+                    handlePremiumFeature('Raccoon Feud');
+                  } else {
+                    setShowFeud(!showFeud);
+                    setShowTruthOrDare(false);
+                  }
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  showFeud ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-white/5 text-gray-300 border border-white/10'
+                }`}
+                data-testid="feud-btn"
               >
-                Back to Chat
+                <Trophy size={14} />
+                <span>Feud</span>
+                {!isPremium && <Lock size={10} className="text-yellow-400" />}
               </button>
-            </>
-          )}
-        </div>
-
-        {/* Chat Box - Premium design */}
-        <div className={`${showGames || showVideo ? 'hidden lg:flex' : 'flex'} flex-col w-full max-w-4xl h-[600px] relative`}>
-          {/* Gradient glow behind chat */}
-          <div 
-            className="absolute -inset-1 rounded-3xl opacity-50 z-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(76,29,149,0.15) 50%, rgba(124,58,237,0.15) 100%)',
-              filter: 'blur(30px)',
-              animation: 'glowPulse 4s ease-in-out infinite'
-            }}
-          />
-          
-          <div className="relative z-10 flex-1 flex flex-col bg-gradient-to-br from-white/[0.03] to-white/[0.01] backdrop-blur-2xl border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl">
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-5" data-testid="chat-messages" style={{ scrollBehavior: 'smooth' }}>
-              {messages.length === 0 && partner && (
-                <div className="text-center py-20">
-                  <div className="relative inline-block mb-6">
-                    <div className="text-6xl animate-wave">👋</div>
-                    <div 
-                      className="absolute inset-0 blur-2xl opacity-50"
-                      style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)' }}
-                    />
-                  </div>
-                  <p className="text-gray-400 text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                    Say hi to <span className="text-white font-semibold">{partner.username}</span>!
-                  </p>
-                  <p className="text-gray-600 text-sm mt-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                    Start the conversation...
-                  </p>
-                </div>
-              )}
-              
-              {messages.map((msg, index) => {
-                const isOwn = msg.sender_id === user.user_id || msg.sender_id === user.guest_id;
-                const showTimestamp = index === 0 || 
-                  (messages[index - 1] && messages[index - 1].sender_id !== msg.sender_id);
-                
-                return (
-                  <div
-                    key={index}
-                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'} messageEntry`}
-                    style={{ 
-                      animation: 'messageSlide 0.3s ease-out forwards',
-                      animationDelay: `${Math.min(index * 0.03, 0.2)}s`,
-                      opacity: 0
-                    }}
-                  >
-                    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[75%]`}>
-                      {/* Sender info for partner messages */}
-                      {!isOwn && showTimestamp && (
-                        <div className="flex items-center gap-2 mb-1.5 ml-3">
-                          <div className="w-6 h-6 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-[10px] font-bold">
-                            {msg.sender_username?.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-xs text-gray-500 font-medium">{msg.sender_username}</span>
-                          {msg.premium && <Star size={10} className="text-yellow-400 fill-yellow-400" />}
-                        </div>
-                      )}
-                      
-                      {/* Message bubble */}
-                      <div
-                        className={`relative px-5 py-3.5 transition-all duration-200 ${
-                          isOwn
-                            ? 'bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] text-white rounded-2xl rounded-br-md shadow-[0_4px_25px_rgba(124,58,237,0.35)] hover:shadow-[0_6px_30px_rgba(124,58,237,0.45)]'
-                            : 'bg-white/[0.04] border border-white/[0.1] text-white rounded-2xl rounded-bl-md hover:bg-white/[0.06]'
-                        }`}
-                        style={{ fontFamily: 'Manrope, sans-serif' }}
-                      >
-                        <p className="break-words leading-relaxed text-[15px]">{msg.content}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              
-              {/* Typing indicator */}
-              {partnerTyping && (
-                <div className="flex justify-start messageEntry" style={{ animation: 'messageSlide 0.2s ease-out forwards' }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-xs font-bold">
-                      {partner?.username?.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="px-5 py-3.5 bg-white/[0.04] border border-white/[0.1] rounded-2xl rounded-bl-md">
-                      <div className="flex gap-1.5 items-center">
-                        <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-typingDot" style={{ animationDelay: '0ms' }} />
-                        <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-typingDot" style={{ animationDelay: '150ms' }} />
-                        <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-typingDot" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Input - Enhanced */}
-            <form onSubmit={handleSendMessage} className="p-5 border-t border-white/[0.06] bg-gradient-to-t from-black/40 to-transparent">
-              <div className="flex gap-3 items-center">
-                {/* Mobile toggles */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGames(true);
-                    setShowVideo(false);
-                  }}
-                  className="lg:hidden p-3.5 bg-white/[0.05] hover:bg-[#7c3aed]/20 border border-white/[0.08] hover:border-[#7c3aed]/30 rounded-xl transition-all duration-300 hover:scale-110"
-                >
-                  <Gamepad2 size={20} className="text-[#7c3aed]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowVideo(true);
-                    setShowGames(false);
-                  }}
-                  className="lg:hidden p-3.5 bg-white/[0.05] hover:bg-[#7c3aed]/20 border border-white/[0.08] hover:border-[#7c3aed]/30 rounded-xl transition-all duration-300 hover:scale-110"
-                >
-                  <Video size={20} className="text-[#7c3aed]" />
-                </button>
-                
-                {/* Input field */}
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={messageInput}
-                    onChange={handleInputChange}
-                    placeholder="Type a message..."
-                    className="w-full bg-white/[0.04] border border-white/[0.1] focus:border-[#7c3aed]/60 focus:bg-white/[0.06] rounded-2xl h-14 px-6 text-white placeholder:text-white/25 outline-none transition-all duration-300 focus:shadow-[0_0_20px_rgba(124,58,237,0.15)]"
-                    data-testid="message-input"
-                    style={{ fontFamily: 'Manrope, sans-serif' }}
-                  />
-                </div>
-                
-                {/* Send button */}
-                <button
-                  type="submit"
-                  disabled={!messageInput.trim()}
-                  className="p-4 bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] hover:from-[#8b5cf6] hover:to-[#6d28d9] rounded-2xl font-semibold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shadow-[0_4px_25px_rgba(124,58,237,0.4)] hover:shadow-[0_6px_35px_rgba(124,58,237,0.55)] hover:scale-110 disabled:hover:scale-100 active:scale-95"
-                  data-testid="send-button"
-                >
-                  <Send size={20} className="text-white" />
-                </button>
-              </div>
+            {/* Message input */}
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={messageInput}
+                onChange={handleInputChange}
+                placeholder="Type a message..."
+                className="flex-1 bg-white/[0.06] border border-white/10 focus:border-[#7c3aed]/50 rounded-xl h-11 px-4 text-white placeholder:text-gray-500 outline-none text-sm"
+                data-testid="message-input"
+              />
+              <button
+                type="submit"
+                disabled={!messageInput.trim()}
+                className="p-3 bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] rounded-xl disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
+                data-testid="send-button"
+              >
+                <Send size={18} className="text-white" />
+              </button>
             </form>
           </div>
         </div>
       </div>
 
-      {/* Global animations */}
-      <style>{`
-        @keyframes drift {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(50px, -30px); }
-          50% { transform: translate(-30px, 50px); }
-          75% { transform: translate(-50px, -20px); }
-        }
-        @keyframes messageSlide {
-          from { opacity: 0; transform: translateY(15px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes typingDot {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-4px); opacity: 1; }
-        }
-        @keyframes glowPulse {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 0.7; }
-        }
-        @keyframes wave {
-          0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(20deg); }
-          75% { transform: rotate(-10deg); }
-        }
-        .animate-wave {
-          animation: wave 1.5s ease-in-out infinite;
-          display: inline-block;
-          transform-origin: 70% 70%;
-        }
-        .animate-typingDot {
-          animation: typingDot 1.4s ease-in-out infinite;
-        }
-      `}</style>
-
-      {/* Report Modal */}
-      {showReportModal && partner && (
-        <ReportModal 
-          partner={partner}
-          sessionId={sessionId}
-          onClose={() => setShowReportModal(false)}
-        />
-      )}
-
-      {/* Truth or Dare Game Overlay */}
+      {/* Game Overlays - Positioned to not cover video */}
       <TruthOrDareGame
         isOpen={showTruthOrDare}
         onClose={() => setShowTruthOrDare(false)}
@@ -836,7 +572,6 @@ const Match = () => {
         isPremium={isPremium}
       />
 
-      {/* Raccoon Feud Game Panel */}
       <RaccoonFeudGame
         isOpen={showFeud}
         onClose={() => setShowFeud(false)}
@@ -846,6 +581,15 @@ const Match = () => {
         onScoreUpdate={(points) => setMyScore(prev => prev + points)}
         isPremium={isPremium}
       />
+
+      {/* Report Modal */}
+      {showReportModal && partner && (
+        <ReportModal 
+          partner={partner}
+          sessionId={sessionId}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 };
@@ -891,7 +635,7 @@ const ReportModal = ({ partner, sessionId, onClose }) => {
       });
 
       if (response.ok) {
-        toast.success('Report submitted. Thank you for keeping Raccoon safe!');
+        toast.success('Report submitted. Thank you!');
         onClose();
       } else {
         const data = await response.json();
@@ -907,86 +651,58 @@ const ReportModal = ({ partner, sessionId, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-2xl overflow-hidden">
-        {/* Header */}
-        <div className="p-6 border-b border-white/10">
+      <div className="relative w-full max-w-sm bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-2xl overflow-hidden">
+        <div className="p-4 border-b border-white/10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold flex items-center gap-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              <Flag size={24} className="text-orange-400" />
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Flag size={20} className="text-orange-400" />
               Report User
             </h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition-all"
-            >
-              <X size={20} className="text-gray-400" />
+            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full">
+              <X size={18} className="text-gray-400" />
             </button>
           </div>
-          <p className="text-sm text-gray-500 mt-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Reporting: <span className="text-white font-medium">{partner.username}</span>
-          </p>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-3 block" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Reason for report *
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {REPORT_REASONS.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setReason(r)}
-                  className={`p-3 rounded-xl text-sm transition-all text-left ${
-                    reason === r
-                      ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50'
-                      : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            {REPORT_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => setReason(r)}
+                className={`p-2.5 rounded-lg text-xs transition-all text-left ${
+                  reason === r
+                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50'
+                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-gray-400 mb-2 block" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Additional details (optional)
-            </label>
-            <textarea
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              placeholder="Provide more context about this report..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder:text-gray-600 outline-none resize-none h-24 focus:border-orange-500/50"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
-            />
-          </div>
+          <textarea
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            placeholder="Additional details (optional)"
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder:text-gray-600 outline-none resize-none h-20 text-sm"
+          />
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-white/10 flex gap-3">
+        <div className="p-4 border-t border-white/10 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-semibold transition-all"
-            style={{ fontFamily: 'Manrope, sans-serif' }}
+            className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-medium"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!reason || submitting}
-            className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            style={{ fontFamily: 'Manrope, sans-serif' }}
+            className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-xl text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {submitting ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <>
-                <Flag size={18} />
-                Submit Report
-              </>
-            )}
+            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Flag size={16} />}
+            Submit
           </button>
         </div>
       </div>

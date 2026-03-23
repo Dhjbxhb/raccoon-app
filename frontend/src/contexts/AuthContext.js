@@ -45,6 +45,20 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  const loginAsGuest = async (gender = 'any') => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/guest`, { gender });
+      const { token: newToken, user: userData } = response.data;
+      localStorage.setItem('raccoon_token', newToken);
+      setToken(newToken);
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      console.error('Guest login failed:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('raccoon_token');
     setToken(null);
@@ -56,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isGuest, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, login, loginAsGuest, logout, loading, isGuest, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

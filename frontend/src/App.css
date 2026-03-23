@@ -1,34 +1,242 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Base Styles */
+.App {
+  font-family: 'Manrope', sans-serif;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
+/* Hide Emergent Branding - CRITICAL */
+[class*="emergent"],
+[class*="Emergent"],
+[id*="emergent"],
+[id*="Emergent"],
+a[href*="emergent"],
+div[style*="emergent" i],
+.made-with-emergent,
+#made-with-emergent,
+footer a[href*="emergentagent"],
+div[class*="badge"],
+.badge-container,
+iframe[src*="emergent"],
+/* Target common branding patterns */
+div[style*="position: fixed"][style*="bottom"],
+.watermark,
+.brand-watermark {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Mobile Responsive Fixes */
+@media (max-width: 768px) {
+  /* Ensure full height */
+  html, body, #root, .App {
+    height: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Fix touch scroll */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Chat input always visible */
+  input[data-testid="message-input"] {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+
+  /* Ensure buttons are tappable */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Video controls */
+  .video-controls button {
+    padding: 12px;
+  }
+
+  /* Fix safe area for notch devices */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    .min-h-screen {
+      min-height: calc(100vh - env(safe-area-inset-bottom));
     }
+    
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
 }
 
-.App-header {
-    background-color: #0f0f10;
+/* Smooth Animations */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Premium glow effects */
+.glow-purple {
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+}
+
+.glow-yellow {
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.6);
+}
+
+/* Backdrop blur fallback */
+@supports not (backdrop-filter: blur(10px)) {
+  .backdrop-blur-xl {
+    background-color: rgba(0, 0, 0, 0.9) !important;
+  }
+}
+
+/* Chat message animations */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.message-own {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.message-partner {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+/* Video element fixes */
+video {
+  object-fit: cover;
+  background: #000;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Bounce animation for emojis */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Typing indicator dots */
+@keyframes typing-bounce {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* Button hover effects */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Focus states */
+input:focus,
+textarea:focus,
+button:focus {
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.5);
+}
+
+/* Prevent text selection on buttons */
+button {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Remove iOS bounce scroll */
+  html {
+    overscroll-behavior: none;
+  }
+  
+  /* Fix 100vh issue on iOS */
+  .h-screen {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+  
+  .min-h-screen {
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+    min-height: -webkit-fill-available;
+  }
 }
 
-.App-link {
-    color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+/* Print styles - hide everything unnecessary */
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }

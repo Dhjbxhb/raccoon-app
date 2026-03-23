@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SocketProvider } from '@/contexts/SocketContext';
@@ -21,6 +21,31 @@ import Privacy from '@/pages/Privacy';
 import Guidelines from '@/pages/Guidelines';
 import Refund from '@/pages/Refund';
 import '@/App.css';
+
+// Remove external branding
+const removeBranding = () => {
+  const selectors = [
+    '[class*="emergent" i]',
+    '[id*="emergent" i]',
+    'a[href*="emergent" i]',
+    '[class*="watermark" i]',
+    '[class*="badge" i]:not(.bg-yellow-500):not(.text-yellow-400)',
+    'iframe',
+  ];
+  
+  selectors.forEach(selector => {
+    try {
+      document.querySelectorAll(selector).forEach(el => {
+        if (el.textContent?.toLowerCase().includes('emergent') || 
+            el.href?.toLowerCase().includes('emergent') ||
+            el.src?.toLowerCase().includes('emergent')) {
+          el.style.display = 'none';
+          el.style.visibility = 'hidden';
+        }
+      });
+    } catch (e) {}
+  });
+};
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -106,6 +131,27 @@ function AppRoutes() {
 }
 
 function App() {
+  // Remove branding on mount and periodically
+  useEffect(() => {
+    removeBranding();
+    const interval = setInterval(removeBranding, 1000);
+    
+    // Also use MutationObserver to catch dynamically injected elements
+    const observer = new MutationObserver(() => {
+      removeBranding();
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <div className="App">
       <AuthProvider>
