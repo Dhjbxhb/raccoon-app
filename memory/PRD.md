@@ -1,89 +1,60 @@
 # RACCOON APP - Product Requirements Document
 
 ## Original Problem Statement
-Build a real-time web application called "RACCOON APP" - a premium social matching platform similar to Omegle but more advanced with a premium, gamified feel. The app must feel instant, alive, smooth, and addictive with a focus on UX, performance, monetization, and scalability.
+Build a real-time web application called "RACCOON APP" - a premium social matching platform for text and video chat. The app must feel instant, alive, smooth, and addictive with focus on UX, performance, monetization, and scalability.
 
 ---
 
-## ✅ COMPLETED PHASES
+## ✅ COMPLETED FEATURES (December 2025)
 
-### Phase 1 - Foundation & Authentication ✅
+### Core Foundation
 - FastAPI backend with JWT authentication
-- Email/Password & Guest login
-- Cinematic landing page with cool raccoon character
-- Clean Login page (minimal)
-- Branded Signup page with social login buttons (UI placeholders)
-- Minimal Guest page
-- IP-based country detection (multi-provider fallback)
-- Responsive design
+- Email/Password & Guest login with auto-country detection
+- MongoDB database with Motor async driver
+- Socket.IO real-time communication
 
-### Phase 2 - Real-Time Matching & Chat ✅
-- Socket.IO integration (path: /api/socket.io)
-- Real-time matching queue system with progressive filter relaxation (2-5 sec target)
-- Chat with typing indicators
-- Skip & Block functionality
-- Enhanced matching screen with rotating raccoon facts
+### UI/UX
+- **Landing Page**: Dark theme, animated background, prominent "Start" button
+- **Pre-Match Screen**: Minimalist card with premium-locked filters
+- **Match Screen**: 
+  - Camera auto-starts when matched (no click required)
+  - Large, centered video layout
+  - Clean control bar with Skip/Report/Block buttons
+- **Mobile Responsive**: All buttons visible, chat input accessible
+- **Premium Gating**: Lock icons on gender/country filters
 
-### Phase 3 - Interactive Games ✅
-- **Raccoon Feud** (Family Feud style)
-- **Truth or Dare** with bottle spin animation
-- Game UI components as non-intrusive overlays
+### Legal & Compliance
+- **Age Verification Modal (18+)** on first entry
+- **Terms of Service** (/terms)
+- **Privacy Policy** (/privacy)
+- **Community Guidelines** (/guidelines)
+- **Refund Policy** (/refund)
+- **Terms Checkbox** on signup form
+
+### Games (Premium)
+- **Truth or Dare**: Bottle spin animation, result reveal
+- **Raccoon Feud**: Family Feud style with answer reveal animations
 - Points system during gameplay
 
-### Phase 4 - Admin Panel ✅
-- **Full Admin Control Center** with 5 tabs:
-  - Dashboard, Users, Reports, Premium, Sessions
-- Live Platform Stats
-- User Management with search/filter
-- Ban System (temporary and permanent)
-- Premium Control
-- Report System
+### Camera Filters
+11 CSS-based filters:
+- None, Beauty, Smooth, Warm, Cool
+- Vintage, Neon, Sparkle, Raccoon
+- Big Head, Glasses
+(Some filters premium-locked)
 
-### Phase 5 - Premium & Profile ✅
-- **Premium Page** with subscription tiers:
-  - Weekly: $2.99
-  - Monthly: $7.99 (BEST VALUE)
-  - 3 Months: $19.99 (SAVE 44%)
-- **Profile Page** with user stats
+### Admin Panel
+- Dashboard with live stats
+- User management (search, filter, view profiles)
+- Ban system (temporary/permanent)
+- Premium control
+- Report management
 
-### Phase 6 - Admin Security & Premium Gating ✅
-- Admin Panel Security with `is_admin` field enforcement
-- Premium Feature Gating with lock icons
-- Instant redirect to /premium for locked features
-
-### Phase 7 - Matching Filters & Camera Filters ✅
-- **Matching Filters**: Gender Preference, Country Preference
-- **Camera Filters (Snapchat-style)**: 11 filters using CSS
-- Firebase Auth Structure (prepared)
-
-### Phase 8 - Legal & Compliance (December 2025) ✅
-- **Age Verification Modal (18+)** on first entry
-  - Stores confirmation in localStorage
-  - Links to Terms and Privacy Policy
-- **Terms of Service** (/terms)
-  - Age requirement, user responsibilities, prohibited content
-  - Account suspension, premium services, liability
-- **Privacy Policy** (/privacy)
-  - Data collection, storage, security
-  - Third-party services, user rights
-- **Community Guidelines** (/guidelines)
-  - DO/DON'T sections with clear consequences
-  - Warning → Temporary Ban → Permanent Ban
-- **Refund Policy** (/refund)
-  - Subscription explanation, eligibility criteria
-  - Contact: billing@raccoonapp.com
-- **Terms Checkbox on Signup**
-  - Required before account creation
-- **Footer Links** on Landing Page
-  - Terms, Privacy, Guidelines, 18+ only
-
-### Phase 9 - Matching System Optimization ✅
-- Progressive filter relaxation:
-  1. Perfect match (exact filters)
-  2. Relaxed country filter
-  3. Relaxed gender filter (any)
-- Multi-provider IP geolocation fallback (ipapi.co, ip-api.com, ipwho.is)
-- Queue statistics tracking
+### Performance
+- Fast matching (2-5 seconds with progressive filter relaxation)
+- Multi-provider IP geolocation fallback
+- Mobile-optimized responsive design
+- No external branding visible
 
 ---
 
@@ -93,32 +64,28 @@ Build a real-time web application called "RACCOON APP" - a premium social matchi
 ├── backend/
 │   ├── models/ (user, guest, message, match, game, report)
 │   ├── routes/ (auth, admin, payments, reports)
-│   ├── services/ (auth, country, db, matching, game, moderation, chat_moderation)
+│   ├── services/ (auth, country, db, matching, game, moderation)
 │   ├── websocket/ (socket_handlers)
 │   └── server.py
 └── frontend/
     └── src/
         ├── components/
-        │   ├── ui/ (shadcn components)
+        │   ├── ui/ (shadcn)
         │   ├── AgeVerificationModal.js
-        │   ├── Footer.js
-        │   ├── VideoChat.js
-        │   ├── MatchingFilters.js
         │   ├── TruthOrDareGame.js
-        │   └── RaccoonFeudGame.js
-        ├── config/ (firebase.config.js)
+        │   ├── RaccoonFeudGame.js
+        │   └── MatchingFilters.js
         ├── contexts/ (AuthContext, SocketContext)
         ├── hooks/ (useAuth, useChat, useMatching, useWebRTC, useCameraFilters)
-        ├── services/ (api, firebase.service)
         ├── pages/ 
         │   ├── Landing.js, Login.js, Signup.js, Guest.js
         │   ├── Dashboard.js, Match.js, Profile.js
-        │   ├── Premium.js, PremiumSuccess.js
-        │   ├── Terms.js, Privacy.js, Guidelines.js, Refund.js
-        │   ├── GameFeud.js, GameTruthOrDare.js
-        │   └── Admin.js
-        └── App.js
+        │   ├── Premium.js, Admin.js
+        │   └── Terms.js, Privacy.js, Guidelines.js, Refund.js
+        └── App.js (includes branding removal)
 ```
+
+---
 
 ## Key Endpoints
 - POST /api/auth/signup
@@ -133,43 +100,43 @@ Build a real-time web application called "RACCOON APP" - a premium social matchi
 - POST /api/payments/create-checkout-session
 - Socket.IO: /api/socket.io
 
-## Tech Stack
-- Backend: FastAPI, python-socketio, Motor (MongoDB async), httpx
-- Frontend: React, socket.io-client, Tailwind CSS, Shadcn UI
-- Database: MongoDB
-- Auth: JWT + Firebase Authentication (prepared)
+---
+
+## Premium Subscription Tiers
+- Weekly: $2.99
+- Monthly: $7.99 (BEST VALUE)
+- 3 Months: $19.99 (SAVE 44%)
 
 ---
 
-## 🔴 Pending Firebase Configuration
-Social login buttons (Google, Apple, Phone) are fully integrated but require Firebase credentials:
+## 🔴 Pending Configuration
+
+### Firebase (Social Login)
+Requires user-provided credentials:
 ```
 REACT_APP_FIREBASE_API_KEY=
 REACT_APP_FIREBASE_AUTH_DOMAIN=
 REACT_APP_FIREBASE_PROJECT_ID=
-REACT_APP_FIREBASE_STORAGE_BUCKET=
-REACT_APP_FIREBASE_MESSAGING_SENDER_ID=
-REACT_APP_FIREBASE_APP_ID=
 ```
+
+### Stripe (Production)
+Test mode working. Needs production keys for live payments.
 
 ---
 
-## 📋 Remaining Tasks / Backlog
+## 📋 Backlog / Future Tasks
 
-### P0 - Critical
-- [ ] Fix "Made with Emergent" branding (platform-injected, may need Emergent support)
-
-### P1 - High Priority  
-- [ ] WebRTC video chat auto-start optimization
-- [ ] Real-time online user count from backend
-- [ ] Push notifications setup
+### P1 - High Priority
+- [ ] Live online user count from backend
+- [ ] WebRTC optimization for lower latency
+- [ ] Push notifications
 
 ### P2 - Medium Priority
-- [ ] Stripe live integration (test mode working)
+- [ ] Stripe live integration
 - [ ] Firebase social login activation
 - [ ] Chat history persistence
 
-### P3 - Future Enhancements
+### P3 - Future
 - [ ] User profile customization
 - [ ] More game modes
 - [ ] Leaderboards
@@ -177,12 +144,22 @@ REACT_APP_FIREBASE_APP_ID=
 ---
 
 ## Admin Credentials
-- Email: admin@raccoon.app
-- Password: Admin123!
+- Email: `admin@raccoon.app`
+- Password: `Admin123!`
 
 ---
 
 ## Testing Status
-- Backend: 100% pass (iteration_4.json)
+- Backend: 100% pass (12/12 tests)
 - Frontend: 100% pass (all features verified)
-- Test files: /app/backend/tests/
+- Mobile responsive: Verified on 390x844 viewport
+- Test reports: `/app/test_reports/iteration_5.json`
+
+---
+
+## Tech Stack
+- **Backend**: FastAPI, python-socketio, Motor, httpx
+- **Frontend**: React, socket.io-client, Tailwind CSS, Shadcn UI
+- **Database**: MongoDB
+- **Real-time**: WebSockets + WebRTC
+- **Auth**: JWT
