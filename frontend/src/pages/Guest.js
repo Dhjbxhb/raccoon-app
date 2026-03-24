@@ -10,7 +10,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const Guest = () => {
   const navigate = useNavigate();
   const { loginAsGuest, user } = useAuth();
-  const [selectedGender, setSelectedGender] = useState('any');
+  const [selectedGender, setSelectedGender] = useState('male');
   const [selectedCountry, setSelectedCountry] = useState('ANY');
   const [preferGender, setPreferGender] = useState('any');
   const [loading, setLoading] = useState(false);

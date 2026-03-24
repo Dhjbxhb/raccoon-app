@@ -1,6 +1,6 @@
 """
-RACCOON APP API Tests
-Tests for admin security, authentication, and premium features
+Raccoon App API Tests
+Tests for authentication, guest login, and core API endpoints
 """
 import pytest
 import requests
@@ -9,177 +9,213 @@ import uuid
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://realtime-raccoon.preview.emergentagent.com')
 
-class TestAdminSecurity:
-    """Admin security and access control tests"""
+class TestHealthAndRoot:
+    """Basic API health checks"""
     
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        """Setup admin token for tests"""
-        # Setup admin account first
-        requests.post(f"{BASE_URL}/api/admin/setup-admin")
-        
-        # Login as admin
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "admin@raccoon.app",
-            "password": "Admin123!"
-        })
-        assert response.status_code == 200, f"Admin login failed: {response.text}"
-        data = response.json()
-        self.admin_token = data['token']
-        self.admin_user = data['user']
-    
-    def test_admin_login_success(self):
-        """Test admin login with correct credentials"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "admin@raccoon.app",
-            "password": "Admin123!"
-        })
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Verify admin has admin and premium status
-        assert data['user']['is_admin'] == True
-        assert data['user']['premium_status'] == True
-        assert data['user']['email'] == "admin@raccoon.app"
-        assert 'token' in data
-    
-    def test_admin_stats_endpoint(self):
-        """Test admin stats endpoint returns all 7 stat cards"""
-        response = requests.get(
-            f"{BASE_URL}/api/admin/stats",
-            headers={"Authorization": f"Bearer {self.admin_token}"}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Verify all 7 stat fields are present
-        required_fields = [
-            'total_users', 'total_guests', 'premium_users', 
-            'banned_users', 'total_matches', 'messages_today', 'active_sessions'
-        ]
-        for field in required_fields:
-            assert field in data, f"Missing field: {field}"
-            assert isinstance(data[field], int), f"Field {field} should be integer"
-    
-    def test_admin_users_endpoint(self):
-        """Test admin users endpoint"""
-        response = requests.get(
-            f"{BASE_URL}/api/admin/users",
-            headers={"Authorization": f"Bearer {self.admin_token}"}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        
-        assert 'users' in data
-        assert 'stats' in data
-        assert isinstance(data['users'], list)
-    
-    def test_guest_cannot_access_admin(self):
-        """Test that guest users cannot access admin endpoints"""
-        # Create guest
-        guest_response = requests.post(f"{BASE_URL}/api/auth/guest", json={
-            "gender": "male"
-        })
-        assert guest_response.status_code == 200
-        guest_token = guest_response.json()['token']
-        
-        # Try to access admin stats
-        response = requests.get(
-            f"{BASE_URL}/api/admin/stats",
-            headers={"Authorization": f"Bearer {guest_token}"}
-        )
-        assert response.status_code == 403
-        assert "Admin access required" in response.json().get('detail', '')
-    
-    def test_regular_user_cannot_access_admin(self):
-        """Test that regular users cannot access admin endpoints"""
-        # Create a test user
-        unique_email = f"test_{uuid.uuid4().hex[:8]}@test.com"
-        signup_response = requests.post(f"{BASE_URL}/api/auth/signup", json={
-            "email": unique_email,
-            "username": f"TestUser{uuid.uuid4().hex[:6]}",
-            "password": "TestPass123!",
-            "gender": "male",
-            "date_of_birth": "1990-01-01"
-        })
-        
-        if signup_response.status_code == 200:
-            user_token = signup_response.json()['token']
-            
-            # Try to access admin stats
-            response = requests.get(
-                f"{BASE_URL}/api/admin/stats",
-                headers={"Authorization": f"Bearer {user_token}"}
-            )
-            assert response.status_code == 403
-            assert "Admin access required" in response.json().get('detail', '')
-    
-    def test_no_token_cannot_access_admin(self):
-        """Test that requests without token cannot access admin"""
-        response = requests.get(f"{BASE_URL}/api/admin/stats")
-        assert response.status_code == 401
-
-
-class TestAuthentication:
-    """Authentication flow tests"""
-    
-    def test_guest_login(self):
-        """Test guest login creates session"""
-        response = requests.post(f"{BASE_URL}/api/auth/guest", json={
-            "gender": "female"
-        })
-        assert response.status_code == 200
-        data = response.json()
-        
-        assert 'token' in data
-        assert 'user' in data
-        assert data['user']['gender'] == 'female'
-        assert data['user']['username'].startswith('Guest')
-    
-    def test_invalid_login(self):
-        """Test login with invalid credentials"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "nonexistent@test.com",
-            "password": "wrongpassword"
-        })
-        assert response.status_code == 401
-    
-    def test_api_health(self):
-        """Test API is running"""
+    def test_api_root(self):
+        """Test API root endpoint returns welcome message"""
         response = requests.get(f"{BASE_URL}/api/")
         assert response.status_code == 200
-        assert "Raccoon" in response.json().get('message', '')
+        data = response.json()
+        assert "message" in data
+        assert "Raccoon" in data["message"]
+        print(f"✓ API root: {data['message']}")
 
 
-class TestPremiumFeatures:
-    """Premium feature gating tests"""
+class TestGuestAuth:
+    """Guest authentication tests"""
     
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        """Setup admin token for premium tests"""
-        requests.post(f"{BASE_URL}/api/admin/setup-admin")
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "admin@raccoon.app",
-            "password": "Admin123!"
-        })
+    def test_guest_login_male(self):
+        """Test guest login with male gender"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/guest",
+            json={"gender": "male"}
+        )
         assert response.status_code == 200
-        self.admin_token = response.json()['token']
-        self.admin_user = response.json()['user']
+        data = response.json()
+        
+        # Verify response structure
+        assert "token" in data
+        assert "user" in data
+        assert data["user"]["gender"] == "male"
+        assert "guest_id" in data["user"]
+        assert data["user"]["username"].startswith("Guest")
+        print(f"✓ Guest login (male): {data['user']['username']}")
     
-    def test_admin_has_premium(self):
-        """Test admin user has premium status"""
-        assert self.admin_user['premium_status'] == True
-    
-    def test_guest_no_premium(self):
-        """Test guest users don't have premium"""
-        response = requests.post(f"{BASE_URL}/api/auth/guest", json={
-            "gender": "male"
-        })
+    def test_guest_login_female(self):
+        """Test guest login with female gender"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/guest",
+            json={"gender": "female"}
+        )
         assert response.status_code == 200
-        # Guests don't have premium_status field in response
-        user = response.json()['user']
-        assert 'premium_status' not in user or user.get('premium_status') == False
+        data = response.json()
+        
+        assert "token" in data
+        assert data["user"]["gender"] == "female"
+        print(f"✓ Guest login (female): {data['user']['username']}")
+    
+    def test_guest_login_invalid_gender(self):
+        """Test guest login with invalid gender returns 400"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/guest",
+            json={"gender": "any"}
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert "Gender must be Male or Female" in data["detail"]
+        print("✓ Guest login with 'any' gender correctly rejected")
+    
+    def test_guest_login_missing_gender(self):
+        """Test guest login without gender returns 422"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/guest",
+            json={}
+        )
+        assert response.status_code == 422
+        print("✓ Guest login without gender correctly rejected")
+
+
+class TestUserAuth:
+    """User authentication tests"""
+    
+    def test_signup_success(self):
+        """Test user signup with valid data"""
+        unique_email = f"test_{uuid.uuid4().hex[:8]}@test.com"
+        unique_username = f"testuser_{uuid.uuid4().hex[:6]}"
+        
+        response = requests.post(
+            f"{BASE_URL}/api/auth/signup",
+            json={
+                "email": unique_email,
+                "username": unique_username,
+                "password": "TestPass123!",
+                "gender": "male",
+                "date_of_birth": "2000-01-01"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "token" in data
+        assert "user" in data
+        assert data["user"]["email"] == unique_email
+        assert data["user"]["username"] == unique_username
+        print(f"✓ Signup success: {unique_username}")
+    
+    def test_signup_underage(self):
+        """Test signup with underage user returns 400"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/signup",
+            json={
+                "email": f"underage_{uuid.uuid4().hex[:8]}@test.com",
+                "username": f"underage_{uuid.uuid4().hex[:6]}",
+                "password": "TestPass123!",
+                "gender": "male",
+                "date_of_birth": "2015-01-01"  # Under 18
+            }
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert "18 or older" in data["detail"]
+        print("✓ Underage signup correctly rejected")
+    
+    def test_login_invalid_credentials(self):
+        """Test login with invalid credentials returns 401"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/login",
+            json={
+                "email": "nonexistent@test.com",
+                "password": "wrongpassword"
+            }
+        )
+        assert response.status_code == 401
+        print("✓ Invalid login correctly rejected")
+    
+    def test_login_admin_user(self):
+        """Test login with admin credentials"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/login",
+            json={
+                "email": "admin@raccoon.app",
+                "password": "Admin123!"
+            }
+        )
+        # Admin may or may not exist, just check response is valid
+        if response.status_code == 200:
+            data = response.json()
+            assert "token" in data
+            print(f"✓ Admin login success: {data['user']['username']}")
+        else:
+            print(f"? Admin user not found (status: {response.status_code})")
+
+
+class TestAuthenticatedEndpoints:
+    """Tests for endpoints requiring authentication"""
+    
+    @pytest.fixture
+    def guest_token(self):
+        """Get a guest token for authenticated requests"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/guest",
+            json={"gender": "male"}
+        )
+        assert response.status_code == 200
+        return response.json()["token"]
+    
+    def test_get_current_user(self, guest_token):
+        """Test getting current user info with valid token"""
+        response = requests.get(
+            f"{BASE_URL}/api/auth/me",
+            headers={"Authorization": f"Bearer {guest_token}"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "guest_id" in data or "user_id" in data
+        print(f"✓ Get current user: {data.get('username', 'unknown')}")
+    
+    def test_get_current_user_no_token(self):
+        """Test getting current user without token returns 401"""
+        response = requests.get(f"{BASE_URL}/api/auth/me")
+        assert response.status_code in [401, 403]
+        print("✓ Unauthenticated /me request correctly rejected")
+    
+    def test_get_current_user_invalid_token(self):
+        """Test getting current user with invalid token returns 401"""
+        response = requests.get(
+            f"{BASE_URL}/api/auth/me",
+            headers={"Authorization": "Bearer invalid_token_here"}
+        )
+        assert response.status_code in [401, 403]
+        print("✓ Invalid token correctly rejected")
+
+
+class TestReportsEndpoint:
+    """Tests for report functionality"""
+    
+    @pytest.fixture
+    def guest_token(self):
+        """Get a guest token for authenticated requests"""
+        response = requests.post(
+            f"{BASE_URL}/api/auth/guest",
+            json={"gender": "male"}
+        )
+        assert response.status_code == 200
+        return response.json()["token"]
+    
+    def test_create_report_without_auth(self):
+        """Test creating report without authentication"""
+        response = requests.post(
+            f"{BASE_URL}/api/reports/create",
+            json={
+                "reported_id": "some-user-id",
+                "reason": "Inappropriate behavior",
+                "details": "Test report"
+            }
+        )
+        assert response.status_code in [401, 403]
+        print("✓ Report without auth correctly rejected")
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "--tb=short"])

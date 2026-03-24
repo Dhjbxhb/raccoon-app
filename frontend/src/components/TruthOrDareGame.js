@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Star, Flame, RotateCcw } from 'lucide-react';
+import { X, Sparkles, Star, RotateCcw } from 'lucide-react';
 
-// Truth or Dare questions/dares
 const TRUTHS = [
   "What's your most embarrassing moment?",
   "What's a secret you've never told anyone?",
@@ -34,7 +33,8 @@ const TruthOrDareGame = ({
   myScore = 0, 
   partnerScore = 0,
   onScoreUpdate,
-  isPremium 
+  isPremium,
+  isMobile = false
 }) => {
   const [currentType, setCurrentType] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState('');
@@ -42,133 +42,240 @@ const TruthOrDareGame = ({
   const [completed, setCompleted] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [spinRotation, setSpinRotation] = useState(0);
+  const [selectedPerson, setSelectedPerson] = useState(null); // 'me' or 'stranger'
 
-  const spinWheel = (type) => {
+  const spinBottle = () => {
     setIsSpinning(true);
     setShowResult(false);
-    setCurrentType(type);
+    setCurrentQuestion('');
+    setCurrentType(null);
+    setSelectedPerson(null);
     
-    // Spin animation
-    const spins = 3 + Math.random() * 2;
-    setSpinRotation(prev => prev + (spins * 360));
+    // Random number of full spins (3-5) plus extra rotation
+    const fullSpins = 3 + Math.floor(Math.random() * 3);
+    const extraDegrees = Math.random() * 360;
+    const totalRotation = spinRotation + (fullSpins * 360) + extraDegrees;
     
-    // Reveal after spin
+    setSpinRotation(totalRotation);
+    
+    // Determine direction after spin
+    // On mobile: Up (270-90) = stranger, Down (90-270) = me
+    // On desktop: Right (315-45) = stranger, Left (135-225) = me
     setTimeout(() => {
-      const list = type === 'truth' ? TRUTHS : DARES;
-      const randomIndex = Math.floor(Math.random() * list.length);
-      setCurrentQuestion(list[randomIndex]);
+      const finalAngle = totalRotation % 360;
+      let person;
+      
+      if (isMobile) {
+        // Mobile: vertical layout - TOP=stranger, BOTTOM=me
+        // Bottle pointing up (315-45 or 270-90 range) = stranger
+        // Bottle pointing down (135-225 or 90-270 range) = me
+        if ((finalAngle >= 270 && finalAngle <= 360) || (finalAngle >= 0 && finalAngle <= 90)) {
+          person = 'stranger';
+        } else {
+          person = 'me';
+        }
+      } else {
+        // Desktop: horizontal layout - LEFT=me, RIGHT=stranger
+        // Bottle pointing right (315-45 range) = stranger
+        // Bottle pointing left (135-225 range) = me
+        if ((finalAngle >= 315 && finalAngle <= 360) || (finalAngle >= 0 && finalAngle <= 45)) {
+          person = 'stranger';
+        } else if (finalAngle >= 135 && finalAngle <= 225) {
+          person = 'me';
+        } else {
+          // For angles in between, randomly assign
+          person = Math.random() > 0.5 ? 'me' : 'stranger';
+        }
+      }
+      
+      setSelectedPerson(person);
       setIsSpinning(false);
-      setShowResult(true);
-    }, 1200);
+    }, 2000);
+  };
+
+  const selectTruthOrDare = (type) => {
+    setCurrentType(type);
+    const list = type === 'truth' ? TRUTHS : DARES;
+    const randomIndex = Math.floor(Math.random() * list.length);
+    setCurrentQuestion(list[randomIndex]);
+    setShowResult(true);
   };
 
   const handleComplete = () => {
     setCompleted(prev => prev + 1);
-    onScoreUpdate?.(1);
-    setCurrentQuestion('');
-    setCurrentType(null);
-    setShowResult(false);
+    if (selectedPerson === 'me') {
+      onScoreUpdate?.(1);
+    }
+    resetGame();
   };
 
-  const handleSkip = () => {
+  const resetGame = () => {
     setCurrentQuestion('');
     setCurrentType(null);
     setShowResult(false);
+    setSelectedPerson(null);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-20 lg:bottom-auto lg:top-20 lg:left-auto lg:right-4 z-40 flex items-end lg:items-start justify-center lg:justify-end pointer-events-none px-4">
-      <div className="pointer-events-auto w-full max-w-sm">
-        <div className="bg-gradient-to-br from-[#2a1a4a]/95 to-[#1a0a2e]/95 backdrop-blur-xl border border-pink-500/30 rounded-2xl shadow-[0_0_40px_rgba(236,72,153,0.2)] overflow-hidden">
+    <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
+      {/* Semi-transparent backdrop */}
+      <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose} />
+      
+      {/* Game Card - Centered between videos */}
+      <div className="pointer-events-auto relative">
+        <div className="w-[340px] bg-gradient-to-br from-[#2a1a4a]/95 to-[#1a0a2e]/95 backdrop-blur-xl border border-pink-500/40 rounded-3xl shadow-[0_0_60px_rgba(236,72,153,0.3)] overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-pink-500/20 flex items-center justify-between bg-gradient-to-r from-pink-500/10 to-purple-500/10">
+          <div className="px-5 py-4 border-b border-pink-500/20 flex items-center justify-between bg-gradient-to-r from-pink-500/10 to-purple-500/10">
             <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-pink-400" />
-              <h3 className="font-bold text-white">Truth or Dare</h3>
+              <span className="text-2xl">🍾</span>
+              <h3 className="font-bold text-white text-lg">Truth or Dare</h3>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 text-sm px-2 py-0.5 bg-yellow-500/20 rounded-full">
-                <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                <span className="text-yellow-400 font-bold">{completed}</span>
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/20 rounded-full">
+                <Star size={14} className="text-yellow-400 fill-yellow-400" />
+                <span className="text-yellow-400 font-bold text-sm">{completed}</span>
               </div>
-              <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-all">
+              <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-full transition-all">
                 <X size={18} className="text-gray-400" />
               </button>
             </div>
           </div>
 
           {/* Content */}
-          <div className="p-4">
-            {!showResult && !isSpinning && (
-              <div className="space-y-4">
-                {/* Bottle/Spinner Animation */}
-                <div className="relative h-24 flex items-center justify-center">
+          <div className="p-5">
+            {/* Initial State - Show Bottle to Spin */}
+            {!selectedPerson && !isSpinning && (
+              <div className="text-center py-6">
+                <p className="text-gray-400 text-sm mb-6">Spin the bottle to see who goes!</p>
+                
+                {/* Bottle Display */}
+                <div className="relative h-32 flex items-center justify-center mb-6">
                   <div 
-                    className="text-5xl transition-transform duration-1000 ease-out"
+                    className="text-6xl transition-transform duration-[2000ms] ease-out"
                     style={{ transform: `rotate(${spinRotation}deg)` }}
                   >
                     🍾
                   </div>
-                  {/* Glow effect */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full bg-pink-500/20 blur-xl animate-pulse" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-24 h-24 rounded-full bg-pink-500/20 blur-xl animate-pulse" />
                   </div>
                 </div>
 
-                <p className="text-center text-gray-400 text-sm">Choose your fate...</p>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => spinWheel('truth')}
-                    className="py-4 px-4 bg-gradient-to-br from-blue-500/20 to-blue-600/10 hover:from-blue-500/30 hover:to-blue-600/20 border border-blue-500/40 rounded-xl transition-all group hover:scale-105 active:scale-95"
-                  >
-                    <div className="text-3xl mb-2">🤔</div>
-                    <span className="font-bold text-blue-400 group-hover:text-blue-300">Truth</span>
-                  </button>
-                  <button
-                    onClick={() => spinWheel('dare')}
-                    className="py-4 px-4 bg-gradient-to-br from-red-500/20 to-red-600/10 hover:from-red-500/30 hover:to-red-600/20 border border-red-500/40 rounded-xl transition-all group hover:scale-105 active:scale-95"
-                  >
-                    <div className="text-3xl mb-2">🔥</div>
-                    <span className="font-bold text-red-400 group-hover:text-red-300">Dare</span>
-                  </button>
+                {/* Direction indicators */}
+                <div className="flex justify-between items-center px-4 mb-6">
+                  {isMobile ? (
+                    <>
+                      <div className="text-center">
+                        <div className="text-2xl">⬆️</div>
+                        <span className="text-xs text-gray-500">Stranger</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl">⬇️</div>
+                        <span className="text-xs text-gray-500">You</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-center">
+                        <div className="text-2xl">⬅️</div>
+                        <span className="text-xs text-gray-500">You</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl">➡️</div>
+                        <span className="text-xs text-gray-500">Stranger</span>
+                      </div>
+                    </>
+                  )}
                 </div>
+                
+                <button
+                  onClick={spinBottle}
+                  className="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl font-bold text-white hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(236,72,153,0.4)]"
+                >
+                  Spin the Bottle!
+                </button>
               </div>
             )}
 
-            {/* Spinning state */}
+            {/* Spinning State */}
             {isSpinning && (
-              <div className="py-8 text-center">
+              <div className="text-center py-10">
                 <div 
-                  className="text-6xl mb-4 inline-block"
+                  className="text-7xl inline-block"
                   style={{ 
-                    animation: 'spin 0.3s linear infinite',
+                    transform: `rotate(${spinRotation}deg)`,
+                    transition: 'transform 2s cubic-bezier(0.2, 0.8, 0.3, 1)'
                   }}
                 >
                   🍾
                 </div>
-                <p className="text-gray-400 animate-pulse">Spinning...</p>
+                <p className="text-gray-400 mt-4 animate-pulse">Spinning...</p>
               </div>
             )}
 
-            {/* Result display */}
-            {showResult && currentQuestion && (
-              <div className="space-y-4 animate-fadeIn">
-                {/* Result badge */}
-                <div className="text-center">
-                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-lg font-bold ${
-                    currentType === 'truth' 
-                      ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50' 
-                      : 'bg-red-500/30 text-red-300 border border-red-500/50'
-                  }`}>
-                    {currentType === 'truth' ? '🤔 TRUTH' : '🔥 DARE'}
+            {/* Person Selected - Choose Truth or Dare */}
+            {selectedPerson && !showResult && !isSpinning && (
+              <div className="text-center py-4">
+                {/* Selected Person Highlight */}
+                <div className={`inline-flex items-center gap-3 px-6 py-3 rounded-2xl mb-6 ${
+                  selectedPerson === 'me' 
+                    ? 'bg-[#7c3aed]/20 border border-[#7c3aed]/50' 
+                    : 'bg-blue-500/20 border border-blue-500/50'
+                }`}>
+                  <span className="text-3xl">{selectedPerson === 'me' ? '👆' : '🎯'}</span>
+                  <div className="text-left">
+                    <p className="text-xs text-gray-400">It's</p>
+                    <p className="text-lg font-bold text-white">
+                      {selectedPerson === 'me' ? 'YOUR turn!' : 'THEIR turn!'}
+                    </p>
                   </div>
                 </div>
 
-                {/* Question/Dare card */}
-                <div className={`p-4 rounded-xl border ${
+                <p className="text-gray-400 text-sm mb-4">Choose for {selectedPerson === 'me' ? 'yourself' : 'them'}:</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => selectTruthOrDare('truth')}
+                    className="py-5 bg-gradient-to-br from-blue-500/30 to-blue-600/20 hover:from-blue-500/40 hover:to-blue-600/30 border border-blue-500/40 rounded-2xl transition-all hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-3xl mb-2">🤔</div>
+                    <span className="font-bold text-blue-400 text-lg">Truth</span>
+                  </button>
+                  <button
+                    onClick={() => selectTruthOrDare('dare')}
+                    className="py-5 bg-gradient-to-br from-red-500/30 to-red-600/20 hover:from-red-500/40 hover:to-red-600/30 border border-red-500/40 rounded-2xl transition-all hover:scale-105 active:scale-95"
+                  >
+                    <div className="text-3xl mb-2">🔥</div>
+                    <span className="font-bold text-red-400 text-lg">Dare</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={spinBottle}
+                  className="mt-4 text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1 mx-auto"
+                >
+                  <RotateCcw size={14} />
+                  Spin again
+                </button>
+              </div>
+            )}
+
+            {/* Result Display */}
+            {showResult && currentQuestion && (
+              <div className="space-y-4 animate-fadeIn">
+                {/* Who and What */}
+                <div className="text-center">
+                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold mb-3 ${
+                    selectedPerson === 'me' ? 'bg-[#7c3aed]/30 text-[#a78bfa]' : 'bg-blue-500/30 text-blue-300'
+                  }`}>
+                    {selectedPerson === 'me' ? '👆 Your' : '🎯 Their'} {currentType === 'truth' ? 'Truth' : 'Dare'}
+                  </div>
+                </div>
+
+                {/* Question/Dare Card */}
+                <div className={`p-5 rounded-2xl border ${
                   currentType === 'truth' 
                     ? 'bg-blue-500/10 border-blue-500/30' 
                     : 'bg-red-500/10 border-red-500/30'
@@ -178,25 +285,25 @@ const TruthOrDareGame = ({
                   </p>
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex gap-2">
+                {/* Action Buttons */}
+                <div className="flex gap-3">
                   <button
-                    onClick={handleSkip}
-                    className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 text-sm font-medium transition-all flex items-center justify-center gap-2"
+                    onClick={resetGame}
+                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 font-medium transition-all flex items-center justify-center gap-2"
                   >
-                    <RotateCcw size={14} />
+                    <RotateCcw size={16} />
                     Skip
                   </button>
                   <button
                     onClick={handleComplete}
-                    className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 ${
+                    className={`flex-1 py-3 rounded-xl text-white font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 ${
                       currentType === 'truth'
                         ? 'bg-blue-500 hover:bg-blue-600 shadow-[0_0_20px_rgba(59,130,246,0.4)]'
                         : 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.4)]'
                     }`}
                   >
-                    <Star size={14} />
-                    Done! +1
+                    <Star size={16} />
+                    Done! {selectedPerson === 'me' && '+1'}
                   </button>
                 </div>
               </div>
@@ -206,17 +313,11 @@ const TruthOrDareGame = ({
       </div>
 
       <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
       `}</style>
     </div>
   );
