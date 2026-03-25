@@ -21,6 +21,7 @@ import Privacy from '@/pages/Privacy';
 import Guidelines from '@/pages/Guidelines';
 import Refund from '@/pages/Refund';
 import FilterTest from '@/pages/FilterTest';
+import ChatTest from '@/pages/ChatTest';
 import '@/App.css';
 
 // Remove external branding
@@ -131,6 +132,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <FilterTest />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/chat-test" 
+        element={
+          <ProtectedRoute>
+            <ChatTest />
           </ProtectedRoute>
         } 
       />

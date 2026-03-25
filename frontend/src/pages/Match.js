@@ -505,21 +505,21 @@ const Match = () => {
             </button>
           </div>
 
-          {/* Chat Input */}
+          {/* Chat Input - Improved styling */}
           {showChat && (
-            <form onSubmit={handleSendMessage} className="flex gap-2">
+            <form onSubmit={handleSendMessage} className="flex gap-2.5">
               <input
                 type="text"
                 value={messageInput}
                 onChange={handleInputChange}
                 placeholder="Type a message..."
-                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 rounded-xl h-11 px-4 text-white placeholder:text-gray-500 outline-none text-sm"
+                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 focus:bg-white/8 rounded-2xl h-12 px-5 text-white placeholder:text-gray-500 outline-none text-sm transition-all shadow-inner"
                 data-testid="message-input"
               />
               <button
                 type="submit"
                 disabled={!messageInput.trim()}
-                className="px-5 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-xl disabled:opacity-40 transition-all font-medium text-sm"
+                className="px-5 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#8b5cf6] hover:to-[#7c3aed] rounded-2xl disabled:opacity-40 disabled:hover:from-[#7c3aed] disabled:hover:to-[#6d28d9] transition-all font-medium text-sm shadow-[0_2px_12px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_20px_rgba(124,58,237,0.4)]"
                 data-testid="send-button"
               >
                 <Send size={18} />
@@ -529,31 +529,47 @@ const Match = () => {
         </div>
       </div>
 
-      {/* Chat Messages Overlay (slides in from side) */}
+      {/* Chat Messages Overlay - Premium styling with glow */}
       {showChat && messages.length > 0 && (
-        <div className="absolute bottom-28 right-4 w-80 max-h-64 bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden z-20 hidden lg:block">
-          <div className="max-h-64 overflow-y-auto p-3 space-y-2">
+        <div className="absolute bottom-28 right-4 w-80 max-h-72 bg-gradient-to-br from-black/90 to-[#0a0a15]/95 backdrop-blur-2xl rounded-3xl border border-white/10 overflow-hidden z-20 hidden lg:block shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+          {/* Chat header */}
+          <div className="px-4 py-2.5 border-b border-white/5 bg-white/5">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={14} className="text-[#7c3aed]" />
+              <span className="text-xs font-medium text-gray-300">Chat</span>
+              <span className="text-xs text-gray-500">• {messages.length} messages</span>
+            </div>
+          </div>
+          
+          {/* Messages container */}
+          <div className="max-h-56 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
             {messages.map((msg, index) => {
               const isOwn = msg.sender_id === user?.user_id || msg.sender_id === user?.guest_id;
               return (
-                <div key={index} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
-                    isOwn
-                      ? 'bg-[#7c3aed] text-white rounded-br-sm'
-                      : 'bg-white/10 text-white rounded-bl-sm'
-                  }`}>
+                <div 
+                  key={index} 
+                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-fade-in`}
+                  style={{ animationDelay: `${index * 30}ms` }}
+                >
+                  <div 
+                    className={`max-w-[85%] px-4 py-2.5 text-sm leading-relaxed transition-all ${
+                      isOwn
+                        ? 'bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white rounded-2xl rounded-br-md shadow-[0_2px_12px_rgba(124,58,237,0.35)]'
+                        : 'bg-white/10 text-white rounded-2xl rounded-bl-md border border-white/5 shadow-[0_2px_8px_rgba(0,0,0,0.2)]'
+                    }`}
+                  >
                     {msg.content}
                   </div>
                 </div>
               );
             })}
             {partnerTyping && (
-              <div className="flex justify-start">
-                <div className="px-3 py-2 bg-white/10 rounded-2xl rounded-bl-sm">
-                  <div className="flex gap-1">
+              <div className="flex justify-start animate-fade-in">
+                <div className="px-4 py-3 bg-white/10 rounded-2xl rounded-bl-md border border-white/5">
+                  <div className="flex gap-1.5">
                     <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div className="w-2 h-2 bg-[#a855f7] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-[#c084fc] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
