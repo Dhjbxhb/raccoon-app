@@ -81,10 +81,10 @@ const FilterTest = () => {
       </div>
 
       {/* Main content */}
-      <div className="pt-16 pb-8 px-4">
+      <div className="pt-16 pb-8 px-4 safe-area-bottom">
         <div className="max-w-lg mx-auto">
           {/* Camera preview */}
-          <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-gray-900 mb-6">
+          <div className="relative aspect-[3/4] sm:aspect-video rounded-2xl overflow-hidden bg-gray-900 mb-4 sm:mb-6">
             {error ? (
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
                 <p className="text-red-400">{error}</p>
@@ -116,8 +116,8 @@ const FilterTest = () => {
           </div>
 
           {/* Filter selector */}
-          <div className="bg-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-4">
-            <p className="text-center text-sm text-gray-400 mb-3">
+          <div className="bg-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-3 sm:p-4">
+            <p className="text-center text-xs sm:text-sm text-gray-400 mb-2 sm:mb-3">
               Swipe left/right to change filters
             </p>
             <CameraFilterSelector
@@ -130,7 +130,7 @@ const FilterTest = () => {
           </div>
 
           {/* Filter info */}
-          <div className="mt-6 text-center text-sm text-gray-500">
+          <div className="mt-4 sm:mt-6 text-center text-xs sm:text-sm text-gray-500">
             <p>Total filters: {Object.keys(CAMERA_FILTERS).length}</p>
             <p className="mt-1">Categories: Beauty, Masks, Color Tones, Fun Effects</p>
           </div>

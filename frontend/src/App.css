@@ -125,6 +125,22 @@ video {
 .swipe-active {
   transition: transform 0.1s ease-out;
 }
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile safe area padding */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
 /* Backdrop blur fallback */
 @supports not (backdrop-filter: blur(10px)) {
   .backdrop-blur-xl {

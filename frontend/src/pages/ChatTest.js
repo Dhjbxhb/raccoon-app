@@ -49,7 +49,7 @@ const ChatTest = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white">
+    <div className="min-h-screen bg-[#050508] text-white flex flex-col">
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3 bg-black/80 backdrop-blur-xl border-b border-white/10">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
@@ -59,27 +59,27 @@ const ChatTest = () => {
           >
             <ArrowLeft size={20} className="text-white/60" />
           </button>
-          <h1 className="text-lg font-bold">Chat UI Test</h1>
+          <h1 className="text-base sm:text-lg font-bold">Chat UI Test</h1>
           <div className="w-10" />
         </div>
       </div>
 
       {/* Main content */}
-      <div className="pt-20 pb-24 px-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="flex-1 pt-16 pb-4 px-3 sm:px-4 overflow-hidden">
+        <div className="max-w-2xl mx-auto h-full flex flex-col">
           {/* Chat container - Premium styling */}
-          <div className="bg-gradient-to-br from-black/90 to-[#0a0a15]/95 backdrop-blur-2xl rounded-3xl border border-white/10 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+          <div className="flex-1 bg-gradient-to-br from-black/90 to-[#0a0a15]/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col min-h-0">
             {/* Chat header */}
-            <div className="px-5 py-3 border-b border-white/5 bg-white/5">
+            <div className="px-4 sm:px-5 py-2.5 sm:py-3 border-b border-white/5 bg-white/5 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <MessageCircle size={16} className="text-[#7c3aed]" />
-                <span className="text-sm font-medium text-gray-300">Chat with Stranger</span>
+                <MessageCircle size={14} className="text-[#7c3aed]" />
+                <span className="text-xs sm:text-sm font-medium text-gray-300">Chat with Stranger</span>
                 <span className="text-xs text-gray-500">• {messages.length} messages</span>
               </div>
             </div>
             
             {/* Messages container */}
-            <div className="h-96 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4 min-h-0">
               {messages.map((msg, index) => {
                 const isOwn = msg.sender_id === 'me';
                 return (
@@ -89,7 +89,7 @@ const ChatTest = () => {
                     style={{ animationDelay: `${index * 30}ms` }}
                   >
                     <div 
-                      className={`max-w-[80%] px-5 py-3 text-sm leading-relaxed transition-all ${
+                      className={`max-w-[85%] sm:max-w-[80%] px-4 sm:px-5 py-2.5 sm:py-3 text-sm leading-relaxed transition-all ${
                         isOwn
                           ? 'bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white rounded-2xl rounded-br-md shadow-[0_2px_12px_rgba(124,58,237,0.35)]'
                           : 'bg-white/10 text-white rounded-2xl rounded-bl-md border border-white/5 shadow-[0_2px_8px_rgba(0,0,0,0.2)]'
@@ -104,7 +104,7 @@ const ChatTest = () => {
               {/* Typing indicator */}
               {isTyping && (
                 <div className="flex justify-start animate-fade-in">
-                  <div className="px-5 py-3.5 bg-white/10 rounded-2xl rounded-bl-md border border-white/5">
+                  <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-white/10 rounded-2xl rounded-bl-md border border-white/5">
                     <div className="flex gap-1.5">
                       <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <div className="w-2 h-2 bg-[#a855f7] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -118,30 +118,30 @@ const ChatTest = () => {
             </div>
           </div>
 
-          {/* Chat Input - Premium styling */}
-          <div className="mt-4">
-            <form onSubmit={handleSendMessage} className="flex gap-3">
+          {/* Chat Input - Mobile optimized with safe area */}
+          <div className="mt-3 sm:mt-4 pb-safe flex-shrink-0">
+            <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3">
               <input
                 type="text"
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 placeholder="Type a message..."
-                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 focus:bg-white/8 rounded-2xl h-14 px-6 text-white placeholder:text-gray-500 outline-none text-base transition-all shadow-inner"
+                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 focus:bg-white/8 rounded-xl sm:rounded-2xl h-12 sm:h-14 px-4 sm:px-6 text-white placeholder:text-gray-500 outline-none text-sm sm:text-base transition-all shadow-inner"
                 data-testid="message-input"
               />
               <button
                 type="submit"
                 disabled={!messageInput.trim()}
-                className="px-6 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#8b5cf6] hover:to-[#7c3aed] rounded-2xl disabled:opacity-40 disabled:hover:from-[#7c3aed] disabled:hover:to-[#6d28d9] transition-all font-medium shadow-[0_2px_12px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_20px_rgba(124,58,237,0.4)]"
+                className="px-4 sm:px-6 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#8b5cf6] hover:to-[#7c3aed] rounded-xl sm:rounded-2xl disabled:opacity-40 disabled:hover:from-[#7c3aed] disabled:hover:to-[#6d28d9] transition-all font-medium shadow-[0_2px_12px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_20px_rgba(124,58,237,0.4)]"
                 data-testid="send-button"
               >
-                <Send size={20} />
+                <Send size={18} className="sm:w-5 sm:h-5" />
               </button>
             </form>
           </div>
 
-          {/* Info text */}
-          <div className="mt-6 text-center text-sm text-gray-500">
+          {/* Info text - Hidden on small screens */}
+          <div className="mt-4 sm:mt-6 text-center text-xs sm:text-sm text-gray-500 hidden sm:block">
             <p>Send a message to see the typing indicator and auto-response</p>
           </div>
         </div>
@@ -154,6 +154,9 @@ const ChatTest = () => {
         }
         .animate-fade-in {
           animation: fade-in 0.3s ease-out forwards;
+        }
+        .pb-safe {
+          padding-bottom: env(safe-area-inset-bottom, 8px);
         }
       `}</style>
     </div>

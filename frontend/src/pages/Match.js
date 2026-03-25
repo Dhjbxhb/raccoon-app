@@ -433,18 +433,18 @@ const Match = () => {
       </div>
 
       {/* BOTTOM ACTION BAR */}
-      <div className="relative z-30 bg-black/90 backdrop-blur-xl border-t border-white/10 flex-shrink-0 safe-area-bottom">
-        <div className="max-w-7xl mx-auto px-3 py-3">
+      <div className="relative z-30 bg-black/90 backdrop-blur-xl border-t border-white/10 flex-shrink-0">
+        <div className="max-w-7xl mx-auto px-2 sm:px-3 py-2 sm:py-3 pb-safe">
           {/* Game & Filter Buttons */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-2 sm:mb-3 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {/* Matching Filters */}
               <button
                 onClick={() => setShowFilters(true)}
-                className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium flex items-center gap-2 transition-all"
+                className="px-2 sm:px-3 py-1.5 sm:py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all flex-shrink-0"
               >
-                <Filter size={14} />
-                Filters
+                <Filter size={12} className="sm:w-3.5 sm:h-3.5" />
+                <span className="hidden xs:inline">Filters</span>
               </button>
               
               {/* Raccoon Feud */}
@@ -454,14 +454,14 @@ const Match = () => {
                   setShowFeud(!showFeud);
                   setShowTruthOrDare(false);
                 }}
-                className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 transition-all ${
+                className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all flex-shrink-0 ${
                   showFeud ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-white/5 hover:bg-white/10 border border-white/10'
                 }`}
                 data-testid="feud-btn"
               >
-                <Trophy size={14} />
+                <Trophy size={12} className="sm:w-3.5 sm:h-3.5" />
                 Feud
-                {!isPremium && <span className="text-yellow-400">👑</span>}
+                {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
               </button>
 
               {/* Truth or Dare */}
@@ -471,26 +471,27 @@ const Match = () => {
                   setShowTruthOrDare(!showTruthOrDare);
                   setShowFeud(false);
                 }}
-                className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 transition-all ${
+                className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all flex-shrink-0 ${
                   showTruthOrDare ? 'bg-pink-500/30 text-pink-300 border border-pink-500/50' : 'bg-white/5 hover:bg-white/10 border border-white/10'
                 }`}
                 data-testid="tod-btn"
               >
-                <Sparkles size={14} />
-                Truth/Dare
-                {!isPremium && <span className="text-yellow-400">👑</span>}
+                <Sparkles size={12} className="sm:w-3.5 sm:h-3.5" />
+                <span className="hidden xs:inline">T/D</span>
+                <span className="xs:hidden">T/D</span>
+                {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
               </button>
             </div>
 
             {/* Score Display when games active */}
             {(showFeud || showTruthOrDare) && (
-              <div className="flex items-center gap-3">
-                <div className="px-3 py-1.5 bg-[#7c3aed]/20 rounded-lg text-xs">
+              <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+                <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-[#7c3aed]/20 rounded-lg text-[10px] sm:text-xs">
                   <span className="text-gray-400">You:</span>
                   <span className="text-[#ffd700] font-bold ml-1">{myScore}</span>
                 </div>
-                <div className="px-3 py-1.5 bg-white/5 rounded-lg text-xs">
-                  <span className="text-gray-400">{partner?.username}:</span>
+                <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white/5 rounded-lg text-[10px] sm:text-xs">
+                  <span className="text-gray-400">{partner?.username?.slice(0, 6)}:</span>
                   <span className="text-white font-bold ml-1">{partnerScore}</span>
                 </div>
               </div>
@@ -499,30 +500,30 @@ const Match = () => {
             {/* Chat Toggle */}
             <button
               onClick={() => setShowChat(!showChat)}
-              className={`p-2 rounded-lg transition-all ${showChat ? 'bg-[#7c3aed] text-white' : 'bg-white/5 text-gray-400'}`}
+              className={`p-1.5 sm:p-2 rounded-lg transition-all flex-shrink-0 ${showChat ? 'bg-[#7c3aed] text-white' : 'bg-white/5 text-gray-400'}`}
             >
-              <MessageCircle size={18} />
+              <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </div>
 
-          {/* Chat Input - Improved styling */}
+          {/* Chat Input - Mobile optimized */}
           {showChat && (
-            <form onSubmit={handleSendMessage} className="flex gap-2.5">
+            <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-2.5">
               <input
                 type="text"
                 value={messageInput}
                 onChange={handleInputChange}
                 placeholder="Type a message..."
-                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 focus:bg-white/8 rounded-2xl h-12 px-5 text-white placeholder:text-gray-500 outline-none text-sm transition-all shadow-inner"
+                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 focus:bg-white/8 rounded-xl sm:rounded-2xl h-10 sm:h-12 px-3 sm:px-5 text-white placeholder:text-gray-500 outline-none text-sm transition-all shadow-inner"
                 data-testid="message-input"
               />
               <button
                 type="submit"
                 disabled={!messageInput.trim()}
-                className="px-5 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#8b5cf6] hover:to-[#7c3aed] rounded-2xl disabled:opacity-40 disabled:hover:from-[#7c3aed] disabled:hover:to-[#6d28d9] transition-all font-medium text-sm shadow-[0_2px_12px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_20px_rgba(124,58,237,0.4)]"
+                className="px-3 sm:px-5 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#8b5cf6] hover:to-[#7c3aed] rounded-xl sm:rounded-2xl disabled:opacity-40 disabled:hover:from-[#7c3aed] disabled:hover:to-[#6d28d9] transition-all font-medium text-sm shadow-[0_2px_12px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_20px_rgba(124,58,237,0.4)]"
                 data-testid="send-button"
               >
-                <Send size={18} />
+                <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
               </button>
             </form>
           )}

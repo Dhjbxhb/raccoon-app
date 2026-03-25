@@ -450,6 +450,10 @@ const CameraFilterSelector = ({
           display: flex;
           gap: 6px;
           padding: 4px;
+          padding-bottom: 8px;
+          flex-wrap: wrap;
+          justify-content: center;
+          max-width: 280px;
         }
 
         .dot {
@@ -461,6 +465,7 @@ const CameraFilterSelector = ({
           cursor: pointer;
           transition: all 0.2s ease;
           padding: 0;
+          flex-shrink: 0;
         }
 
         .dot:hover {
@@ -475,26 +480,53 @@ const CameraFilterSelector = ({
 
         /* Responsive adjustments */
         @media (max-width: 640px) {
+          .camera-filter-selector {
+            padding: 8px 8px 16px 8px;
+          }
+          
           .filter-carousel {
-            max-width: 240px;
+            max-width: 220px;
+            height: 56px;
           }
           
           .filter-icon-btn {
-            width: 42px;
-            height: 42px;
+            width: 40px;
+            height: 40px;
           }
           
           .filter-icon-btn.active {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
           }
           
           .icon-emoji {
-            font-size: 18px;
+            font-size: 16px;
           }
           
           .filter-icon-btn.active .icon-emoji {
-            font-size: 22px;
+            font-size: 20px;
+          }
+          
+          .filter-dots {
+            gap: 4px;
+            max-width: 240px;
+          }
+          
+          .dot {
+            width: 5px;
+            height: 5px;
+          }
+          
+          .dot.active {
+            width: 14px;
+          }
+          
+          .filter-name-display {
+            padding: 4px 10px;
+          }
+          
+          .filter-name {
+            font-size: 12px;
           }
         }
       `}</style>
