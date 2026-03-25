@@ -260,8 +260,8 @@ const Match = () => {
       {/* MAIN CONTENT - Split Video Layout */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         
-        {/* ===== DESKTOP: LEFT = MY VIDEO | MOBILE: BOTTOM = MY VIDEO ===== */}
-        <div className="order-2 lg:order-1 flex-1 lg:flex-1 relative bg-gradient-to-br from-gray-900 to-black">
+        {/* ===== DESKTOP: LEFT = MY VIDEO (50%) | MOBILE: BOTTOM = MY VIDEO ===== */}
+        <div className="order-2 lg:order-1 h-1/2 lg:h-full lg:w-1/2 relative bg-gradient-to-br from-gray-900 to-black">
           {/* My Video */}
           <video
             ref={localVideoRef}
@@ -323,8 +323,8 @@ const Match = () => {
           )}
         </div>
 
-        {/* ===== DESKTOP: RIGHT = STRANGER VIDEO | MOBILE: TOP = STRANGER VIDEO ===== */}
-        <div className="order-1 lg:order-2 flex-1 lg:flex-1 relative bg-gradient-to-br from-black to-gray-900">
+        {/* ===== DESKTOP: RIGHT = STRANGER VIDEO (50%) | MOBILE: TOP = STRANGER VIDEO ===== */}
+        <div className="order-1 lg:order-2 h-1/2 lg:h-full lg:w-1/2 relative bg-gradient-to-br from-black to-gray-900">
           {/* Stranger Video */}
           <video
             ref={remoteVideoRef}
