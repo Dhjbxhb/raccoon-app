@@ -1,18 +1,33 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-// Filter presets
+// Filter presets - Snapchat-style categories
+// Categories: None, Beauty, Raccoon Mask, Color Tones, Fun Effects
 export const CAMERA_FILTERS = {
-  none: { name: 'None', icon: '🚫', premium: false },
-  beauty: { name: 'Beauty', icon: '✨', premium: true },
-  smooth: { name: 'Smooth Skin', icon: '🌸', premium: true },
-  warm: { name: 'Warm Glow', icon: '🌅', premium: true },
-  cool: { name: 'Cool Tone', icon: '❄️', premium: true },
-  vintage: { name: 'Vintage', icon: '📷', premium: true },
-  raccoon: { name: 'Raccoon', icon: '🦝', premium: true },
-  bigHead: { name: 'Big Head', icon: '🎭', premium: true },
-  glasses: { name: 'Cool Glasses', icon: '😎', premium: true },
-  sparkle: { name: 'Sparkle', icon: '💫', premium: true },
-  neon: { name: 'Neon Glow', icon: '🌈', premium: true },
+  // No filter (center default)
+  none: { name: 'No Filter', icon: '⭕', premium: false, category: 'none' },
+  
+  // Beauty filters
+  beauty: { name: 'Beauty', icon: '✨', premium: false, category: 'beauty' },
+  smooth: { name: 'Smooth', icon: '🌸', premium: false, category: 'beauty' },
+  glow: { name: 'Glow', icon: '💡', premium: false, category: 'beauty' },
+  
+  // Raccoon mask & animal filters
+  raccoon: { name: 'Raccoon', icon: '🦝', premium: true, category: 'mask' },
+  cat: { name: 'Cat', icon: '🐱', premium: true, category: 'mask' },
+  dog: { name: 'Dog', icon: '🐶', premium: true, category: 'mask' },
+  
+  // Color tones
+  warm: { name: 'Warm', icon: '🌅', premium: false, category: 'color' },
+  cool: { name: 'Cool', icon: '❄️', premium: false, category: 'color' },
+  vintage: { name: 'Vintage', icon: '📷', premium: false, category: 'color' },
+  bw: { name: 'B&W', icon: '🖤', premium: false, category: 'color' },
+  
+  // Fun effects
+  neon: { name: 'Neon', icon: '🌈', premium: true, category: 'fun' },
+  sparkle: { name: 'Sparkle', icon: '💫', premium: true, category: 'fun' },
+  vhs: { name: 'VHS', icon: '📼', premium: true, category: 'fun' },
+  comic: { name: 'Comic', icon: '💥', premium: true, category: 'fun' },
+  dreamy: { name: 'Dreamy', icon: '☁️', premium: true, category: 'fun' },
 };
 
 export const useCameraFilters = (videoRef, canvasRef) => {
@@ -21,23 +36,47 @@ export const useCameraFilters = (videoRef, canvasRef) => {
   const animationRef = useRef(null);
   const contextRef = useRef(null);
 
-  // Apply CSS filter effects
+  // Apply CSS filter effects - optimized for real-time performance
   const getFilterStyle = useCallback((filter) => {
     switch (filter) {
+      // Beauty filters
       case 'beauty':
-        return 'brightness(1.05) contrast(1.1) saturate(1.1) blur(0.3px)';
+        return 'brightness(1.08) contrast(1.05) saturate(1.15)';
       case 'smooth':
-        return 'brightness(1.08) contrast(0.95) saturate(1.05) blur(0.5px)';
+        return 'brightness(1.1) contrast(0.92) saturate(1.08) blur(0.4px)';
+      case 'glow':
+        return 'brightness(1.15) contrast(1.02) saturate(1.1)';
+      
+      // Mask filters (color overlay effect)
+      case 'raccoon':
+        return 'contrast(1.15) brightness(1.02) saturate(0.9)';
+      case 'cat':
+        return 'brightness(1.05) contrast(1.1) saturate(1.2)';
+      case 'dog':
+        return 'brightness(1.08) contrast(1.05) sepia(0.1)';
+      
+      // Color tone filters
       case 'warm':
-        return 'brightness(1.1) sepia(0.2) saturate(1.3) contrast(1.05)';
+        return 'brightness(1.08) sepia(0.25) saturate(1.4) contrast(1.02)';
       case 'cool':
-        return 'brightness(1.05) saturate(0.9) hue-rotate(10deg) contrast(1.1)';
+        return 'brightness(1.05) saturate(0.85) hue-rotate(15deg) contrast(1.08)';
       case 'vintage':
-        return 'sepia(0.4) contrast(1.1) brightness(0.95) saturate(0.8)';
+        return 'sepia(0.45) contrast(1.15) brightness(0.92) saturate(0.75)';
+      case 'bw':
+        return 'grayscale(1) contrast(1.2) brightness(1.05)';
+      
+      // Fun effect filters
       case 'neon':
-        return 'brightness(1.2) contrast(1.3) saturate(1.5)';
+        return 'brightness(1.2) contrast(1.35) saturate(1.6)';
       case 'sparkle':
-        return 'brightness(1.15) contrast(1.05) saturate(1.2)';
+        return 'brightness(1.18) contrast(1.08) saturate(1.25)';
+      case 'vhs':
+        return 'brightness(1.05) contrast(1.25) saturate(1.3) hue-rotate(-5deg)';
+      case 'comic':
+        return 'contrast(1.5) brightness(1.1) saturate(1.4)';
+      case 'dreamy':
+        return 'brightness(1.12) contrast(0.9) saturate(1.15) blur(0.5px)';
+      
       default:
         return 'none';
     }

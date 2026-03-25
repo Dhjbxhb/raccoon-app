@@ -276,29 +276,47 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, [autoStart, sessionId, partnerId, localStream, startCall]);
 
-  // Get CSS filter style for video
+  // Get CSS filter style for video - matches useCameraFilters
   const getFilterStyle = useCallback((filter) => {
     switch (filter) {
+      // Beauty filters
       case 'beauty':
-        return 'brightness(1.05) contrast(1.1) saturate(1.1)';
+        return 'brightness(1.08) contrast(1.05) saturate(1.15)';
       case 'smooth':
-        return 'brightness(1.08) contrast(0.95) saturate(1.05) blur(0.3px)';
-      case 'warm':
-        return 'brightness(1.1) sepia(0.2) saturate(1.3) contrast(1.05)';
-      case 'cool':
-        return 'brightness(1.05) saturate(0.9) hue-rotate(10deg) contrast(1.1)';
-      case 'vintage':
-        return 'sepia(0.4) contrast(1.1) brightness(0.95) saturate(0.8)';
-      case 'neon':
-        return 'brightness(1.2) contrast(1.3) saturate(1.5)';
-      case 'sparkle':
-        return 'brightness(1.15) contrast(1.05) saturate(1.2)';
+        return 'brightness(1.1) contrast(0.92) saturate(1.08) blur(0.4px)';
+      case 'glow':
+        return 'brightness(1.15) contrast(1.02) saturate(1.1)';
+      
+      // Mask filters
       case 'raccoon':
-        return 'contrast(1.2) brightness(0.95)';
-      case 'bigHead':
-        return 'brightness(1.1) contrast(1.1)';
-      case 'glasses':
-        return 'contrast(1.15) brightness(1.05) saturate(1.1)';
+        return 'contrast(1.15) brightness(1.02) saturate(0.9)';
+      case 'cat':
+        return 'brightness(1.05) contrast(1.1) saturate(1.2)';
+      case 'dog':
+        return 'brightness(1.08) contrast(1.05) sepia(0.1)';
+      
+      // Color tone filters
+      case 'warm':
+        return 'brightness(1.08) sepia(0.25) saturate(1.4) contrast(1.02)';
+      case 'cool':
+        return 'brightness(1.05) saturate(0.85) hue-rotate(15deg) contrast(1.08)';
+      case 'vintage':
+        return 'sepia(0.45) contrast(1.15) brightness(0.92) saturate(0.75)';
+      case 'bw':
+        return 'grayscale(1) contrast(1.2) brightness(1.05)';
+      
+      // Fun effect filters
+      case 'neon':
+        return 'brightness(1.2) contrast(1.35) saturate(1.6)';
+      case 'sparkle':
+        return 'brightness(1.18) contrast(1.08) saturate(1.25)';
+      case 'vhs':
+        return 'brightness(1.05) contrast(1.25) saturate(1.3) hue-rotate(-5deg)';
+      case 'comic':
+        return 'contrast(1.5) brightness(1.1) saturate(1.4)';
+      case 'dreamy':
+        return 'brightness(1.12) contrast(0.9) saturate(1.15) blur(0.5px)';
+      
       default:
         return 'none';
     }

@@ -104,6 +104,27 @@ div[style*="position: fixed"][style*="bottom"],
   background: rgba(124, 58, 237, 0.6);
 }
 
+
+
+/* Camera filter animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+/* Smooth filter transition on video */
+video {
+  transition: filter 0.2s ease-out;
+}
+
+/* Swipe gesture feedback */
+.swipe-active {
+  transition: transform 0.1s ease-out;
+}
 /* Backdrop blur fallback */
 @supports not (backdrop-filter: blur(10px)) {
   .backdrop-blur-xl {

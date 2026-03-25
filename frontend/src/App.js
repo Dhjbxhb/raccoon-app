@@ -20,6 +20,7 @@ import Terms from '@/pages/Terms';
 import Privacy from '@/pages/Privacy';
 import Guidelines from '@/pages/Guidelines';
 import Refund from '@/pages/Refund';
+import FilterTest from '@/pages/FilterTest';
 import '@/App.css';
 
 // Remove external branding
@@ -122,6 +123,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Profile />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/filter-test" 
+        element={
+          <ProtectedRoute>
+            <FilterTest />
           </ProtectedRoute>
         } 
       />

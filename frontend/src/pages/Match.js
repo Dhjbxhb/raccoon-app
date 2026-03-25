@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
@@ -8,11 +8,12 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, 
-  Sparkles, Filter, Flag, X, ChevronLeft, ChevronRight, MessageCircle
+  Sparkles, Filter, Flag, X, MessageCircle
 } from 'lucide-react';
 import MatchingFilters from '@/components/MatchingFilters';
 import TruthOrDareGame from '@/components/TruthOrDareGame';
 import RaccoonFeudGame from '@/components/RaccoonFeudGame';
+import CameraFilterSelector from '@/components/CameraFilterSelector';
 import { CAMERA_FILTERS } from '@/hooks/useCameraFilters';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -39,9 +40,12 @@ const Match = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
   const [showCameraFilters, setShowCameraFilters] = useState(false);
-  const [selectedFilterIndex, setSelectedFilterIndex] = useState(0);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef(null);
+  
+  // Swipe gesture refs for camera filters
+  const filterTouchStart = useRef(null);
+  const videoContainerRef = useRef(null);
   
   // Game states
   const [showTruthOrDare, setShowTruthOrDare] = useState(false);
@@ -66,6 +70,61 @@ const Match = () => {
 
   const isPremium = user?.premium_status;
   const filterKeys = Object.keys(CAMERA_FILTERS);
+  
+  // Get current filter index for swipe navigation
+  const getCurrentFilterIndex = useCallback(() => {
+    return filterKeys.indexOf(currentFilter) || 0;
+  }, [filterKeys, currentFilter]);
+
+  // Handle filter change from swipe component
+  const handleFilterSelect = useCallback((filterKey) => {
+    changeFilter(filterKey);
+  }, [changeFilter]);
+
+  // Handle swipe on video area for filter changes
+  const handleVideoSwipeStart = useCallback((e) => {
+    const touch = e.touches ? e.touches[0] : e;
+    filterTouchStart.current = { x: touch.clientX, time: Date.now() };
+  }, []);
+
+  const handleVideoSwipeEnd = useCallback((e) => {
+    if (!filterTouchStart.current) return;
+    
+    const touch = e.changedTouches ? e.changedTouches[0] : e;
+    const deltaX = touch.clientX - filterTouchStart.current.x;
+    const deltaTime = Date.now() - filterTouchStart.current.time;
+    
+    // Quick swipe detection (less than 300ms and more than 50px)
+    if (deltaTime < 300 && Math.abs(deltaX) > 50) {
+      const currentIdx = getCurrentFilterIndex();
+      let newIndex;
+      
+      if (deltaX > 0) {
+        // Swipe right = previous filter
+        newIndex = currentIdx - 1;
+        if (newIndex < 0) newIndex = filterKeys.length - 1;
+      } else {
+        // Swipe left = next filter
+        newIndex = currentIdx + 1;
+        if (newIndex >= filterKeys.length) newIndex = 0;
+      }
+      
+      const newFilterKey = filterKeys[newIndex];
+      const filter = CAMERA_FILTERS[newFilterKey];
+      
+      if (filter.premium && !isPremium) {
+        toast.info('Premium filter - upgrade to unlock');
+        navigate('/premium');
+      } else {
+        changeFilter(newFilterKey);
+        // Show filter selector briefly
+        setShowCameraFilters(true);
+        setTimeout(() => setShowCameraFilters(false), 2000);
+      }
+    }
+    
+    filterTouchStart.current = null;
+  }, [getCurrentFilterIndex, filterKeys, isPremium, changeFilter, navigate]);
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -127,24 +186,6 @@ const Match = () => {
       blockUser();
       toast.success('User blocked');
     }
-  };
-
-  const handleFilterChange = (direction) => {
-    let newIndex = selectedFilterIndex + direction;
-    if (newIndex < 0) newIndex = filterKeys.length - 1;
-    if (newIndex >= filterKeys.length) newIndex = 0;
-    
-    const filterKey = filterKeys[newIndex];
-    const filter = CAMERA_FILTERS[filterKey];
-    
-    if (filter.premium && !isPremium) {
-      toast.info('Premium filter - upgrade to unlock');
-      navigate('/premium');
-      return;
-    }
-    
-    setSelectedFilterIndex(newIndex);
-    changeFilter(filterKey);
   };
 
   // Connecting state
@@ -261,14 +302,19 @@ const Match = () => {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         
         {/* ===== DESKTOP: LEFT = MY VIDEO (50%) | MOBILE: BOTTOM = MY VIDEO ===== */}
-        <div className="order-2 lg:order-1 h-1/2 lg:h-full lg:w-1/2 relative bg-gradient-to-br from-gray-900 to-black">
+        <div 
+          ref={videoContainerRef}
+          className="order-2 lg:order-1 h-1/2 lg:h-full lg:w-1/2 relative bg-gradient-to-br from-gray-900 to-black"
+          onTouchStart={handleVideoSwipeStart}
+          onTouchEnd={handleVideoSwipeEnd}
+        >
           {/* My Video */}
           <video
             ref={localVideoRef}
             autoPlay
             playsInline
             muted
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-200"
             style={{ filter: getFilterStyle(currentFilter) }}
           />
           
@@ -278,33 +324,53 @@ const Match = () => {
             You
           </div>
 
-          {/* Camera Filter Selector - Snapchat style */}
+          {/* Current filter indicator (shows briefly on swipe) */}
+          {currentFilter !== 'none' && (
+            <div className="absolute top-3 right-3 px-3 py-1.5 bg-[#7c3aed]/80 backdrop-blur-sm rounded-lg text-xs font-medium flex items-center gap-2 z-10 animate-fade-in">
+              <span>{CAMERA_FILTERS[currentFilter]?.icon}</span>
+              <span>{CAMERA_FILTERS[currentFilter]?.name}</span>
+            </div>
+          )}
+
+          {/* Swipeable Camera Filter Selector - Snapchat style */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
             {showCameraFilters ? (
-              <div className="flex items-center gap-3 bg-black/70 backdrop-blur-xl rounded-full px-4 py-2 border border-white/10">
-                <button onClick={() => handleFilterChange(-1)} className="p-2 hover:bg-white/10 rounded-full">
-                  <ChevronLeft size={20} />
-                </button>
-                <div className="flex items-center gap-2 min-w-[120px] justify-center">
-                  <span className="text-2xl">{CAMERA_FILTERS[filterKeys[selectedFilterIndex]]?.icon}</span>
-                  <span className="text-sm font-medium">{CAMERA_FILTERS[filterKeys[selectedFilterIndex]]?.name}</span>
-                </div>
-                <button onClick={() => handleFilterChange(1)} className="p-2 hover:bg-white/10 rounded-full">
-                  <ChevronRight size={20} />
-                </button>
-                <button onClick={() => setShowCameraFilters(false)} className="p-1.5 hover:bg-white/10 rounded-full ml-2">
-                  <X size={16} />
+              <div className="relative">
+                <CameraFilterSelector
+                  currentFilter={currentFilter}
+                  onFilterChange={handleFilterSelect}
+                  isPremium={isPremium}
+                  onPremiumRequired={() => navigate('/premium')}
+                  visible={true}
+                />
+                <button 
+                  onClick={() => setShowCameraFilters(false)}
+                  className="absolute -top-2 -right-2 p-1.5 bg-black/80 hover:bg-black rounded-full z-30"
+                >
+                  <X size={14} />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => setShowCameraFilters(true)}
-                className={`p-3 rounded-full transition-all ${currentFilter !== 'none' ? 'bg-[#7c3aed]' : 'bg-black/60 hover:bg-black/80'} backdrop-blur-sm`}
+                className={`p-3.5 rounded-full transition-all backdrop-blur-sm ${
+                  currentFilter !== 'none' 
+                    ? 'bg-[#7c3aed] shadow-[0_0_20px_rgba(124,58,237,0.5)]' 
+                    : 'bg-black/60 hover:bg-black/80'
+                }`}
+                data-testid="open-camera-filters"
               >
-                <Sparkles size={20} />
+                <Sparkles size={22} />
               </button>
             )}
           </div>
+
+          {/* Swipe hint overlay (fades after first swipe) */}
+          {!showCameraFilters && currentFilter === 'none' && (
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-xs text-white/40 flex items-center gap-2 pointer-events-none animate-pulse">
+              <span>← Swipe for filters →</span>
+            </div>
+          )}
 
           {/* RACCOON FEUD - Overlays MY SIDE only */}
           {showFeud && (
