@@ -5,6 +5,8 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { Shield, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
+import SpaceBackground from '@/components/background/SpaceBackground';
+import { Button } from '@/components/ui/Button';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -56,14 +58,9 @@ const AgeVerification = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center p-4">
-      {/* Background */}
-      <div 
-        className="fixed inset-0 z-0 opacity-10"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 30% 30%, rgba(124, 58, 237, 0.3) 0%, transparent 50%), radial-gradient(circle at 70% 70%, rgba(168, 85, 247, 0.2) 0%, transparent 50%)'
-        }}
-      />
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showShootingStars={false} />
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-md bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(124,58,237,0.3)]">
@@ -122,31 +119,25 @@ const AgeVerification = () => {
 
           {/* Buttons */}
           <div className="space-y-3">
-            <button
+            <Button
               onClick={handleConfirm}
-              disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-              style={{ fontFamily: 'Outfit, sans-serif' }}
+              loading={loading}
+              fullWidth
+              size="lg"
+              className="shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
               data-testid="age-verify-confirm"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 size={20} className="animate-spin" />
-                  Verifying...
-                </span>
-              ) : (
-                "I confirm I am 18+ - Continue"
-              )}
-            </button>
-            <button
+              I confirm I am 18+ - Continue
+            </Button>
+            <Button
               onClick={handleDeny}
               disabled={loading}
-              className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-medium text-gray-400 hover:text-white transition-all disabled:opacity-50"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
+              variant="secondary"
+              fullWidth
               data-testid="age-verify-deny"
             >
               I am under 18 - Leave
-            </button>
+            </Button>
           </div>
         </div>
 

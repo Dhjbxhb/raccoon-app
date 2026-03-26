@@ -4,6 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { Play, Lock, Crown, Globe, Users, Zap, Loader2 } from 'lucide-react';
+import SpaceBackground from '@/components/background/SpaceBackground';
+import { Button } from '@/components/ui/Button';
+import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -75,18 +78,9 @@ const Guest = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#030305] text-white overflow-hidden relative">
-      {/* Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-20"
-          style={{
-            background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 60%)',
-            filter: 'blur(100px)'
-          }}
-        />
-      </div>
+    <div className="min-h-screen text-white overflow-hidden relative">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showShootingStars={false} />
 
       {/* Main Content */}
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
@@ -95,8 +89,8 @@ const Guest = () => {
           <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
             {/* Header */}
             <div className="text-center mb-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center shadow-[0_0_40px_rgba(124,58,237,0.4)]">
-                <span className="text-3xl">🦝</span>
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <RaccoonLogo size={64} />
               </div>
               <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
                 Quick Match
@@ -202,23 +196,18 @@ const Guest = () => {
             </div>
 
             {/* Start Button */}
-            <button
+            <Button
               onClick={handleStartMatching}
-              disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.5)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-              style={{ fontFamily: 'Outfit, sans-serif' }}
+              loading={loading}
+              fullWidth
+              size="lg"
+              icon={Zap}
+              iconPosition="left"
+              className="shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
               data-testid="start-matching-btn"
             >
-              {loading ? (
-                <Loader2 size={24} className="animate-spin" />
-              ) : (
-                <>
-                  <Zap size={24} />
-                  Start Matching
-                </>
-              )}
-            </button>
-
+              Start Matching
+            </Button>
             {/* Already have account link */}
             <div className="mt-6 text-center">
               <button
@@ -248,21 +237,23 @@ const Guest = () => {
               Upgrade to choose who you match with
             </p>
             <div className="space-y-3">
-              <button
+              <Button
                 onClick={() => {
                   setShowPremiumModal(false);
                   navigate('/premium');
                 }}
-                className="w-full py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold rounded-xl hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all"
+                fullWidth
+                className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black shadow-[0_0_30px_rgba(251,191,36,0.4)]"
               >
                 View Plans
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setShowPremiumModal(false)}
-                className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl transition-all"
+                variant="secondary"
+                fullWidth
               >
                 Maybe Later
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import SpaceBackground from '@/components/background/SpaceBackground';
+import { Button } from '@/components/ui/Button';
+import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -42,26 +45,16 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Background */}
-      <div 
-        className="fixed inset-0 z-0 opacity-15"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1635931225069-4968458f04f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBjaXR5JTIwbmlnaHQlMjBibHVycmVkJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzQxNzU5Mjd8MA&ixlib=rb-4.1.0&q=85)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(3px)'
-        }}
-      />
+    <div className="min-h-screen text-white relative">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showShootingStars={true} />
 
       {/* Content */}
       <div className="relative z-10">
         {/* Navbar */}
-        <nav className="px-6 py-6 flex justify-between items-center border-b border-white/5 backdrop-blur-md">
+        <nav className="px-6 py-6 flex justify-between items-center border-b border-white/5 backdrop-blur-md bg-black/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-xl">
-              🦝
-            </div>
+            <RaccoonLogo size={40} />
             <span className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
           </div>
           <div className="flex items-center gap-4">
@@ -115,17 +108,16 @@ const Dashboard = () => {
             </p>
             
             {/* Start Matching Button */}
-            <button
+            <Button
               onClick={handleStartMatching}
-              className="group px-12 py-5 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-full font-bold text-xl tracking-wide shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)] transition-all duration-300 hover:scale-110"
+              size="xl"
+              icon={Zap}
+              iconPosition="right"
+              className="shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)]"
               data-testid="start-matching-button"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
             >
-              <span className="flex items-center gap-3">
-                Start Matching
-                <Zap size={24} className="group-hover:rotate-12 transition-transform" />
-              </span>
-            </button>
+              Start Matching
+            </Button>
           </div>
 
           {/* Stats Grid */}

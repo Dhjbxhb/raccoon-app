@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
+import SpaceBackground from '@/components/background/SpaceBackground';
+import { Button } from '@/components/ui/Button';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
 const Landing = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
 
   // Redirect authenticated users appropriately
   useEffect(() => {
@@ -21,72 +22,14 @@ const Landing = () => {
     }
   }, [user, navigate]);
 
-  // Track mouse for parallax effect
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      const x = (e.clientX / window.innerWidth) * 100;
-      const y = (e.clientY / window.innerHeight) * 100;
-      setMousePosition({ x, y });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
   const handleStart = () => {
     navigate('/guest');
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a12] flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Deep space/purple background */}
-      <div className="absolute inset-0 z-0">
-        {/* Base gradient - purple tones */}
-        <div 
-          className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(ellipse at 50% 30%, rgba(88, 28, 135, 0.3) 0%, transparent 50%), radial-gradient(ellipse at 50% 100%, rgba(30, 10, 60, 0.4) 0%, transparent 50%)'
-          }}
-        />
-        
-        {/* Animated orbs with mouse parallax */}
-        <div 
-          className="absolute w-[600px] h-[600px] rounded-full opacity-40"
-          style={{
-            background: 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 60%)',
-            left: `calc(30% + ${(mousePosition.x - 50) * 0.15}px)`,
-            top: `calc(20% + ${(mousePosition.y - 50) * 0.15}px)`,
-            filter: 'blur(60px)',
-            transition: 'all 0.3s ease-out'
-          }}
-        />
-        <div 
-          className="absolute w-[500px] h-[500px] rounded-full opacity-30"
-          style={{
-            background: 'radial-gradient(circle, rgba(79,70,229,0.25) 0%, transparent 60%)',
-            right: `calc(20% + ${(50 - mousePosition.x) * 0.15}px)`,
-            bottom: `calc(30% + ${(50 - mousePosition.y) * 0.15}px)`,
-            filter: 'blur(80px)',
-            transition: 'all 0.3s ease-out'
-          }}
-        />
-        
-        {/* Star field effect */}
-        <div className="absolute inset-0 opacity-50">
-          {[...Array(60)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-white rounded-full"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                opacity: Math.random() * 0.6 + 0.2,
-                animation: `twinkle ${Math.random() * 3 + 2}s infinite ${Math.random() * 2}s`
-              }}
-            />
-          ))}
-        </div>
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="normal" showNebula={true} showShootingStars={true} />
 
       {/* Main content */}
       <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
@@ -131,21 +74,18 @@ const Landing = () => {
         </p>
 
         {/* Primary CTA */}
-        <button
+        <Button
           onClick={handleStart}
-          className="group relative px-12 py-5 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_0_50px_rgba(124,58,237,0.5)] hover:shadow-[0_0_70px_rgba(124,58,237,0.7)] hover:scale-105 active:scale-100"
-          style={{ fontFamily: 'Outfit, sans-serif' }}
+          size="xl"
+          icon={Sparkles}
+          iconPosition="left"
+          className="shadow-[0_0_50px_rgba(124,58,237,0.5)] hover:shadow-[0_0_70px_rgba(124,58,237,0.7)]"
           data-testid="landing-start-button"
+          style={{ fontFamily: 'Outfit, sans-serif' }}
         >
-          <span className="flex items-center gap-3">
-            <Sparkles size={22} className="group-hover:rotate-12 transition-transform" />
-            Start Now
-            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-          </span>
-          
-          {/* Button glow effect */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#9333ea] opacity-0 group-hover:opacity-30 blur-xl transition-opacity" />
-        </button>
+          Start Now
+          <ArrowRight size={20} className="ml-2" />
+        </Button>
 
         {/* Secondary links */}
         <div className="mt-8 flex items-center justify-center gap-6 text-sm">
@@ -184,13 +124,6 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* CSS for star twinkle animation */}
-      <style jsx>{`
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.2; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.3); }
-        }
-      `}</style>
     </div>
   );
 };

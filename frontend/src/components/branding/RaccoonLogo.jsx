@@ -25,15 +25,26 @@ export const RaccoonLogo = ({ size = 120, className = '', animated = false }) =>
         />
       )}
       
-      {/* Mascot image */}
-      <img 
-        src="/assets/raccoon-mascot.png" 
-        alt="Raccoon" 
-        className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_30px_rgba(124,58,237,0.5)]"
+      {/* Circular mask container */}
+      <div 
+        className="relative z-10 w-full h-full rounded-full overflow-hidden"
         style={{
-          filter: animated ? 'drop-shadow(0 0 20px rgba(124,58,237,0.4))' : 'none'
+          boxShadow: animated 
+            ? '0 0 40px rgba(124,58,237,0.5), 0 0 80px rgba(124,58,237,0.3)' 
+            : '0 0 30px rgba(124,58,237,0.3)'
         }}
-      />
+      >
+        {/* Mascot image */}
+        <img 
+          src="/assets/raccoon-mascot.png" 
+          alt="Raccoon" 
+          className="w-full h-full object-cover"
+          style={{
+            transform: 'scale(1.15)',
+            objectPosition: 'center 30%'
+          }}
+        />
+      </div>
     </div>
   );
 };

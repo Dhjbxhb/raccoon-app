@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
+import SpaceBackground from '@/components/background/SpaceBackground';
 
 /**
  * Premium Auth Layout - Shared wrapper for Login/Signup pages
@@ -9,46 +10,9 @@ import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
  */
 const AuthLayout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-[#030306] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0 z-0">
-        {/* Gradient orbs */}
-        <div 
-          className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#7c3aed]/15 rounded-full blur-3xl animate-pulse"
-          style={{ animationDuration: '4s' }}
-        />
-        <div 
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#4f46e5]/10 rounded-full blur-3xl animate-pulse"
-          style={{ animationDuration: '6s', animationDelay: '1s' }}
-        />
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4c1d95]/10 rounded-full blur-3xl"
-        />
-        
-        {/* Star field */}
-        <div className="absolute inset-0 opacity-30">
-          {[...Array(30)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-white rounded-full"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                opacity: Math.random() * 0.5 + 0.2
-              }}
-            />
-          ))}
-        </div>
-        
-        {/* Grid pattern overlay */}
-        <div 
-          className="absolute inset-0 opacity-[0.02]"
-          style={{
-            backgroundImage: `linear-gradient(rgba(124,58,237,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.5) 1px, transparent 1px)`,
-            backgroundSize: '60px 60px'
-          }}
-        />
-      </div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showShootingStars={false} />
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-md">
