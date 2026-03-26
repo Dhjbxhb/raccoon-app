@@ -147,6 +147,54 @@ Build a premium real-time social matching platform for text and video chat. The 
   - `/app/frontend/src/components/admin/AdminActionLogs.jsx`
   - `/app/frontend/src/styles/admin.css`
 
+### Stripe-Ready Payment Architecture (TASK 37) ✅
+- **Plan Definitions** (`/app/backend/models/subscription.py`):
+  - 5 plans: Weekly ($4.99), Monthly ($9.99), Quarterly ($19.99), Yearly ($39.99), Lifetime ($99.99)
+  - Each plan: plan_id, plan_type, display_name, description, price_cents, billing_period_days, features, badge, savings_percent
+  - Plans stored as `PREMIUM_PLANS` constant with `get_active_plans()`, `get_plan_by_id()` helpers
+- **Subscription Model**:
+  - Fields: subscription_id, user_id, plan_type, plan_id, status, start_date, expiry_date
+  - Provider fields: provider (stripe/admin_grant/promo/manual), provider_subscription_id, provider_customer_id
+  - Billing fields: amount_paid, currency, auto_renew
+  - Status enum: active, cancelled, expired, pending, past_due, trialing
+- **Subscription Service** (`/app/backend/services/subscription_service.py`):
+  - `get_premium_status()` - SOURCE OF TRUTH for premium access
+  - `create_subscription()` - Create new subscription with DB update
+  - `cancel_subscription()` - Cancel immediate or at period end
+  - `expire_subscription()` - Auto-expire when date passed
+  - `renew_subscription()` - For Stripe webhook renewal
+  - `process_expired_subscriptions()` - Batch expiry processing
+- **Payment Routes** (`/app/backend/routes/payments.py`):
+  - `GET /api/payments/plans` - List all active plans (no auth)
+  - `GET /api/payments/premium-status` - Get user's premium status
+  - `GET /api/payments/subscription` - Get current subscription
+  - `POST /api/payments/create-subscription` - Create subscription
+  - `POST /api/payments/create-checkout-session` - Stripe checkout (ready for Stripe)
+  - `POST /api/payments/cancel-subscription` - Cancel subscription
+  - `POST /api/payments/reactivate-subscription` - Reactivate cancelled sub
+  - `POST /api/payments/webhook/stripe` - Stripe webhook handler
+- **Webhook Events Handled**:
+  - `checkout.session.completed` - New subscription
+  - `invoice.paid` - Subscription renewed
+  - `invoice.payment_failed` - Payment failed
+  - `customer.subscription.deleted` - Subscription cancelled
+  - `customer.subscription.updated` - Status change
+- **Frontend Premium Page** (`/app/frontend/src/pages/Premium.js`):
+  - Fetches plans from backend (not hardcoded)
+  - Shows current premium status and subscription details
+  - Pricing cards with plan selection
+  - Cancel/reactivate subscription flow
+  - FAQ section
+  - Stripe checkout redirect ready
+- **Frontend Components**:
+  - `/app/frontend/src/components/premium/PricingCards.jsx` - Plan selection cards
+  - `/app/frontend/src/components/premium/PremiumFeatureList.jsx` - Feature display
+  - `/app/frontend/src/styles/premium.css` - Premium page styles
+- **Stripe Integration Ready**:
+  - Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in backend/.env
+  - Set `stripe_price_id` on each plan in PREMIUM_PLANS
+  - Uncomment Stripe SDK imports in payments.py
+
 ### Country Detection
 - Multi-provider IP geolocation fallback (ipapi.co, ip-api.com, ipwho.is)
 - Never shows "Not detected" - defaults to US if all providers fail
@@ -602,10 +650,11 @@ Test mode working. Needs production keys for live payments.
 ## Upcoming Tasks (From User's Master List)
 - **TASK 35/41**: ✅ COMPLETED (Admin Panel with real DB metrics)
 - **TASK 36/41**: ✅ COMPLETED (Admin actions: ban/unban/temp-ban/premium/reports + audit logging)
-- Tasks 37-41 pending (to be provided by user)
+- **TASK 37/41**: ✅ COMPLETED (Stripe-ready payment architecture with plans, subscriptions, webhooks)
+- Tasks 38-41 pending (to be provided by user)
 
 ## Future/Backlog
-- Full Stripe production integration
-- Firebase social login activation
 - Production TURN server setup
+- Full Stripe production integration (set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET)
+- Firebase social login activation
 - Twilio SMS for production OTP

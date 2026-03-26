@@ -1,96 +1,269 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, Crown, Check, Zap, Users, Globe, Sparkles, Star, Shield, X } from 'lucide-react';
+import { 
+  ArrowLeft, Crown, Zap, Shield, X, Calendar, RefreshCw,
+  CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp
+} from 'lucide-react';
+import PricingCards from '@/components/premium/PricingCards';
+import PremiumFeatureList from '@/components/premium/PremiumFeatureList';
+import '@/styles/premium.css';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-const PLANS = [
+// FAQ Data
+const FAQ_DATA = [
   {
-    id: 'weekly',
-    name: 'Weekly',
-    price: 2.99,
-    period: 'week',
-    features: ['Gender filter', 'Country filter', 'Unlimited skips'],
-    popular: false
+    question: "How do I cancel my subscription?",
+    answer: "You can cancel anytime from the Premium page. Your benefits will continue until the end of your billing period."
   },
   {
-    id: 'monthly',
-    name: 'Monthly',
-    price: 7.99,
-    period: 'month',
-    originalPrice: 11.96,
-    features: ['Gender filter', 'Country filter', 'Unlimited skips', 'Priority matching', 'All camera filters'],
-    popular: true,
-    tag: 'BEST VALUE'
+    question: "What payment methods do you accept?",
+    answer: "We accept all major credit cards, debit cards, and PayPal through our secure Stripe payment processor."
   },
   {
-    id: 'quarterly',
-    name: '3 Months',
-    price: 19.99,
-    period: '3 months',
-    originalPrice: 35.88,
-    features: ['Gender filter', 'Country filter', 'Unlimited skips', 'Priority matching', 'All camera filters', 'All games'],
-    popular: false,
-    tag: 'SAVE 44%'
+    question: "Can I switch plans?",
+    answer: "Yes! You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle."
+  },
+  {
+    question: "Is there a free trial?",
+    answer: "We offer a satisfaction guarantee. If you're not happy within the first 7 days, contact support for a full refund."
+  },
+  {
+    question: "What happens when my subscription expires?",
+    answer: "Your account will revert to the free tier. You can resubscribe anytime to regain premium access."
   }
-];
-
-const FEATURES = [
-  { icon: Users, text: 'Choose gender preference', color: 'text-pink-400' },
-  { icon: Globe, text: 'Choose country preference', color: 'text-blue-400' },
-  { icon: Zap, text: 'Priority matching queue', color: 'text-yellow-400' },
-  { icon: Sparkles, text: 'All camera filters', color: 'text-purple-400' },
-  { icon: Star, text: 'Unlimited skips', color: 'text-orange-400' },
-  { icon: Shield, text: 'Ad-free experience', color: 'text-green-400' }
 ];
 
 const Premium = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [selectedPlan, setSelectedPlan] = useState('monthly');
-  const [loading, setLoading] = useState(false);
+  const { user, refreshUser } = useAuth();
+  
+  // State
+  const [plans, setPlans] = useState([]);
+  const [premiumStatus, setPremiumStatus] = useState(null);
+  const [currentSubscription, setCurrentSubscription] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [stripeEnabled, setStripeEnabled] = useState(false);
+  const [expandedFaq, setExpandedFaq] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const handleSubscribe = async (planId) => {
+  // Fetch plans and premium status
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('raccoon_token');
+      
+      // Fetch plans (no auth required)
+      const plansRes = await fetch(`${API_URL}/api/payments/plans`);
+      const plansData = await plansRes.json();
+      
+      if (plansData.plans) {
+        setPlans(plansData.plans);
+        setStripeEnabled(plansData.stripe_enabled);
+      }
+      
+      // Fetch premium status (requires auth)
+      if (token) {
+        const [statusRes, subRes] = await Promise.all([
+          fetch(`${API_URL}/api/payments/premium-status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`${API_URL}/api/payments/subscription`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ]);
+        
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setPremiumStatus(statusData);
+        }
+        
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          if (subData.has_subscription) {
+            setCurrentSubscription(subData.subscription);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching premium data:', error);
+      toast.error('Failed to load premium data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Handle plan selection
+  const handleSelectPlan = async (plan) => {
     if (!user) {
-      toast.info('Please sign in first');
+      toast.info('Please sign in to subscribe');
       navigate('/login');
       return;
     }
 
-    setLoading(true);
+    setActionLoading(true);
+    
     try {
       const token = localStorage.getItem('raccoon_token');
-      const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
+      
+      if (stripeEnabled) {
+        // Create Stripe checkout session
+        const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            plan_id: plan.plan_id,
+            success_url: `${window.location.origin}/premium?success=true`,
+            cancel_url: `${window.location.origin}/premium?cancelled=true`
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else if (data.success === false) {
+          toast.info(data.message || 'Please complete payment setup');
+        }
+      } else {
+        // Development mode - create subscription directly
+        const response = await fetch(`${API_URL}/api/payments/create-subscription`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            plan_id: plan.plan_id
+          })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          toast.success('🎉 Premium activated!');
+          await fetchData();
+          if (refreshUser) refreshUser();
+        } else {
+          toast.error(data.detail || data.message || 'Failed to activate premium');
+        }
+      }
+    } catch (error) {
+      console.error('Subscription error:', error);
+      toast.error('Unable to process subscription');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle subscription cancellation
+  const handleCancelSubscription = async (immediate = false) => {
+    if (!currentSubscription) return;
+    
+    setActionLoading(true);
+    
+    try {
+      const token = localStorage.getItem('raccoon_token');
+      
+      const response = await fetch(`${API_URL}/api/payments/cancel-subscription`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ plan_id: planId })
+        body: JSON.stringify({
+          reason: 'User requested cancellation',
+          immediate
+        })
       });
 
       const data = await response.json();
       
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-      } else if (data.message) {
-        toast.info(data.message);
+      if (response.ok && data.success) {
+        toast.success(data.message);
+        setShowCancelModal(false);
+        await fetchData();
+        if (refreshUser) refreshUser();
       } else {
-        toast.error('Payment system is being configured');
+        toast.error(data.detail || 'Failed to cancel subscription');
       }
     } catch (error) {
-      toast.error('Unable to process. Please try again.');
+      console.error('Cancellation error:', error);
+      toast.error('Unable to cancel subscription');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
-  const currentPlan = PLANS.find(p => p.id === selectedPlan);
+  // Handle reactivation
+  const handleReactivate = async () => {
+    setActionLoading(true);
+    
+    try {
+      const token = localStorage.getItem('raccoon_token');
+      
+      const response = await fetch(`${API_URL}/api/payments/reactivate-subscription`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        toast.success('Subscription reactivated!');
+        await fetchData();
+      } else {
+        toast.error(data.detail || 'Failed to reactivate');
+      }
+    } catch (error) {
+      console.error('Reactivation error:', error);
+      toast.error('Unable to reactivate subscription');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Format date
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'Never';
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  // Check URL params for success/cancel
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      toast.success('🎉 Payment successful! Welcome to Premium!');
+      fetchData();
+      window.history.replaceState({}, '', '/premium');
+    } else if (params.get('cancelled') === 'true') {
+      toast.info('Payment was cancelled');
+      window.history.replaceState({}, '', '/premium');
+    }
+  }, [fetchData]);
 
   return (
-    <div className="min-h-screen bg-[#030305] text-white overflow-hidden">
+    <div className="premium-page">
       {/* Background */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
@@ -104,161 +277,250 @@ const Premium = () => {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 min-h-screen">
+      <div className="relative z-10">
         {/* Header */}
         <div className="sticky top-0 z-20 bg-[#030305]/80 backdrop-blur-xl border-b border-white/5">
           <div className="container mx-auto px-6 py-4 flex items-center justify-between">
             <button
               onClick={() => navigate(-1)}
               className="p-2 hover:bg-white/10 rounded-xl transition-all"
+              data-testid="back-button"
             >
               <ArrowLeft size={20} className="text-gray-400" />
             </button>
             <div className="flex items-center gap-2">
               <Crown size={20} className="text-yellow-400" />
-              <span className="font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Premium</span>
+              <span className="font-bold">Premium</span>
             </div>
             <button
               onClick={() => navigate('/dashboard')}
               className="p-2 hover:bg-white/10 rounded-xl transition-all"
+              data-testid="close-button"
             >
               <X size={20} className="text-gray-400" />
             </button>
           </div>
         </div>
 
-        {/* Main */}
-        <div className="container mx-auto px-6 py-8 max-w-4xl">
-          {/* Hero */}
-          <div className="text-center mb-12">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-[0_0_60px_rgba(251,191,36,0.4)]">
-              <Crown size={40} className="text-white" />
+        {/* Main Content */}
+        <div className="premium-content">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 size={40} className="animate-spin text-[#7c3aed]" />
             </div>
-            <h1 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              Upgrade Your Experience
-            </h1>
-            <p className="text-gray-400 text-lg max-w-md mx-auto" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Match faster, choose who you meet, unlock all features
-            </p>
-          </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="premium-header">
+                <div className="premium-header-icon">
+                  <Crown size={40} />
+                </div>
+                <h1 className="premium-title">
+                  {premiumStatus?.is_premium ? 'Your Premium Status' : 'Upgrade to Premium'}
+                </h1>
+                <p className="premium-subtitle">
+                  {premiumStatus?.is_premium 
+                    ? 'Manage your subscription and premium benefits'
+                    : 'Match faster, choose who you meet, unlock all features'}
+                </p>
+              </div>
 
-          {/* Plans */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-            {PLANS.map((plan) => (
-              <button
-                key={plan.id}
-                onClick={() => setSelectedPlan(plan.id)}
-                className={`relative p-6 rounded-3xl transition-all text-left ${
-                  plan.popular
-                    ? selectedPlan === plan.id
-                      ? 'bg-gradient-to-br from-yellow-400/20 to-orange-500/10 border-2 border-yellow-400 shadow-[0_0_40px_rgba(251,191,36,0.3)] scale-105'
-                      : 'bg-gradient-to-br from-yellow-400/10 to-orange-500/5 border-2 border-yellow-400/50 hover:border-yellow-400'
-                    : selectedPlan === plan.id
-                      ? 'bg-white/10 border-2 border-[#7c3aed] shadow-[0_0_30px_rgba(124,58,237,0.3)]'
-                      : 'bg-white/5 border border-white/10 hover:bg-white/[0.07] hover:border-white/20'
-                }`}
-              >
-                {plan.tag && (
-                  <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold ${
-                    plan.popular ? 'bg-yellow-400 text-black' : 'bg-[#7c3aed] text-white'
-                  }`}>
-                    {plan.tag}
+              {/* Current Status Card */}
+              {premiumStatus && (
+                <div className={`premium-status-card ${premiumStatus.is_premium ? 'active' : ''}`} data-testid="premium-status-card">
+                  <div className="status-info">
+                    <div className={`status-icon ${premiumStatus.is_premium ? 'premium' : 'free'}`}>
+                      {premiumStatus.is_premium ? <Crown size={24} /> : <Zap size={24} />}
+                    </div>
+                    <div className="status-text">
+                      <h3>
+                        {premiumStatus.is_premium 
+                          ? `${premiumStatus.plan_name || 'Premium'} Member`
+                          : 'Free Member'}
+                      </h3>
+                      <p>
+                        {premiumStatus.is_premium 
+                          ? premiumStatus.days_remaining !== null
+                            ? `${premiumStatus.days_remaining} days remaining`
+                            : 'Lifetime access'
+                          : 'Upgrade for premium features'}
+                      </p>
+                    </div>
                   </div>
-                )}
-
-                <div className="mb-4">
-                  <h3 className="text-lg font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    {plan.name}
-                  </h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-4xl font-bold ${plan.popular ? 'text-yellow-400' : ''}`}>
-                      ${plan.price}
-                    </span>
-                    <span className="text-gray-500">/{plan.period}</span>
-                  </div>
-                  {plan.originalPrice && (
-                    <p className="text-sm text-gray-500 line-through">
-                      ${plan.originalPrice}/{plan.period}
-                    </p>
+                  
+                  {premiumStatus.is_premium && currentSubscription && (
+                    <div className="status-actions">
+                      {currentSubscription.cancelled_at ? (
+                        <button 
+                          onClick={handleReactivate}
+                          disabled={actionLoading}
+                          className="status-btn primary"
+                          data-testid="reactivate-btn"
+                        >
+                          {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                          Reactivate
+                        </button>
+                      ) : (
+                        <>
+                          {premiumStatus.can_upgrade && (
+                            <button 
+                              onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
+                              className="status-btn secondary"
+                            >
+                              Upgrade Plan
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => setShowCancelModal(true)}
+                            className="status-btn danger"
+                            data-testid="cancel-btn"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  {plan.features.slice(0, 3).map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-400">
-                      <Check size={14} className={plan.popular ? 'text-yellow-400' : 'text-[#7c3aed]'} />
-                      {feature}
+              {/* Subscription Details */}
+              {currentSubscription && (
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 mb-8">
+                  <h4 className="text-sm font-medium text-gray-400 mb-3">Subscription Details</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Status</p>
+                      <p className={`font-medium ${
+                        currentSubscription.status === 'active' ? 'text-green-400' : 
+                        currentSubscription.status === 'cancelled' ? 'text-red-400' : 'text-yellow-400'
+                      }`}>
+                        {currentSubscription.status.charAt(0).toUpperCase() + currentSubscription.status.slice(1)}
+                        {currentSubscription.cancelled_at && ' (Cancelling)'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Started</p>
+                      <p className="font-medium">{formatDate(currentSubscription.start_date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">
+                        {currentSubscription.cancelled_at ? 'Ends' : 'Renews'}
+                      </p>
+                      <p className="font-medium">{formatDate(currentSubscription.expiry_date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Auto-Renew</p>
+                      <p className={`font-medium ${currentSubscription.auto_renew ? 'text-green-400' : 'text-gray-400'}`}>
+                        {currentSubscription.auto_renew ? 'Yes' : 'No'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Pricing Cards */}
+              {(!premiumStatus?.is_premium || premiumStatus.can_upgrade) && (
+                <div id="pricing-section">
+                  <h2 className="text-2xl font-bold text-center mb-8">
+                    {premiumStatus?.is_premium ? 'Upgrade Your Plan' : 'Choose Your Plan'}
+                  </h2>
+                  <PricingCards 
+                    plans={plans}
+                    currentPlan={currentSubscription}
+                    onSelectPlan={handleSelectPlan}
+                    loading={actionLoading}
+                    stripeEnabled={stripeEnabled}
+                  />
+                </div>
+              )}
+
+              {/* Features */}
+              <PremiumFeatureList compact={premiumStatus?.is_premium} />
+
+              {/* Guarantee */}
+              <div className="premium-guarantee">
+                <div className="guarantee-icon">
+                  <Shield />
+                </div>
+                <h3 className="guarantee-title">7-Day Satisfaction Guarantee</h3>
+                <p className="guarantee-text">
+                  Not happy with Premium? Contact us within 7 days for a full refund. No questions asked.
+                </p>
+              </div>
+
+              {/* FAQ */}
+              <div className="premium-faq">
+                <h3 className="faq-title">Frequently Asked Questions</h3>
+                <div className="faq-list">
+                  {FAQ_DATA.map((item, idx) => (
+                    <div key={idx} className="faq-item">
+                      <button
+                        className="faq-question"
+                        onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
+                      >
+                        {item.question}
+                        {expandedFaq === idx ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                      {expandedFaq === idx && (
+                        <div className="faq-answer">{item.answer}</div>
+                      )}
                     </div>
                   ))}
-                  {plan.features.length > 3 && (
-                    <p className="text-xs text-gray-500">+{plan.features.length - 3} more</p>
-                  )}
                 </div>
+              </div>
 
-                {/* Selection indicator */}
-                <div className={`absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                  selectedPlan === plan.id
-                    ? plan.popular ? 'border-yellow-400 bg-yellow-400' : 'border-[#7c3aed] bg-[#7c3aed]'
-                    : 'border-white/30'
-                }`}>
-                  {selectedPlan === plan.id && <Check size={14} className="text-black" />}
+              {/* Stripe Note */}
+              {!stripeEnabled && (
+                <div className="mt-8 text-center text-sm text-gray-500">
+                  <AlertCircle size={16} className="inline mr-2" />
+                  Payment processing with Stripe is being configured. Subscriptions are in test mode.
                 </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Cancel Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowCancelModal(false)}
+          />
+          <div className="relative w-full max-w-md bg-[#0a0a15] border border-white/10 rounded-2xl p-6">
+            <h3 className="text-xl font-bold mb-4">Cancel Subscription</h3>
+            <p className="text-gray-400 mb-6">
+              Are you sure you want to cancel? Your premium benefits will continue until {formatDate(currentSubscription?.expiry_date)}.
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleCancelSubscription(false)}
+                disabled={actionLoading}
+                className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-xl font-medium transition-all flex items-center justify-center gap-2"
+              >
+                {actionLoading ? <Loader2 size={18} className="animate-spin" /> : null}
+                Cancel at Period End
               </button>
-            ))}
-          </div>
-
-          {/* Features List */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-8 mb-8">
-            <h3 className="text-xl font-bold mb-6 text-center" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              Everything You Get
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-              {FEATURES.map((feature, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className={`p-2 rounded-xl bg-white/5 ${feature.color}`}>
-                    <feature.icon size={20} />
-                  </div>
-                  <span className="text-sm text-gray-300" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                    {feature.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* CTA */}
-          <button
-            onClick={() => handleSubscribe(selectedPlan)}
-            disabled={loading}
-            className={`w-full py-5 rounded-2xl font-bold text-xl transition-all flex items-center justify-center gap-3 ${
-              PLANS.find(p => p.id === selectedPlan)?.popular
-                ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:shadow-[0_0_40px_rgba(251,191,36,0.5)]'
-                : 'bg-gradient-to-r from-[#7c3aed] to-[#9333ea] text-white hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]'
-            } hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70`}
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-          >
-            {loading ? (
-              <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <Zap size={24} />
-                Get {currentPlan?.name} - ${currentPlan?.price}
-              </>
-            )}
-          </button>
-
-          {/* Trust badges */}
-          <div className="mt-8 flex items-center justify-center gap-8 text-sm text-gray-500">
-            <div className="flex items-center gap-2">
-              <Shield size={16} />
-              <span>Secure payment</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>Cancel anytime</span>
+              <button
+                onClick={() => handleCancelSubscription(true)}
+                disabled={actionLoading}
+                className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-medium transition-all"
+              >
+                Cancel Immediately
+              </button>
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="w-full py-3 text-gray-400 hover:text-white transition-all"
+              >
+                Keep Subscription
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
