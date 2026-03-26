@@ -122,6 +122,21 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Response interceptor for 401/403 handling
   - Automatic redirect to login on auth failures
 
+### Guest, Phone OTP, Social Auth (TASK 20) ✅
+- **Guest Login**:
+  - Creates REAL backend user in `guests` collection
+  - Receives JWT token, trackable in sessions/moderation
+  - Auto-generated username (Guest####)
+- **Phone OTP Flow**:
+  - Created `PhoneAuth.jsx` with state transitions (phone → OTP → success)
+  - Backend endpoints: `/api/auth/phone/send-otp`, `/verify-otp`, `/resend-otp`
+  - 5-minute OTP expiration, 3 attempt limit
+  - Masked phone display, resend countdown timer
+- **Social Auth (Google/Apple)**:
+  - Created `SocialAuthButtons.jsx` with proper icons
+  - Wired to Firebase handlers, backend `/api/auth/social` endpoint
+  - Graceful fallback when Firebase not configured
+
 ---
 
 ## Code Architecture

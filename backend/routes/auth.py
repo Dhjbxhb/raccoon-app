@@ -13,6 +13,9 @@ import random
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
+# In-memory OTP storage (in production, use Redis or DB)
+otp_storage = {}
+
 class SignupRequest(BaseModel):
     email: EmailStr
     username: str
@@ -32,6 +35,15 @@ class GuestRequest(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse | GuestResponse
+
+class SendOTPRequest(BaseModel):
+    phone_number: str
+    browser_locale: str | None = None
+
+class VerifyOTPRequest(BaseModel):
+    phone_number: str
+    otp: str
+    browser_locale: str | None = None
 
 @router.post("/signup", response_model=AuthResponse)
 async def signup(data: SignupRequest, request: Request):
@@ -459,3 +471,202 @@ async def social_auth(data: SocialAuthRequest, request: Request):
     )
     
     return AuthResponse(token=token, user=user_response)
+
+
+
+@router.post("/phone/send-otp")
+async def send_phone_otp(data: SendOTPRequest, request: Request):
+    """
+    Send OTP to phone number (mock implementation)
+    In production, integrate with Twilio, AWS SNS, or similar service
+    """
+    phone = data.phone_number.strip()
+    
+    # Validate phone format
+    digits = ''.join(filter(str.isdigit, phone))
+    if len(digits) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid phone number format"
+        )
+    
+    # Generate 6-digit OTP
+    otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    
+    # Store OTP with expiration (5 minutes)
+    otp_storage[phone] = {
+        'otp': otp,
+        'expires_at': datetime.now(timezone.utc) + timedelta(minutes=5),
+        'attempts': 0
+    }
+    
+    # In production, send actual SMS here
+    # For now, log it (would be sent via Twilio/SNS in production)
+    print(f"[DEV] OTP for {phone}: {otp}")
+    
+    return {
+        "success": True,
+        "message": "Verification code sent",
+        # In development, return OTP for testing (remove in production!)
+        "dev_otp": otp if request.app.debug else None
+    }
+
+
+@router.post("/phone/verify-otp", response_model=AuthResponse)
+async def verify_phone_otp(data: VerifyOTPRequest, request: Request):
+    """
+    Verify OTP and authenticate/create user
+    """
+    phone = data.phone_number.strip()
+    otp = data.otp.strip()
+    
+    # Check if OTP exists
+    stored = otp_storage.get(phone)
+    if not stored:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No verification code found. Please request a new code."
+        )
+    
+    # Check expiration
+    if datetime.now(timezone.utc) > stored['expires_at']:
+        del otp_storage[phone]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code expired. Please request a new code."
+        )
+    
+    # Check attempts
+    if stored['attempts'] >= 3:
+        del otp_storage[phone]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many failed attempts. Please request a new code."
+        )
+    
+    # Verify OTP
+    if stored['otp'] != otp:
+        otp_storage[phone]['attempts'] += 1
+        remaining = 3 - otp_storage[phone]['attempts']
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verification code. {remaining} attempts remaining."
+        )
+    
+    # OTP verified - clean up
+    del otp_storage[phone]
+    
+    # Auto-detect country from IP
+    client_ip = request.client.host
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
+    
+    # Check if user exists with this phone number
+    users = get_users_collection()
+    existing_user = await users.find_one({"phone_number": phone}, {"_id": 0})
+    
+    if existing_user:
+        # Check if banned
+        if existing_user.get('is_banned', False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been banned"
+            )
+        
+        # Update last active
+        await users.update_one(
+            {"phone_number": phone},
+            {"$set": {"last_active": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Create token
+        token = AuthService.create_token(
+            existing_user['user_id'],
+            is_admin=existing_user.get('is_admin', False)
+        )
+        
+        user_response = UserResponse(
+            user_id=existing_user['user_id'],
+            email=existing_user.get('email', ''),
+            username=existing_user['username'],
+            country=existing_user.get('country', country_info['country']),
+            country_code=existing_user.get('country_code', country_info['countryCode']),
+            country_flag=existing_user.get('country_flag', country_info['flag']),
+            gender=existing_user.get('gender', 'any'),
+            age_verified=existing_user.get('age_verified', False),
+            premium_status=existing_user.get('premium_status', False),
+            is_admin=existing_user.get('is_admin', False),
+            total_sessions=existing_user.get('total_sessions', 0),
+            total_time_spent=existing_user.get('total_time_spent', 0)
+        )
+        
+        return AuthResponse(token=token, user=user_response)
+    
+    # Create new user
+    user_id = str(uuid.uuid4())
+    username = f"User{random.randint(1000, 9999)}"
+    
+    # Ensure username is unique
+    existing_username = await users.find_one({"username": username}, {"_id": 0})
+    while existing_username:
+        username = f"User{random.randint(1000, 9999)}"
+        existing_username = await users.find_one({"username": username}, {"_id": 0})
+    
+    new_user = {
+        "user_id": user_id,
+        "phone_number": phone,
+        "email": "",
+        "username": username,
+        "password_hash": "",  # No password for phone auth
+        "country": country_info['country'],
+        "country_code": country_info['countryCode'],
+        "country_flag": country_info['flag'],
+        "gender": "any",  # Will be set later in profile
+        "date_of_birth": None,
+        "premium_status": False,
+        "is_admin": False,
+        "is_banned": False,
+        "age_verified": False,
+        "total_sessions": 0,
+        "total_time_spent": 0,
+        "auth_provider": "phone",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_active": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await users.insert_one(new_user)
+    
+    # Create token
+    token = AuthService.create_token(user_id)
+    
+    user_response = UserResponse(
+        user_id=user_id,
+        email="",
+        username=username,
+        country=country_info['country'],
+        country_code=country_info['countryCode'],
+        country_flag=country_info['flag'],
+        gender="any",
+        age_verified=False,
+        premium_status=False,
+        is_admin=False,
+        total_sessions=0,
+        total_time_spent=0
+    )
+    
+    return AuthResponse(token=token, user=user_response)
+
+
+@router.post("/phone/resend-otp")
+async def resend_phone_otp(data: SendOTPRequest, request: Request):
+    """Resend OTP - same as send but clears previous code first"""
+    phone = data.phone_number.strip()
+    
+    # Clear previous OTP if exists
+    if phone in otp_storage:
+        del otp_storage[phone]
+    
+    # Call send_otp logic
+    return await send_phone_otp(data, request)

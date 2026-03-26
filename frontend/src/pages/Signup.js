@@ -3,21 +3,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Phone, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { 
   AuthLayout, 
   AuthCard, 
   AuthInput, 
   AuthButton, 
-  AuthDivider, 
-  SocialButton,
+  AuthDivider,
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
+import { SocialAuthButtonGrid } from '@/components/auth/SocialAuthButtons';
+import { PhoneAuth } from '@/components/auth/PhoneAuth';
 import { isFirebaseReady, signInWithGoogle, signInWithApple, setupRecaptcha, sendOTP, verifyOTP } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
-  validatePhone, 
-  validateOTP, 
   getErrorMessage,
   getBrowserLocale 
 } from '@/utils/auth';
@@ -41,13 +40,8 @@ const Signup = () => {
   const [socialLoading, setSocialLoading] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   
-  // Phone auth state
+  // Auth mode: 'email' | 'phone'
   const [authMode, setAuthMode] = useState('email');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [phoneError, setPhoneError] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
 
   const firebaseReady = isFirebaseReady();
 
@@ -154,7 +148,7 @@ const Signup = () => {
     }
   };
 
-  // Google signup
+  // Google signup handler
   const handleGoogleSignup = async () => {
     if (!firebaseReady) {
       toast.info('Google signup requires Firebase configuration');
@@ -175,7 +169,7 @@ const Signup = () => {
     }
   };
 
-  // Apple signup
+  // Apple signup handler
   const handleAppleSignup = async () => {
     if (!firebaseReady) {
       toast.info('Apple signup requires Firebase configuration');
@@ -196,58 +190,55 @@ const Signup = () => {
     }
   };
 
-  // Phone OTP - Send
-  const handleSendOTP = async () => {
-    const validation = validatePhone(phoneNumber);
-    if (!validation.valid) {
-      setPhoneError(validation.error);
-      return;
-    }
-    setPhoneError('');
+  // Phone auth state
+  const [phoneNumberForVerify, setPhoneNumberForVerify] = useState('');
 
-    if (!firebaseReady) {
-      toast.info('Phone signup requires Firebase configuration');
-      return;
-    }
-    if (socialLoading) return;
-
-    setSocialLoading('phone');
-    try {
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+1${phoneNumber}`;
-      await setupRecaptcha('recaptcha-container');
-      await sendOTP(formattedPhone);
-      setOtpSent(true);
-      toast.success('Verification code sent!');
-    } catch (error) {
-      setPhoneError('Failed to send code. Check your phone number.');
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
-  // Phone OTP - Verify
-  const handleVerifyOTP = async () => {
-    const validation = validateOTP(otpCode);
-    if (!validation.valid) {
-      setOtpError(validation.error);
-      return;
-    }
-    setOtpError('');
+  // Phone auth handlers
+  const handlePhoneSendOTP = async (phoneNumber) => {
+    setPhoneNumberForVerify(phoneNumber); // Store for verification
     
-    if (socialLoading) return;
-
-    setSocialLoading('phone');
-    try {
-      const userData = await verifyOTP(otpCode);
-      await syncSocialAuth(userData);
-    } catch (error) {
-      setOtpError('Invalid code. Please try again.');
-    } finally {
-      setSocialLoading(null);
+    if (firebaseReady) {
+      // Use Firebase phone auth
+      await setupRecaptcha('recaptcha-container');
+      await sendOTP(phoneNumber);
+    } else {
+      // Use backend OTP (mock)
+      const response = await axios.post(`${API_URL}/auth/phone/send-otp`, {
+        phone_number: phoneNumber,
+        browser_locale: getBrowserLocale()
+      });
+      if (response.data.dev_otp) {
+        toast.info(`Dev mode - OTP: ${response.data.dev_otp}`);
+      }
     }
   };
 
-  // Guest signup
+  const handlePhoneVerifyOTP = async (otp) => {
+    if (firebaseReady) {
+      // Use Firebase verification
+      const userData = await verifyOTP(otp);
+      await syncSocialAuth(userData);
+      return userData;
+    } else {
+      // Use backend verification with stored phone number
+      const response = await axios.post(`${API_URL}/auth/phone/verify-otp`, {
+        phone_number: phoneNumberForVerify,
+        otp: otp,
+        browser_locale: getBrowserLocale()
+      });
+      login(response.data.token, response.data.user);
+      toast.success('Welcome to Raccoon!');
+      
+      if (response.data.user.age_verified) {
+        navigate('/dashboard');
+      } else {
+        navigate('/verify-age');
+      }
+      return response.data;
+    }
+  };
+
+  // Guest signup handler - creates real backend user
   const handleGuestSignup = async () => {
     if (socialLoading) return;
     
@@ -258,24 +249,18 @@ const Signup = () => {
         gender: 'male',
         browser_locale: browserLocale
       });
+      
+      // Store token and user - this creates a REAL backend user
       login(response.data.token, response.data.user);
-      toast.success('Welcome, Guest!');
+      toast.success(`Welcome, ${response.data.user.username}!`);
+      
+      // Guests always need age verification
       navigate('/verify-age');
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
       setSocialLoading(null);
     }
-  };
-
-  // Reset phone auth state
-  const handleBackToEmail = () => {
-    setAuthMode('email');
-    setOtpSent(false);
-    setOtpCode('');
-    setPhoneNumber('');
-    setPhoneError('');
-    setOtpError('');
   };
 
   // Show loading state while checking auth
@@ -425,102 +410,24 @@ const Signup = () => {
             <AuthDivider />
 
             {/* Social Signup Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <SocialButton 
-                provider="google" 
-                onClick={handleGoogleSignup}
-                loading={socialLoading === 'google'}
-                disabled={loading || (socialLoading && socialLoading !== 'google')}
-                testId="signup-google-button"
-              />
-              <SocialButton 
-                provider="apple" 
-                onClick={handleAppleSignup}
-                loading={socialLoading === 'apple'}
-                disabled={loading || (socialLoading && socialLoading !== 'apple')}
-                testId="signup-apple-button"
-              />
-              <SocialButton 
-                provider="phone" 
-                onClick={() => setAuthMode('phone')}
-                disabled={loading || !!socialLoading}
-                testId="signup-phone-button"
-              />
-              <SocialButton 
-                provider="guest" 
-                onClick={handleGuestSignup}
-                loading={socialLoading === 'guest'}
-                disabled={loading || (socialLoading && socialLoading !== 'guest')}
-                testId="signup-guest-button"
-              />
-            </div>
+            <SocialAuthButtonGrid
+              onGoogleClick={handleGoogleSignup}
+              onAppleClick={handleAppleSignup}
+              onPhoneClick={() => setAuthMode('phone')}
+              onGuestClick={handleGuestSignup}
+              loadingProvider={socialLoading}
+              disabled={loading}
+            />
           </>
         ) : (
-          <>
-            {/* Phone Signup */}
-            <div className="space-y-4">
-              {!otpSent ? (
-                <>
-                  <AuthInput
-                    label="Phone Number"
-                    icon={Phone}
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => {
-                      setPhoneNumber(e.target.value);
-                      if (phoneError) setPhoneError('');
-                    }}
-                    placeholder="+1 (555) 000-0000"
-                    testId="signup-phone-input"
-                    error={phoneError}
-                  />
-                  <div id="recaptcha-container" />
-                  <AuthButton 
-                    type="button"
-                    onClick={handleSendOTP}
-                    loading={socialLoading === 'phone'}
-                    disabled={socialLoading === 'phone'}
-                    testId="signup-send-otp-button"
-                  >
-                    Send Verification Code
-                  </AuthButton>
-                </>
-              ) : (
-                <>
-                  <AuthInput
-                    label="Verification Code"
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => {
-                      setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
-                      if (otpError) setOtpError('');
-                    }}
-                    placeholder="000000"
-                    testId="signup-otp-input"
-                    error={otpError}
-                  />
-                  <AuthButton 
-                    type="button"
-                    onClick={handleVerifyOTP}
-                    loading={socialLoading === 'phone'}
-                    disabled={socialLoading === 'phone'}
-                    testId="signup-verify-otp-button"
-                  >
-                    Verify & Create Account
-                  </AuthButton>
-                </>
-              )}
-              
-              <AuthButton 
-                type="button"
-                variant="ghost"
-                onClick={handleBackToEmail}
-                disabled={socialLoading === 'phone'}
-              >
-                ← Back to Email Signup
-              </AuthButton>
-            </div>
-          </>
+          /* Phone Auth Flow */
+          <PhoneAuth
+            onSendOTP={handlePhoneSendOTP}
+            onVerifyOTP={handlePhoneVerifyOTP}
+            onBack={() => setAuthMode('email')}
+            loading={!!socialLoading}
+            firebaseReady={firebaseReady}
+          />
         )}
 
         <AuthFooterLink 
