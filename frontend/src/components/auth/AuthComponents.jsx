@@ -93,7 +93,7 @@ const AuthCard = ({
 };
 
 /**
- * Auth Input - Consistent input styling
+ * Auth Input - Consistent input styling with error support
  */
 const AuthInput = ({ 
   label, 
@@ -104,8 +104,11 @@ const AuthInput = ({
   placeholder, 
   required = false,
   autoComplete,
-  testId
+  testId,
+  error
 }) => {
+  const hasError = !!error;
+  
   return (
     <div>
       <label 
@@ -116,7 +119,10 @@ const AuthInput = ({
       </label>
       <div className="relative">
         {Icon && (
-          <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+          <Icon 
+            className={`absolute left-4 top-1/2 -translate-y-1/2 ${hasError ? 'text-red-400' : 'text-gray-500'}`} 
+            size={18} 
+          />
         )}
         <input
           type={type}
@@ -126,10 +132,22 @@ const AuthInput = ({
           required={required}
           autoComplete={autoComplete}
           data-testid={testId}
-          className={`w-full bg-black/40 border border-white/10 focus:border-[#7c3aed]/60 focus:ring-2 focus:ring-[#7c3aed]/20 rounded-xl h-12 ${Icon ? 'pl-11' : 'pl-4'} pr-4 text-white placeholder:text-gray-500 outline-none transition-all`}
+          className={`w-full bg-black/40 rounded-xl h-12 ${Icon ? 'pl-11' : 'pl-4'} pr-4 text-white placeholder:text-gray-500 outline-none transition-all border ${
+            hasError 
+              ? 'border-red-500/50 focus:border-red-500/70 focus:ring-2 focus:ring-red-500/20' 
+              : 'border-white/10 focus:border-[#7c3aed]/60 focus:ring-2 focus:ring-[#7c3aed]/20'
+          }`}
           style={{ fontFamily: 'Manrope, sans-serif' }}
         />
       </div>
+      {hasError && (
+        <p 
+          className="text-red-400 text-xs mt-1.5 flex items-center gap-1"
+          style={{ fontFamily: 'Manrope, sans-serif' }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 };

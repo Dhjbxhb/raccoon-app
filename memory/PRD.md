@@ -96,21 +96,31 @@ Build a premium real-time social matching platform for text and video chat. The 
 - Applied to: Landing, Login, Signup, Guest, Dashboard, AgeVerification
 - Mobile optimized, performance-friendly
 
-### Unified Design System (TASK 18) ✅
-- **Button Component** (`/app/frontend/src/components/ui/Button.jsx`):
-  - Variants: primary, secondary, ghost, danger, outline
-  - Sizes: sm, md, lg, xl
-  - States: loading, disabled, hover, active
-  - Icon support (left/right positioning)
-- **Input Component** (`/app/frontend/src/components/ui/Input.jsx`):
-  - Focus glow effect (purple)
-  - Error state (red) with message
-  - Success state (green)
-  - Password visibility toggle
-  - Icon support
-  - Textarea variant
-  - Select variant
-- Components used consistently across: Login, Signup, Guest, Dashboard, AgeVerification
+### Frontend Authentication (TASK 19) ✅
+- Created `/app/frontend/src/utils/auth.js`:
+  - Client-side validation (email, password, username, gender, phone, OTP)
+  - Form validation helpers (validateLoginForm, validateSignupForm)
+  - Error message extraction from API responses
+  - Token management (storage, validation, expiry check)
+- Updated Login.js with:
+  - Real inline error messages on validation failure
+  - Form-level error display for API errors
+  - Duplicate submit prevention (disabled while loading)
+  - Proper redirect based on age_verified status
+- Updated Signup.js with:
+  - Client-side validation for all fields
+  - Inline error display per field
+  - Terms agreement validation
+  - Proper redirect to age verification
+- Enhanced AuthContext:
+  - Token validation on mount (checks JWT expiry)
+  - Automatic logout on invalid/expired tokens
+  - Session restoration on page refresh
+  - Better error handling
+- Updated api.js:
+  - Request interceptor with token validation
+  - Response interceptor for 401/403 handling
+  - Automatic redirect to login on auth failures
 
 ---
 
