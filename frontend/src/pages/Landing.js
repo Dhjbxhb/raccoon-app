@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { RaccoonLogo, RaccoonBrand } from '@/components/branding/RaccoonLogo';
+import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
 const Landing = () => {
@@ -38,86 +38,77 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#030306] flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Deep space background */}
+    <div className="min-h-screen bg-[#0a0a12] flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Deep space/purple background */}
       <div className="absolute inset-0 z-0">
-        {/* Base gradient */}
+        {/* Base gradient - purple tones */}
         <div 
           className="absolute inset-0"
           style={{
-            background: 'radial-gradient(ellipse at 50% 0%, rgba(17, 24, 39, 0.5) 0%, transparent 50%), radial-gradient(ellipse at 50% 100%, rgba(30, 10, 60, 0.3) 0%, transparent 50%)'
+            background: 'radial-gradient(ellipse at 50% 30%, rgba(88, 28, 135, 0.3) 0%, transparent 50%), radial-gradient(ellipse at 50% 100%, rgba(30, 10, 60, 0.4) 0%, transparent 50%)'
           }}
         />
         
         {/* Animated orbs with mouse parallax */}
         <div 
-          className="absolute w-[800px] h-[800px] rounded-full opacity-30"
+          className="absolute w-[600px] h-[600px] rounded-full opacity-40"
           style={{
-            background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 60%)',
-            left: `calc(20% + ${(mousePosition.x - 50) * 0.1}px)`,
-            top: `calc(10% + ${(mousePosition.y - 50) * 0.1}px)`,
+            background: 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 60%)',
+            left: `calc(30% + ${(mousePosition.x - 50) * 0.15}px)`,
+            top: `calc(20% + ${(mousePosition.y - 50) * 0.15}px)`,
             filter: 'blur(60px)',
             transition: 'all 0.3s ease-out'
           }}
         />
         <div 
-          className="absolute w-[600px] h-[600px] rounded-full opacity-20"
+          className="absolute w-[500px] h-[500px] rounded-full opacity-30"
           style={{
-            background: 'radial-gradient(circle, rgba(79,70,229,0.2) 0%, transparent 60%)',
-            right: `calc(10% + ${(50 - mousePosition.x) * 0.1}px)`,
-            bottom: `calc(20% + ${(50 - mousePosition.y) * 0.1}px)`,
+            background: 'radial-gradient(circle, rgba(79,70,229,0.25) 0%, transparent 60%)',
+            right: `calc(20% + ${(50 - mousePosition.x) * 0.15}px)`,
+            bottom: `calc(30% + ${(50 - mousePosition.y) * 0.15}px)`,
             filter: 'blur(80px)',
             transition: 'all 0.3s ease-out'
           }}
         />
         
         {/* Star field effect */}
-        <div className="absolute inset-0 opacity-40">
-          {[...Array(50)].map((_, i) => (
+        <div className="absolute inset-0 opacity-50">
+          {[...Array(60)].map((_, i) => (
             <div
               key={i}
               className="absolute w-1 h-1 bg-white rounded-full"
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                opacity: Math.random() * 0.7 + 0.3,
+                opacity: Math.random() * 0.6 + 0.2,
                 animation: `twinkle ${Math.random() * 3 + 2}s infinite ${Math.random() * 2}s`
               }}
             />
           ))}
         </div>
-        
-        {/* Subtle grid */}
-        <div 
-          className="absolute inset-0 opacity-[0.02]"
-          style={{
-            backgroundImage: `linear-gradient(rgba(124,58,237,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.5) 1px, transparent 1px)`,
-            backgroundSize: '100px 100px'
-          }}
-        />
       </div>
 
       {/* Main content */}
       <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
-        {/* Raccoon Logo - Central focal point */}
-        <div className="mb-8 flex justify-center">
+        {/* Raccoon Mascot - Central focal point */}
+        <div className="mb-6 flex justify-center">
           <div className="relative">
             {/* Outer glow ring */}
             <div 
-              className="absolute inset-0 rounded-full animate-pulse"
+              className="absolute inset-0 rounded-full"
               style={{
-                background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)',
-                transform: 'scale(2)',
-                filter: 'blur(30px)'
+                background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 60%)',
+                transform: 'scale(1.8)',
+                filter: 'blur(40px)'
               }}
             />
-            <RaccoonLogo size={140} animated />
+            <RaccoonLogo size={200} animated />
           </div>
         </div>
 
         {/* Brand name */}
         <h1 
-          className="text-6xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-white via-gray-100 to-purple-200 bg-clip-text text-transparent"
+          className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-gray-100 to-purple-200 bg-clip-text text-transparent drop-shadow-lg"
           style={{ fontFamily: 'Outfit, sans-serif' }}
         >
           Raccoon
@@ -125,7 +116,7 @@ const Landing = () => {
 
         {/* Tagline */}
         <p 
-          className="text-xl md:text-2xl text-gray-400 mb-3 font-light"
+          className="text-xl md:text-2xl text-gray-300 mb-2 font-medium"
           style={{ fontFamily: 'Manrope, sans-serif' }}
         >
           Meet Strangers. Play Games. Go Wild.
@@ -133,7 +124,7 @@ const Landing = () => {
         
         {/* Subtitle */}
         <p 
-          className="text-sm text-gray-500 mb-12"
+          className="text-sm text-gray-500 mb-10"
           style={{ fontFamily: 'Manrope, sans-serif' }}
         >
           Video chat with real people from around the world
@@ -142,7 +133,7 @@ const Landing = () => {
         {/* Primary CTA */}
         <button
           onClick={handleStart}
-          className="group relative px-10 py-5 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_0_40px_rgba(124,58,237,0.4)] hover:shadow-[0_0_60px_rgba(124,58,237,0.6)] hover:scale-105 active:scale-100"
+          className="group relative px-12 py-5 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_0_50px_rgba(124,58,237,0.5)] hover:shadow-[0_0_70px_rgba(124,58,237,0.7)] hover:scale-105 active:scale-100"
           style={{ fontFamily: 'Outfit, sans-serif' }}
           data-testid="landing-start-button"
         >
@@ -153,7 +144,7 @@ const Landing = () => {
           </span>
           
           {/* Button glow effect */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#9333ea] opacity-0 group-hover:opacity-20 blur-xl transition-opacity" />
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#9333ea] opacity-0 group-hover:opacity-30 blur-xl transition-opacity" />
         </button>
 
         {/* Secondary links */}
@@ -165,7 +156,7 @@ const Landing = () => {
           >
             Sign In
           </Link>
-          <span className="text-gray-700">•</span>
+          <span className="text-gray-600">•</span>
           <Link 
             to="/signup" 
             className="text-gray-400 hover:text-white transition-colors"
@@ -196,8 +187,8 @@ const Landing = () => {
       {/* CSS for star twinkle animation */}
       <style jsx>{`
         @keyframes twinkle {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.2); }
+          0%, 100% { opacity: 0.2; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.3); }
         }
       `}</style>
     </div>
