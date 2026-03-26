@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
 
 /**
  * Premium Auth Layout - Shared wrapper for Login/Signup pages
@@ -8,28 +9,43 @@ import { ArrowLeft } from 'lucide-react';
  */
 const AuthLayout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#030306] flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 z-0">
         {/* Gradient orbs */}
         <div 
-          className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#7c3aed]/20 rounded-full blur-3xl animate-pulse"
+          className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#7c3aed]/15 rounded-full blur-3xl animate-pulse"
           style={{ animationDuration: '4s' }}
         />
         <div 
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#9333ea]/15 rounded-full blur-3xl animate-pulse"
+          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#4f46e5]/10 rounded-full blur-3xl animate-pulse"
           style={{ animationDuration: '6s', animationDelay: '1s' }}
         />
         <div 
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4c1d95]/10 rounded-full blur-3xl"
         />
         
+        {/* Star field */}
+        <div className="absolute inset-0 opacity-30">
+          {[...Array(30)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-white rounded-full"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                opacity: Math.random() * 0.5 + 0.2
+              }}
+            />
+          ))}
+        </div>
+        
         {/* Grid pattern overlay */}
         <div 
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0 opacity-[0.02]"
           style={{
-            backgroundImage: `linear-gradient(rgba(124,58,237,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.3) 1px, transparent 1px)`,
-            backgroundSize: '50px 50px'
+            backgroundImage: `linear-gradient(rgba(124,58,237,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.5) 1px, transparent 1px)`,
+            backgroundSize: '60px 60px'
           }}
         />
       </div>
@@ -69,15 +85,27 @@ const AuthCard = ({
       {/* Card */}
       <div className="relative">
         {/* Glow effect */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-[#7c3aed]/20 to-[#9333ea]/20 rounded-[28px] blur-xl opacity-70" />
+        <div className="absolute -inset-1 bg-gradient-to-r from-[#7c3aed]/20 to-[#4f46e5]/20 rounded-[28px] blur-xl opacity-60" />
         
         {/* Card content */}
-        <div className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="relative bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {/* Header */}
           <div className="text-center mb-8">
-            {/* Logo */}
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#9333ea] flex items-center justify-center shadow-[0_0_30px_rgba(124,58,237,0.4)]">
-              <span className="text-3xl">🦝</span>
+            {/* Premium Raccoon Logo */}
+            <div className="relative w-20 h-20 mx-auto mb-5">
+              {/* Glow behind logo */}
+              <div 
+                className="absolute inset-0 rounded-2xl animate-pulse"
+                style={{
+                  background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)',
+                  transform: 'scale(1.5)',
+                  filter: 'blur(15px)'
+                }}
+              />
+              {/* Logo container */}
+              <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] flex items-center justify-center shadow-[0_0_30px_rgba(124,58,237,0.4)]">
+                <RaccoonIcon size={48} />
+              </div>
             </div>
             <h1 
               className="text-2xl font-bold text-white mb-1"

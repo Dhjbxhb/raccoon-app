@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Play, Sparkles } from 'lucide-react';
+import { RaccoonLogo, RaccoonBrand } from '@/components/branding/RaccoonLogo';
+import { ArrowRight, Sparkles } from 'lucide-react';
 
 const Landing = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [isHovered, setIsHovered] = useState(false);
-  const [particles, setParticles] = useState([]);
+  const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
 
   // Redirect authenticated users appropriately
   useEffect(() => {
@@ -20,17 +21,16 @@ const Landing = () => {
     }
   }, [user, navigate]);
 
-  // Generate floating particles
+  // Track mouse for parallax effect
   useEffect(() => {
-    const newParticles = Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 4 + 2,
-      duration: Math.random() * 20 + 10,
-      delay: Math.random() * 5
-    }));
-    setParticles(newParticles);
+    const handleMouseMove = (e) => {
+      const x = (e.clientX / window.innerWidth) * 100;
+      const y = (e.clientY / window.innerHeight) * 100;
+      setMousePosition({ x, y });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
   const handleStart = () => {
@@ -38,128 +38,166 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#030305] text-white overflow-hidden relative">
-      {/* Animated gradient background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
+    <div className="min-h-screen bg-[#030306] flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Deep space background */}
+      <div className="absolute inset-0 z-0">
+        {/* Base gradient */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 0%, rgba(17, 24, 39, 0.5) 0%, transparent 50%), radial-gradient(ellipse at 50% 100%, rgba(30, 10, 60, 0.3) 0%, transparent 50%)'
+          }}
+        />
         
-        {/* Purple glow orbs */}
+        {/* Animated orbs with mouse parallax */}
         <div 
-          className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full opacity-30"
+          className="absolute w-[800px] h-[800px] rounded-full opacity-30"
           style={{
-            background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 60%)',
+            left: `calc(20% + ${(mousePosition.x - 50) * 0.1}px)`,
+            top: `calc(10% + ${(mousePosition.y - 50) * 0.1}px)`,
+            filter: 'blur(60px)',
+            transition: 'all 0.3s ease-out'
+          }}
+        />
+        <div 
+          className="absolute w-[600px] h-[600px] rounded-full opacity-20"
+          style={{
+            background: 'radial-gradient(circle, rgba(79,70,229,0.2) 0%, transparent 60%)',
+            right: `calc(10% + ${(50 - mousePosition.x) * 0.1}px)`,
+            bottom: `calc(20% + ${(50 - mousePosition.y) * 0.1}px)`,
             filter: 'blur(80px)',
-            animation: 'pulse 8s ease-in-out infinite'
+            transition: 'all 0.3s ease-out'
           }}
         />
+        
+        {/* Star field effect */}
+        <div className="absolute inset-0 opacity-40">
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-white rounded-full"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                opacity: Math.random() * 0.7 + 0.3,
+                animation: `twinkle ${Math.random() * 3 + 2}s infinite ${Math.random() * 2}s`
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* Subtle grid */}
         <div 
-          className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full opacity-25"
+          className="absolute inset-0 opacity-[0.02]"
           style={{
-            background: 'radial-gradient(circle, rgba(147,51,234,0.4) 0%, transparent 70%)',
-            filter: 'blur(80px)',
-            animation: 'pulse 10s ease-in-out infinite reverse'
+            backgroundImage: `linear-gradient(rgba(124,58,237,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.5) 1px, transparent 1px)`,
+            backgroundSize: '100px 100px'
           }}
         />
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-20"
-          style={{
-            background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 60%)',
-            filter: 'blur(100px)',
-            animation: 'breathe 6s ease-in-out infinite'
-          }}
-        />
-
-        {/* Floating particles */}
-        {particles.map((p) => (
-          <div
-            key={p.id}
-            className="absolute rounded-full bg-purple-500/30"
-            style={{
-              left: `${p.x}%`,
-              top: `${p.y}%`,
-              width: `${p.size}px`,
-              height: `${p.size}px`,
-              animation: `float ${p.duration}s ease-in-out infinite`,
-              animationDelay: `${p.delay}s`
-            }}
-          />
-        ))}
       </div>
 
-      {/* Main content - Centered */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
-        {/* Logo/Brand mark */}
-        <div className="mb-8 relative">
-          <div 
-            className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center shadow-[0_0_60px_rgba(124,58,237,0.5)]"
-            style={{ animation: 'float 4s ease-in-out infinite' }}
-          >
-            <span className="text-5xl">🦝</span>
+      {/* Main content */}
+      <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
+        {/* Raccoon Logo - Central focal point */}
+        <div className="mb-8 flex justify-center">
+          <div className="relative">
+            {/* Outer glow ring */}
+            <div 
+              className="absolute inset-0 rounded-full animate-pulse"
+              style={{
+                background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)',
+                transform: 'scale(2)',
+                filter: 'blur(30px)'
+              }}
+            />
+            <RaccoonLogo size={140} animated />
           </div>
-          <div className="absolute -inset-4 bg-[#7c3aed]/20 rounded-[40px] blur-2xl -z-10" />
         </div>
 
-        {/* Main CTA Button */}
-        <button
-          onClick={handleStart}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          className="group relative mb-8"
-          data-testid="start-button"
+        {/* Brand name */}
+        <h1 
+          className="text-6xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-white via-gray-100 to-purple-200 bg-clip-text text-transparent"
+          style={{ fontFamily: 'Outfit, sans-serif' }}
         >
-          {/* Glow effect */}
-          <div 
-            className={`absolute inset-0 rounded-full transition-all duration-500 ${
-              isHovered 
-                ? 'bg-[#7c3aed] blur-2xl opacity-60 scale-125' 
-                : 'bg-[#7c3aed] blur-xl opacity-40 scale-100'
-            }`}
-          />
-          
-          {/* Button */}
-          <div 
-            className={`relative px-16 py-6 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] rounded-full font-bold text-2xl transition-all duration-300 ${
-              isHovered ? 'scale-105 shadow-[0_0_50px_rgba(124,58,237,0.6)]' : 'shadow-[0_0_30px_rgba(124,58,237,0.4)]'
-            }`}
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-          >
-            <div className="flex items-center gap-3">
-              <Play size={28} className={`transition-transform duration-300 ${isHovered ? 'scale-110' : ''}`} />
-              <span>Start</span>
-            </div>
-          </div>
-        </button>
+          Raccoon
+        </h1>
 
-        {/* Subtitle */}
+        {/* Tagline */}
         <p 
-          className="text-gray-400 text-lg tracking-wide"
+          className="text-xl md:text-2xl text-gray-400 mb-3 font-light"
           style={{ fontFamily: 'Manrope, sans-serif' }}
         >
-          Talk to real people instantly
+          Meet Strangers. Play Games. Go Wild.
         </p>
+        
+        {/* Subtitle */}
+        <p 
+          className="text-sm text-gray-500 mb-12"
+          style={{ fontFamily: 'Manrope, sans-serif' }}
+        >
+          Video chat with real people from around the world
+        </p>
+
+        {/* Primary CTA */}
+        <button
+          onClick={handleStart}
+          className="group relative px-10 py-5 bg-gradient-to-r from-[#7c3aed] to-[#9333ea] hover:from-[#8b5cf6] hover:to-[#a855f7] rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_0_40px_rgba(124,58,237,0.4)] hover:shadow-[0_0_60px_rgba(124,58,237,0.6)] hover:scale-105 active:scale-100"
+          style={{ fontFamily: 'Outfit, sans-serif' }}
+          data-testid="landing-start-button"
+        >
+          <span className="flex items-center gap-3">
+            <Sparkles size={22} className="group-hover:rotate-12 transition-transform" />
+            Start Now
+            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+          </span>
+          
+          {/* Button glow effect */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#9333ea] opacity-0 group-hover:opacity-20 blur-xl transition-opacity" />
+        </button>
+
+        {/* Secondary links */}
+        <div className="mt-8 flex items-center justify-center gap-6 text-sm">
+          <Link 
+            to="/login" 
+            className="text-gray-400 hover:text-white transition-colors"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            Sign In
+          </Link>
+          <span className="text-gray-700">•</span>
+          <Link 
+            to="/signup" 
+            className="text-gray-400 hover:text-white transition-colors"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            Create Account
+          </Link>
+        </div>
       </div>
 
-      {/* Footer Links */}
-      <div className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-center gap-6 text-sm text-gray-500">
-        <a href="/terms" className="hover:text-gray-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>Terms</a>
-        <a href="/privacy" className="hover:text-gray-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>Privacy</a>
-        <a href="/guidelines" className="hover:text-gray-300 transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>Guidelines</a>
-        <span className="text-gray-600">18+ only</span>
+      {/* Bottom footer */}
+      <div className="absolute bottom-0 left-0 right-0 z-10">
+        <div className="flex flex-col items-center pb-6">
+          {/* Legal links */}
+          <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+            <Link to="/terms" className="hover:text-gray-400 transition-colors">Terms</Link>
+            <span>•</span>
+            <Link to="/privacy" className="hover:text-gray-400 transition-colors">Privacy</Link>
+            <span>•</span>
+            <Link to="/guidelines" className="hover:text-gray-400 transition-colors">Guidelines</Link>
+          </div>
+          <p className="text-xs text-gray-700" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            18+ only • Video chat with strangers
+          </p>
+        </div>
       </div>
 
-      {/* Animations */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 0.3; }
-          50% { transform: scale(1.1); opacity: 0.4; }
-        }
-        @keyframes breathe {
-          0%, 100% { transform: translate(-50%, -50%) scale(1); }
-          50% { transform: translate(-50%, -50%) scale(1.05); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-20px); }
+      {/* CSS for star twinkle animation */}
+      <style jsx>{`
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
         }
       `}</style>
     </div>

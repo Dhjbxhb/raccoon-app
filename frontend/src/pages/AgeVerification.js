@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Shield, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -68,8 +69,20 @@ const AgeVerification = () => {
       <div className="relative z-10 w-full max-w-md bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(124,58,237,0.3)]">
         {/* Header */}
         <div className="p-8 text-center border-b border-white/10">
-          <div className="w-24 h-24 mx-auto mb-5 rounded-full bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center shadow-[0_0_30px_rgba(124,58,237,0.4)]">
-            <Shield size={48} className="text-white" />
+          <div className="relative w-24 h-24 mx-auto mb-5">
+            {/* Glow effect */}
+            <div 
+              className="absolute inset-0 rounded-full animate-pulse"
+              style={{
+                background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)',
+                transform: 'scale(1.5)',
+                filter: 'blur(20px)'
+              }}
+            />
+            {/* Logo container */}
+            <div className="relative w-full h-full rounded-full bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center shadow-[0_0_30px_rgba(124,58,237,0.4)]">
+              <RaccoonIcon size={56} />
+            </div>
           </div>
           <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
             Age Verification
