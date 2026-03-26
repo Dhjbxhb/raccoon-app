@@ -69,15 +69,50 @@ Build a premium real-time social matching platform for text and video chat. The 
 - Age verification modal (18+)
 - Terms checkbox on signup
 
-### Admin Panel (Full Control)
-- **Dashboard**: Live stats from real data
-  - Total users, active users, premium users
-  - Total matches, messages
-  - Today vs yesterday comparisons
-- **User Management**: Search, filter, view profiles
-- **Ban System**: Temporary and permanent bans
-- **Premium Control**: Grant/remove premium
-- **Report System**: Review, action, dismiss reports
+### Admin Panel - Full Control Center (TASK 35) ✅
+- **Backend** (`/app/backend/routes/admin.py`):
+  - Real MongoDB aggregation queries (no mocked data)
+  - Admin-only access via JWT `is_admin` claim
+  - Comprehensive endpoints for all operations
+- **Dashboard Stats** (`GET /api/admin/dashboard`):
+  - Live: Online users (registered + guests)
+  - Overview: Total users, guests, premium, banned, matches, messages, reports
+  - Today vs Yesterday: Active users, matches, messages, signups with % change
+  - Alerts: Pending reports, premium expiring soon
+- **User Management** (`GET /api/admin/users`, `/users/{id}`):
+  - Search by name, email, or user ID
+  - Filter: All, Premium, Banned, Guests
+  - Paginated user list with stats
+  - Detailed user profiles with activity history
+- **Ban System** (`POST /api/admin/users/{id}/ban`):
+  - Temporary bans (1h, 24h, 7d, 30d, custom hours)
+  - Permanent bans
+  - Ban reason tracking
+  - Unban functionality
+- **Premium Control** (`POST /api/admin/users/{id}/premium`):
+  - Grant premium (7d, 30d, 90d, 1yr, custom, lifetime)
+  - Remove premium
+  - Track who granted and when
+  - Premium expiration monitoring
+- **Report System** (`GET /api/admin/reports`, `/reports/{id}/action`):
+  - Filter by status: Pending, Reviewed, Actioned, Ignored
+  - Report details with reporter/reported info
+  - Take action: Review, Action, Ignore
+  - Optional: Ban reported user directly from report
+  - Admin notes for audit trail
+- **Session/Match History** (`GET /api/admin/matches`, `/matches/{id}/messages`):
+  - View all match sessions with user IDs and duration
+  - View chat messages from specific sessions
+  - Moderation capability for chat review
+- **Frontend UI** (`/app/frontend/src/pages/Admin.js`):
+  - 5 tabs: Dashboard, Users, Reports, Premium, Sessions
+  - Space-themed glass-morphism design
+  - Live online indicator
+  - User detail modals with actions
+  - Ban modal with duration options
+  - Premium grant modal with duration options
+  - Report action modal with ban option
+  - Session message viewer modal
 
 ### Country Detection
 - Multi-provider IP geolocation fallback (ipapi.co, ip-api.com, ipwho.is)
@@ -527,9 +562,11 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 35-41 pending (to be provided by user)
+- **TASK 35/41**: ✅ COMPLETED (Admin Panel with real DB metrics)
+- Tasks 36-41 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration
 - Firebase social login activation
-- Additional page backgrounds (Match, Premium, Admin)
+- Production TURN server setup
+- Twilio SMS for production OTP
