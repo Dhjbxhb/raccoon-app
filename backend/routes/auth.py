@@ -105,44 +105,70 @@ async def signup(data: SignupRequest, request: Request):
     
     country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
-    # Create user
+    # Create user with full model
     user_id = str(uuid.uuid4())
     password_hash = AuthService.hash_password(data.password)
+    now = datetime.now(timezone.utc)
     
-    user = User(
+    user_dict = {
+        "user_id": user_id,
+        "email": data.email,
+        "username": data.username,
+        "password_hash": password_hash,
+        "login_method": "email",
+        "gender": data.gender.lower(),
+        "date_of_birth": data.date_of_birth,
+        "country": country_info['country'],
+        "country_code": country_info['countryCode'],
+        "country_flag": country_info['flag'],
+        "email_verified": False,
+        "phone_verified": False,
+        "age_verified": False,
+        "account_status": "active",
+        "is_banned": False,
+        "premium_status": False,
+        "premium_tier": "free",
+        "is_admin": False,
+        "is_moderator": False,
+        "admin_level": 0,
+        "total_sessions": 0,
+        "total_time_spent": 0,
+        "total_matches": 0,
+        "total_messages_sent": 0,
+        "total_reports_received": 0,
+        "total_reports_made": 0,
+        "total_blocks_received": 0,
+        "preferred_gender": "any",
+        "preferred_country": "any",
+        "notifications_enabled": True,
+        "sound_enabled": True,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+        "last_active": now.isoformat(),
+        "last_login": now.isoformat(),
+        "failed_login_attempts": 0,
+    }
+    
+    await users.insert_one(user_dict)
+    
+    # Create token
+    token = AuthService.create_token(user_id)
+    
+    user_response = UserResponse(
         user_id=user_id,
         email=data.email,
         username=data.username,
-        password_hash=password_hash,
         country=country_info['country'],
         country_code=country_info['countryCode'],
         country_flag=country_info['flag'],
         gender=data.gender.lower(),
-        date_of_birth=data.date_of_birth
-    )
-    
-    # Store in DB
-    user_dict = user.model_dump()
-    user_dict['created_at'] = user_dict['created_at'].isoformat()
-    user_dict['last_active'] = user_dict['last_active'].isoformat()
-    await users.insert_one(user_dict)
-    
-    # Create token
-    token = AuthService.create_token(user_id, is_admin=user.is_admin)
-    
-    user_response = UserResponse(
-        user_id=user.user_id,
-        email=user.email,
-        username=user.username,
-        country=country_info['country'],
-        country_code=country_info['countryCode'],
-        country_flag=country_info['flag'],
-        gender=user.gender,
         age_verified=False,  # New users need to verify age
-        premium_status=user.premium_status,
-        is_admin=user.is_admin,
-        total_sessions=user.total_sessions,
-        total_time_spent=user.total_time_spent
+        premium_status=False,
+        premium_tier="free",
+        is_admin=False,
+        is_moderator=False,
+        total_sessions=0,
+        total_time_spent=0
     )
     
     return AuthResponse(token=token, user=user_response)
@@ -174,10 +200,14 @@ async def login(data: LoginRequest):
             detail="Your account has been banned"
         )
     
-    # Update last_active
+    # Update last_active and last_login
     await users.update_one(
         {"email": data.email},
-        {"$set": {"last_active": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {
+            "last_active": datetime.now(timezone.utc).isoformat(),
+            "last_login": datetime.now(timezone.utc).isoformat(),
+            "failed_login_attempts": 0
+        }}
     )
     
     # Create token
@@ -196,9 +226,13 @@ async def login(data: LoginRequest):
         gender=user_dict['gender'],
         age_verified=user_dict.get('age_verified', False),
         premium_status=user_dict.get('premium_status', False),
+        premium_tier=user_dict.get('premium_tier', 'free'),
         is_admin=user_dict.get('is_admin', False),
+        is_moderator=user_dict.get('is_moderator', False),
         total_sessions=user_dict.get('total_sessions', 0),
-        total_time_spent=user_dict.get('total_time_spent', 0)
+        total_time_spent=user_dict.get('total_time_spent', 0),
+        photo_url=user_dict.get('photo_url'),
+        bio=user_dict.get('bio')
     )
     
     return AuthResponse(token=token, user=user_response)
@@ -236,34 +270,44 @@ async def guest_login(data: GuestRequest, request: Request):
         username = f"Guest{guest_number}"
         existing = await guests.find_one({"username": username}, {"_id": 0})
     
-    # Create guest
-    guest = Guest(
-        guest_id=guest_id,
-        username=username,
-        gender=data.gender.lower(),
-        session_expires_at=datetime.now(timezone.utc) + timedelta(days=1)
-    )
+    now = datetime.now(timezone.utc)
     
-    # Store in DB
-    guest_dict = guest.model_dump()
-    guest_dict['created_at'] = guest_dict['created_at'].isoformat()
-    guest_dict['session_expires_at'] = guest_dict['session_expires_at'].isoformat()
-    guest_dict['country'] = country_info['country']
-    guest_dict['country_code'] = country_info['countryCode']
-    guest_dict['country_flag'] = country_info['flag']
+    # Create guest with full model
+    guest_dict = {
+        "guest_id": guest_id,
+        "username": username,
+        "gender": data.gender.lower(),
+        "country": country_info['country'],
+        "country_code": country_info['countryCode'],
+        "country_flag": country_info['flag'],
+        "age_verified": False,
+        "session_expires_at": (now + timedelta(days=1)).isoformat(),
+        "is_active": True,
+        "is_banned": False,
+        "total_sessions": 0,
+        "total_time_spent": 0,
+        "total_matches": 0,
+        "total_messages_sent": 0,
+        "total_reports_received": 0,
+        "created_at": now.isoformat(),
+        "last_active": now.isoformat(),
+    }
+    
     await guests.insert_one(guest_dict)
     
     # Create token (1 day expiry for guests)
     token = AuthService.create_token(guest_id, is_guest=True)
     
     guest_response = GuestResponse(
-        guest_id=guest.guest_id,
-        username=guest.username,
-        gender=guest.gender,
+        guest_id=guest_id,
+        username=username,
+        gender=data.gender.lower(),
         age_verified=False,  # New guests need to verify age
         country=country_info['country'],
         country_code=country_info['countryCode'],
-        country_flag=country_info['flag']
+        country_flag=country_info['flag'],
+        total_sessions=0,
+        total_time_spent=0
     )
     
     return AuthResponse(token=token, user=guest_response)
@@ -302,9 +346,13 @@ async def get_current_user(request: Request):
             gender=user_dict['gender'],
             age_verified=user_dict.get('age_verified', False),
             premium_status=user_dict.get('premium_status', False),
+            premium_tier=user_dict.get('premium_tier', 'free'),
             is_admin=user_dict.get('is_admin', False),
+            is_moderator=user_dict.get('is_moderator', False),
             total_sessions=user_dict.get('total_sessions', 0),
-            total_time_spent=user_dict.get('total_time_spent', 0)
+            total_time_spent=user_dict.get('total_time_spent', 0),
+            photo_url=user_dict.get('photo_url'),
+            bio=user_dict.get('bio')
         )
 
 
@@ -614,25 +662,37 @@ async def verify_phone_otp(data: VerifyOTPRequest, request: Request):
         username = f"User{random.randint(1000, 9999)}"
         existing_username = await users.find_one({"username": username}, {"_id": 0})
     
+    # Generate unique placeholder email for phone users (to satisfy unique index)
+    placeholder_email = f"phone_{phone.replace('+', '')}@phone.local"
+    
     new_user = {
         "user_id": user_id,
         "phone_number": phone,
-        "email": "",
+        "email": placeholder_email,  # Unique placeholder for index compatibility
         "username": username,
         "password_hash": "",  # No password for phone auth
+        "login_method": "phone",
         "country": country_info['country'],
         "country_code": country_info['countryCode'],
         "country_flag": country_info['flag'],
         "gender": "any",  # Will be set later in profile
         "date_of_birth": None,
-        "premium_status": False,
-        "is_admin": False,
-        "is_banned": False,
         "age_verified": False,
+        "account_status": "active",
+        "is_banned": False,
+        "premium_status": False,
+        "premium_tier": "free",
+        "is_admin": False,
+        "is_moderator": False,
         "total_sessions": 0,
         "total_time_spent": 0,
+        "total_matches": 0,
+        "total_messages_sent": 0,
+        "total_reports_received": 0,
+        "phone_verified": True,  # Verified via OTP
         "auth_provider": "phone",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "last_active": datetime.now(timezone.utc).isoformat()
     }
     

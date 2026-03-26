@@ -62,6 +62,12 @@ logger = logging.getLogger(__name__)
 # Register Socket.IO handlers
 @app.on_event("startup")
 async def startup_event():
+    # Initialize database with indexes and seed data
+    from services.db_init_service import initialize_database
+    await initialize_database()
+    logger.info("Database initialized")
+    
+    # Register socket handlers
     from websocket.socket_handlers import register_socket_handlers
     await register_socket_handlers(sio)
     logger.info("Socket.IO handlers registered")

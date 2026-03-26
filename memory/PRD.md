@@ -122,20 +122,30 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Response interceptor for 401/403 handling
   - Automatic redirect to login on auth failures
 
-### Guest, Phone OTP, Social Auth (TASK 20) ✅
-- **Guest Login**:
-  - Creates REAL backend user in `guests` collection
-  - Receives JWT token, trackable in sessions/moderation
-  - Auto-generated username (Guest####)
-- **Phone OTP Flow**:
-  - Created `PhoneAuth.jsx` with state transitions (phone → OTP → success)
-  - Backend endpoints: `/api/auth/phone/send-otp`, `/verify-otp`, `/resend-otp`
-  - 5-minute OTP expiration, 3 attempt limit
-  - Masked phone display, resend countdown timer
-- **Social Auth (Google/Apple)**:
-  - Created `SocialAuthButtons.jsx` with proper icons
-  - Wired to Firebase handlers, backend `/api/auth/social` endpoint
-  - Graceful fallback when Firebase not configured
+### Full Backend User Model (TASK 21) ✅
+- **Enhanced User Model** (`/app/backend/models/user.py`):
+  - Core identity: user_id, email, username, password_hash
+  - Authentication: login_method (email/google/apple/phone/guest), firebase_uid, phone_number
+  - Profile: gender, date_of_birth, bio, avatar_url
+  - Location: country, country_code, country_flag, timezone
+  - Verification: email_verified, phone_verified, age_verified, identity_verified
+  - Account status: account_status, is_banned, ban_reason, ban_expires_at
+  - Premium: premium_status, premium_tier, premium_expires_at, stripe_customer_id
+  - Admin: is_admin, is_moderator, admin_level
+  - Statistics: total_sessions, total_matches, total_messages_sent, total_reports
+  - Timestamps: created_at, updated_at, last_active, last_login
+- **Guest Model** (`/app/backend/models/guest.py`):
+  - Session management with expiry
+  - Conversion tracking to full user
+  - All required stats fields
+- **Database Initialization** (`/app/backend/services/db_init_service.py`):
+  - Automatic index creation on startup
+  - Admin user seeding
+- **User Types Verified**:
+  - ✅ Email users with full model
+  - ✅ Guest users with session expiry
+  - ✅ Phone users with OTP verification
+  - ✅ Social users (structure ready)
 
 ---
 
