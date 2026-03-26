@@ -78,13 +78,20 @@ async def create_indexes():
     except Exception as e:
         logger.warning(f"Index creation warning (blocked_users): {e}")
     
-    # Sessions indexes (for matching)
+    # Sessions indexes
     logger.info("Creating sessions collection indexes...")
     try:
-        await db.sessions.create_index([("session_id", 1)], unique=True, sparse=True)
-        await db.sessions.create_index([("user_id", 1)])
+        await db.sessions.create_index([("session_id", 1)], unique=True)
+        await db.sessions.create_index([("user1_id", 1)])
+        await db.sessions.create_index([("user2_id", 1)])
         await db.sessions.create_index([("status", 1)])
-        await db.sessions.create_index([("created_at", -1)])
+        await db.sessions.create_index([("start_time", -1)])
+        await db.sessions.create_index([("end_time", -1)])
+        await db.sessions.create_index([("end_reason", 1)])
+        # Compound indexes for user history queries
+        await db.sessions.create_index([("user1_id", 1), ("start_time", -1)])
+        await db.sessions.create_index([("user2_id", 1), ("start_time", -1)])
+        await db.sessions.create_index([("status", 1), ("start_time", -1)])
     except Exception as e:
         logger.warning(f"Index creation warning (sessions): {e}")
     
