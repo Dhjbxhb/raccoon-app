@@ -475,7 +475,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def start_feud_game(sid):
-        """Start a Raccoon Feud game"""
+        """Start a Raccoon Feud game between matched users"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -490,21 +490,36 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             session_id = session_data['session_id']
             player1_id = session_data['user1']['user_id']
             player2_id = session_data['user2']['user_id']
+            player1_username = session_data['user1'].get('username', 'Player 1')
+            player2_username = session_data['user2'].get('username', 'Player 2')
             
             # Mark game as active
             matching_queue.set_game_active(user_id, 'feud')
             
-            # Create game
-            game = feud_service.create_game(session_id, player1_id, player2_id)
+            # Create game with usernames
+            game = feud_service.create_game(
+                session_id, 
+                player1_id, 
+                player2_id,
+                player1_username,
+                player2_username
+            )
             
             # Notify both players
             player1_socket = session_data['user1']['socket_id']
             player2_socket = session_data['user2']['socket_id']
             
-            await sio.emit('feud_game_started', {'game_state': game}, room=player1_socket)
-            await sio.emit('feud_game_started', {'game_state': game}, room=player2_socket)
+            await sio.emit('feud_game_started', {
+                'game_state': game,
+                'your_id': player1_id
+            }, room=player1_socket)
             
-            logger.info(f"Feud game started for session {session_id}")
+            await sio.emit('feud_game_started', {
+                'game_state': game,
+                'your_id': player2_id
+            }, room=player2_socket)
+            
+            logger.info(f"Feud game started for session {session_id}: {player1_username} vs {player2_username}")
         
         except Exception as e:
             logger.error(f"Error starting Feud game: {e}")
@@ -524,27 +539,85 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 return
             
             session_id = session_data['session_id']
-            guess = data.get('guess', '')
+            guess = data.get('guess', '').strip()
+            
+            if not guess:
+                await sio.emit('error', {'message': 'Empty guess'}, room=sid)
+                return
             
             result = feud_service.submit_guess(session_id, user_id, guess)
             
             if 'error' in result:
-                await sio.emit('error', {'message': result['error']}, room=sid)
+                await sio.emit('feud_error', {'message': result['error']}, room=sid)
                 return
             
-            # Notify both players
+            # Notify both players of the result
             player1_socket = session_data['user1']['socket_id']
             player2_socket = session_data['user2']['socket_id']
             
             await sio.emit('feud_guess_result', result, room=player1_socket)
             await sio.emit('feud_guess_result', result, room=player2_socket)
             
+            # Check if game ended
             if result['game_state']['status'] == 'finished':
-                await sio.emit('feud_game_ended', result, room=player1_socket)
-                await sio.emit('feud_game_ended', result, room=player2_socket)
+                # Save result to DB
+                await feud_service.save_game_result(session_id)
+                
+                # Send game ended event
+                await sio.emit('feud_game_ended', {
+                    'winner_id': result['game_state']['winner_id'],
+                    'winner_username': result['game_state']['winner_username'],
+                    'player1_score': result['game_state']['player1_score'],
+                    'player2_score': result['game_state']['player2_score'],
+                    'game_state': result['game_state']
+                }, room=player1_socket)
+                
+                await sio.emit('feud_game_ended', {
+                    'winner_id': result['game_state']['winner_id'],
+                    'winner_username': result['game_state']['winner_username'],
+                    'player1_score': result['game_state']['player1_score'],
+                    'player2_score': result['game_state']['player2_score'],
+                    'game_state': result['game_state']
+                }, room=player2_socket)
+                
+                logger.info(f"Feud game ended: {result['game_state']['winner_username']} wins!")
         
         except Exception as e:
             logger.error(f"Error in Feud guess: {e}")
+            await sio.emit('error', {'message': 'Failed to process guess'}, room=sid)
+    
+    @sio.event
+    async def end_feud_game(sid):
+        """End Feud game early"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            result = feud_service.end_game(session_id)
+            
+            if result:
+                player1_socket = session_data['user1']['socket_id']
+                player2_socket = session_data['user2']['socket_id']
+                
+                await sio.emit('feud_game_ended', {
+                    'reason': 'ended_early',
+                    'game_state': result
+                }, room=player1_socket)
+                
+                await sio.emit('feud_game_ended', {
+                    'reason': 'ended_early', 
+                    'game_state': result
+                }, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error ending Feud game: {e}")
     
     # ============================================
     # TRUTH OR DARE GAME HANDLERS

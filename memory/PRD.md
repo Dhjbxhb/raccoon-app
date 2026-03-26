@@ -362,6 +362,46 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Swipe on video panel changes filters
   - Premium check before applying premium filters
 
+### Raccoon Feud Backend & Multiplayer (TASK 32) ✅
+- **Enhanced Question Bank** (`/app/backend/services/game_service.py`):
+  - 20+ questions across 9 categories (technology, food, everyday, hobbies, vehicles, dating, habits, entertainment, animals)
+  - Each answer has alternative accepted responses for flexible matching
+  - Points range from 5-40 per answer
+- **Advanced Fuzzy Matching**:
+  - Uses `rapidfuzz` library for intelligent answer matching
+  - Supports exact match, partial match, word overlap, and similarity scoring
+  - 70% threshold for fuzzy acceptance
+  - Alt answers like "instagram" matching "social media"
+- **Game Models** (`/app/backend/models/feud_game.py`):
+  - `FeudAnswer`: answer, points, revealed status, guessed_by
+  - `FeudQuestion`: question_id, question, category, answers, total_points
+  - `FeudGameState`: Complete game state with players, scores, strikes, history
+  - `FeudGameResult`: Final result for DB persistence and leaderboards
+- **FeudGameService Features**:
+  - Turn-based gameplay with steal mechanics
+  - 3-strike system per player
+  - Steal opportunity after 3 strikes
+  - Round scores and total scores tracked
+  - Winner determination at game end
+  - Guess history for replay/audit
+- **Socket Events** (`/app/backend/websocket/socket_handlers.py`):
+  - `start_feud_game`: Creates game and notifies both players
+  - `feud_guess`: Submits guess, broadcasts result to both players
+  - `feud_game_started`: Sends initial game state with player IDs
+  - `feud_guess_result`: Real-time feedback (correct/strike/steal)
+  - `feud_game_ended`: Final scores and winner announcement
+  - `end_feud_game`: Early game termination
+- **MongoDB Persistence**:
+  - Saves game results to `feud_results` collection
+  - Tracks duration, questions played, final scores
+- **Multiplayer Frontend** (`/app/frontend/src/components/RaccoonFeudGameMultiplayer.jsx`):
+  - Real-time socket sync between 2 players
+  - Turn indicator ("Your turn" / "Opponent's turn")
+  - Live scoreboard with strikes visualization
+  - Correct/strike feedback animations
+  - Steal attempt indicator
+  - End-game winner screen with play again option
+
 ---
 
 ## Code Architecture
@@ -434,7 +474,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 32-46 pending (to be provided by user)
+- Tasks 33-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

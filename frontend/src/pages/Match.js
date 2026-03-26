@@ -15,7 +15,7 @@ import ReportModal from '@/components/match/ReportModal';
 import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
 import TruthOrDareGame from '@/components/TruthOrDareGame';
-import RaccoonFeudGame from '@/components/RaccoonFeudGame';
+import RaccoonFeudGame from '@/components/RaccoonFeudGameMultiplayer';
 import CameraFilters from '@/components/match/CameraFilters';
 import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
 import '@/styles/match.css';
@@ -435,10 +435,10 @@ const Match = () => {
               <RaccoonFeudGame
                 isOpen={showFeud}
                 onClose={() => setShowFeud(false)}
-                myScore={myScore}
-                partnerScore={partnerScore}
+                socket={socket}
+                myUserId={user?.user_id || user?.guest_id}
                 partnerUsername={partner?.username || 'Stranger'}
-                onScoreUpdate={(points) => setMyScore(prev => prev + points)}
+                sessionId={sessionId}
                 isPremium={isPremium}
                 isOverlay={true}
               />
