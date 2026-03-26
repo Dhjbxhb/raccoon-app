@@ -7,19 +7,19 @@ import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
-  ArrowLeft, Send, Loader2, Trophy, 
+  ArrowLeft, Loader2, Trophy, 
   Sparkles, Filter, X, MessageCircle
 } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
+import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
 import TruthOrDareGame from '@/components/TruthOrDareGame';
 import RaccoonFeudGame from '@/components/RaccoonFeudGame';
 import CameraFilterSelector from '@/components/CameraFilterSelector';
 import { CAMERA_FILTERS } from '@/hooks/useCameraFilters';
 import '@/styles/match.css';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import '@/styles/chat.css';
 
 const RACCOON_FACTS = [
   "Raccoons are extremely intelligent animals",
@@ -582,46 +582,27 @@ const Match = () => {
                 className="match-bottombar__send"
                 data-testid="send-button"
               >
-                <Send size={16} />
+                <MessageCircle size={16} />
               </button>
             </form>
           )}
         </div>
       </div>
 
-      {/* ===== CHAT MESSAGES OVERLAY (Desktop only) ===== */}
-      {showChat && messages.length > 0 && (
-        <div className="match-chat">
-          <div className="match-chat__header">
-            <div className="match-chat__title">
-              <MessageCircle size={14} className="text-[#7c3aed]" />
-              <span>Chat</span>
-              <span className="text-gray-500">• {messages.length} messages</span>
-            </div>
-          </div>
-          
-          <div className="match-chat__messages">
-            {messages.map((msg, index) => {
-              const isOwn = msg.sender_id === user?.user_id || msg.sender_id === user?.guest_id;
-              return (
-                <div 
-                  key={index} 
-                  className={`match-chat__message ${isOwn ? 'match-chat__message--own' : 'match-chat__message--partner'}`}
-                >
-                  {msg.content}
-                </div>
-              );
-            })}
-            {partnerTyping && (
-              <div className="match-chat__typing">
-                <div className="match-chat__typing-dot" />
-                <div className="match-chat__typing-dot" />
-                <div className="match-chat__typing-dot" />
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
+      {/* ===== CHAT PANEL (Desktop overlay / Mobile toggle) ===== */}
+      {showChat && (
+        <ChatPanel
+          messages={messages}
+          partnerTyping={partnerTyping}
+          partnerUsername={partner?.username || 'Stranger'}
+          onSendMessage={sendMessage}
+          onTypingStart={startTyping}
+          onTypingStop={stopTyping}
+          currentUserId={user?.user_id || user?.guest_id}
+          isExpanded={showChat}
+          onToggle={() => setShowChat(!showChat)}
+          isMobile={window.innerWidth < 1024}
+        />
       )}
 
       {/* ===== MODALS ===== */}

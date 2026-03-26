@@ -280,6 +280,33 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Toast notifications for success/error
   - Auto-close after successful submission
 
+### Real-Time Chat System (TASK 29) ✅
+- **Message Model** (`/app/backend/models/message.py`):
+  - Complete model: message_id, session_id, sender info, content, timestamp
+  - Moderation flags and delivery status
+  - Database indexes for efficient querying
+- **Backend Socket Events** (already in `socket_handlers.py`):
+  - `send_message` - Stores in DB and forwards to partner
+  - `typing_start` / `typing_stop` - Typing indicators
+  - Messages linked to session for history
+- **ChatPanel Component** (`/app/frontend/src/components/match/ChatPanel.jsx`):
+  - Premium rounded message bubbles (purple own / dark partner)
+  - Typing indicator with animated bouncing dots
+  - Auto-scroll with "new message" button
+  - Timestamp dividers every 5 minutes
+  - Empty state with friendly message
+  - Collapsible on mobile (bottom sheet style)
+- **Chat Styles** (`/app/frontend/src/styles/chat.css`):
+  - Glass-morphism overlay panel
+  - Desktop: Fixed position overlay (20rem width)
+  - Mobile: Bottom sheet (50vh max)
+  - Keyboard-safe input handling
+  - Smooth animations for messages
+- **useChat Hook** (`/app/frontend/src/hooks/useChat.js`):
+  - Real-time message sync
+  - Typing indicator debounce (1.5s timeout)
+  - Auto-clear on session change
+
 ---
 
 ## Code Architecture
@@ -352,7 +379,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 29-46 pending (to be provided by user)
+- Tasks 30-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration
