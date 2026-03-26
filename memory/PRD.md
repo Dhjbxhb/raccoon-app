@@ -428,6 +428,33 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Mobile: TOP = stranger, BOTTOM = me
   - Backend determines result, frontend syncs animation
 
+### Strict Game-to-Match Integration (TASK 34) ✅
+- **Video Priority Enforcement** (`/app/frontend/src/pages/Match.js`):
+  - Single source of truth: `activeGame` state (null | 'feud' | 'truthordare')
+  - Games can only overlay MY video panel
+  - Stranger video ALWAYS remains visible and unobstructed
+- **Conflict Prevention**:
+  - Only one game can run at a time via `toggleGame()` function
+  - Disabled state on other game button when one is active
+  - Prevents duplicate game sessions via `isGameActive` check
+- **State Reset Logic** (`resetAllGameState`):
+  - Resets on: game end, match skip, partner disconnect, session change
+  - Clears: activeGame, gameSessionId, messageInput, camera filters
+  - Socket listeners for `feud_game_ended`, `tod_game_ended`, `partner_disconnected`
+- **Layout Safety**:
+  - Desktop: MY video (LEFT) + STRANGER video (RIGHT) - game on LEFT only
+  - Mobile: STRANGER (TOP) + MY video (BOTTOM) - game on BOTTOM only
+  - Game container inherits border-radius from video panel
+  - z-index properly managed (game=25, controls=20)
+- **Bottom Bar Integration** (`match-bottombar`):
+  - Active game indicator with pulsing glow
+  - Disabled state styling for unavailable game buttons
+  - Chat input remains accessible during games
+- **CSS Enhancements** (`/app/frontend/src/styles/match.css`, `games.css`):
+  - `.game-container` with slide-in animation
+  - Video dims when game overlay active
+  - Border glow indicates active game type
+
 ---
 
 ## Code Architecture
@@ -500,7 +527,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 34-41 pending (to be provided by user)
+- Tasks 35-41 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

@@ -194,8 +194,8 @@ const MatchPreview = () => {
         </button>
       </div>
 
-      {/* Layout Info Overlay */}
-      <div className="fixed bottom-4 left-4 z-30 px-4 py-3 bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-xs">
+      {/* Layout Info Overlay - lower z-index on mobile */}
+      <div className="fixed bottom-4 left-4 z-20 px-4 py-3 bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-xs max-w-[200px] lg:max-w-none">
         <p className="text-white font-bold mb-1">Layout Preview Mode</p>
         <p className="text-gray-400">
           Desktop: Left=Me, Right=Stranger<br/>

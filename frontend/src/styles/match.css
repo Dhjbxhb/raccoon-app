@@ -670,6 +670,49 @@
   50% { opacity: 0.5; }
 }
 
+/* ===== GAME CONTAINER ===== */
+/* Game overlays appear ONLY on MY video panel (local) */
+/* Stranger video (remote) remains ALWAYS visible */
+.game-container {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  border-radius: inherit;
+  overflow: hidden;
+  animation: gameSlideIn 0.25s ease-out;
+}
+
+@keyframes gameSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.game-container--feud {
+  /* Feud-specific border glow */
+  box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.2);
+}
+
+.game-container--tod {
+  /* Truth or Dare-specific border glow */
+  box-shadow: inset 0 0 0 1px rgba(236, 72, 153, 0.2);
+}
+
+/* When game is active, dim the video slightly behind it */
+.video-panel--local:has(.game-container) .video-panel__video {
+  opacity: 0.15;
+}
+
+/* Ensure filter controls stay above game overlay close button */
+.video-panel--local .video-panel__filter-controls {
+  z-index: 20;
+}
+
 /* ===== BOTTOM BAR ===== */
 .match-bottombar {
   position: relative;
@@ -758,30 +801,25 @@
   color: #a78bfa;
 }
 
-/* Score display */
-.match-bottombar__scores {
+/* Active game indicator */
+.match-bottombar__active-game {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.match-bottombar__score {
   padding: 0.25rem 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.2);
   border-radius: 0.5rem;
-  font-size: 0.625rem;
+  animation: pulseGlow 2s infinite;
 }
 
-@media (min-width: 640px) {
-  .match-bottombar__score {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.75rem;
-  }
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.2); }
+  50% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.4); }
 }
 
-.match-bottombar__score--me {
-  background: rgba(124, 58, 237, 0.15);
+/* Game active state on bottom bar */
+.match-bottombar--game-active {
+  border-top-color: rgba(124, 58, 237, 0.3);
 }
 
 /* Chat toggle */

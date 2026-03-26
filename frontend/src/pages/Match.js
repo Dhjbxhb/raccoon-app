@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
@@ -31,6 +31,15 @@ const RACCOON_FACTS = [
   "Raccoons can run up to 15 mph"
 ];
 
+/**
+ * Match Page - Live video matching with games integration
+ * 
+ * CRITICAL RULES:
+ * 1. VIDEO PRIORITY: Both video feeds must always remain visible
+ * 2. GAME OVERLAY: Games appear ONLY over MY video panel
+ * 3. CONFLICT PREVENTION: Only one game can run at a time
+ * 4. STATE RESET: All game state resets on skip/disconnect/match change
+ */
 const Match = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -60,16 +69,24 @@ const Match = () => {
   const [showCameraFilters, setShowCameraFilters] = useState(false);
   const [showChat, setShowChat] = useState(true);
   
+  // Responsive state
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  
   // Refs
   const messagesEndRef = useRef(null);
   const filterTouchStart = useRef(null);
   const localPanelRef = useRef(null);
+  const previousSessionRef = useRef(null);
   
-  // Game states
-  const [showTruthOrDare, setShowTruthOrDare] = useState(false);
-  const [showFeud, setShowFeud] = useState(false);
-  const [myScore, setMyScore] = useState(0);
-  const [partnerScore, setPartnerScore] = useState(0);
+  // ========== GAME STATE MANAGEMENT ==========
+  // Single source of truth for active game
+  const [activeGame, setActiveGame] = useState(null); // null | 'feud' | 'truthordare'
+  const [gameSessionId, setGameSessionId] = useState(null);
+  
+  // Derived game visibility states
+  const showFeud = activeGame === 'feud';
+  const showTruthOrDare = activeGame === 'truthordare';
+  const isGameActive = activeGame !== null;
   
   // Session duration tracking
   const [sessionDuration, setSessionDuration] = useState(0);
@@ -95,22 +112,80 @@ const Match = () => {
     return getCSSFilter(filterId);
   }, []);
   
-  // Reset UI state when match changes (prevents stale state)
+  // ========== RESPONSIVE HANDLER ==========
   useEffect(() => {
-    if (state !== 'matched') {
-      // Clean up game states
-      setShowTruthOrDare(false);
-      setShowFeud(false);
-      setMyScore(0);
-      setPartnerScore(0);
-      setShowCameraFilters(false);
-      setMessageInput('');
-      setSessionDuration(0);
-      
-      // Clear chat messages for new match
-      if (clearMessages) clearMessages();
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // ========== COMPLETE STATE RESET FUNCTION ==========
+  const resetAllGameState = useCallback(() => {
+    setActiveGame(null);
+    setGameSessionId(null);
+    setShowCameraFilters(false);
+    setMessageInput('');
+    setSessionDuration(0);
+    if (clearMessages) clearMessages();
+  }, [clearMessages]);
+  
+  // ========== SESSION CHANGE DETECTION ==========
+  // Reset ALL state when match changes
+  useEffect(() => {
+    // Detect session change (new match or disconnect)
+    if (sessionId !== previousSessionRef.current) {
+      // Session changed - full reset
+      resetAllGameState();
+      previousSessionRef.current = sessionId;
     }
-  }, [state, clearMessages]);
+    
+    // Also reset when leaving matched state
+    if (state !== 'matched') {
+      resetAllGameState();
+    }
+  }, [state, sessionId, resetAllGameState]);
+  
+  // ========== SOCKET EVENT CLEANUP ==========
+  // Listen for game end events to clean up properly
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleFeudEnded = () => {
+      if (activeGame === 'feud') {
+        setActiveGame(null);
+        setGameSessionId(null);
+      }
+    };
+    
+    const handleTodEnded = () => {
+      if (activeGame === 'truthordare') {
+        setActiveGame(null);
+        setGameSessionId(null);
+      }
+    };
+    
+    const handleMatchEnded = () => {
+      resetAllGameState();
+    };
+    
+    const handlePartnerDisconnected = () => {
+      resetAllGameState();
+    };
+    
+    socket.on('feud_game_ended', handleFeudEnded);
+    socket.on('tod_game_ended', handleTodEnded);
+    socket.on('match_ended', handleMatchEnded);
+    socket.on('partner_disconnected', handlePartnerDisconnected);
+    
+    return () => {
+      socket.off('feud_game_ended', handleFeudEnded);
+      socket.off('tod_game_ended', handleTodEnded);
+      socket.off('match_ended', handleMatchEnded);
+      socket.off('partner_disconnected', handlePartnerDisconnected);
+    };
+  }, [socket, activeGame, resetAllGameState]);
 
   // Track session duration
   useEffect(() => {
@@ -139,12 +214,14 @@ const Match = () => {
 
   // Handle swipe on video area for filter changes
   const handleVideoSwipeStart = useCallback((e) => {
+    // Don't allow swipe if game is active
+    if (isGameActive) return;
     const touch = e.touches ? e.touches[0] : e;
     filterTouchStart.current = { x: touch.clientX, time: Date.now() };
-  }, []);
+  }, [isGameActive]);
 
   const handleVideoSwipeEnd = useCallback((e) => {
-    if (!filterTouchStart.current) return;
+    if (!filterTouchStart.current || isGameActive) return;
     
     const touch = e.changedTouches ? e.changedTouches[0] : e;
     const deltaX = touch.clientX - filterTouchStart.current.x;
@@ -177,7 +254,7 @@ const Match = () => {
     }
     
     filterTouchStart.current = null;
-  }, [getCurrentFilterIndex, filterKeys, isPremium, changeFilter, navigate]);
+  }, [getCurrentFilterIndex, filterKeys, isPremium, changeFilter, navigate, isGameActive]);
 
   // Navigation effects
   useEffect(() => {
@@ -233,11 +310,49 @@ const Match = () => {
     setTypingTimeout(timeout);
   };
 
+  // ========== GAME CONTROL FUNCTIONS ==========
+  // Start game - prevents conflicts
+  const startGame = useCallback((gameType) => {
+    if (!isPremium) {
+      navigate('/premium');
+      return;
+    }
+    
+    // Prevent starting another game
+    if (isGameActive) {
+      toast.info('Please close the current game first');
+      return;
+    }
+    
+    setActiveGame(gameType);
+    setGameSessionId(sessionId);
+  }, [isPremium, isGameActive, sessionId, navigate]);
+  
+  // Close game - safe cleanup
+  const closeGame = useCallback(() => {
+    setActiveGame(null);
+    setGameSessionId(null);
+  }, []);
+  
+  // Toggle game with conflict prevention
+  const toggleGame = useCallback((gameType) => {
+    if (activeGame === gameType) {
+      // Close current game
+      closeGame();
+    } else {
+      // Start new game (closes any existing first)
+      startGame(gameType);
+    }
+  }, [activeGame, closeGame, startGame]);
+
   // ========== SKIP LOGIC ==========
   const handleSkip = useCallback(() => {
     if (isSkipping) return; // Prevent double-skip
     
-    // End WebRTC call first
+    // Reset game state first
+    resetAllGameState();
+    
+    // End WebRTC call
     endCall();
     
     // Trigger skip (hook handles state reset and auto-rejoin)
@@ -245,21 +360,25 @@ const Match = () => {
     
     // Show feedback
     toast.info('Finding next match...', { duration: 1500 });
-  }, [isSkipping, endCall, skipMatch]);
+  }, [isSkipping, endCall, skipMatch, resetAllGameState]);
 
   // Block user
   const handleBlock = useCallback(() => {
     if (window.confirm('Block this user? You won\'t be matched again.')) {
+      resetAllGameState();
       endCall();
       blockUser();
       toast.success('User blocked');
     }
-  }, [endCall, blockUser]);
+  }, [endCall, blockUser, resetAllGameState]);
 
   // Handle back navigation - clean exit
   const handleBackToDashboard = useCallback(() => {
     // Disable auto-rejoin when leaving
     setAutoRejoin(false);
+    
+    // Reset game state
+    resetAllGameState();
     
     // End any active call
     endCall();
@@ -269,7 +388,7 @@ const Match = () => {
     
     // Navigate
     navigate('/dashboard');
-  }, [setAutoRejoin, endCall, endSession, navigate]);
+  }, [setAutoRejoin, endCall, endSession, navigate, resetAllGameState]);
 
   // ========== CONNECTING STATE ==========
   if (!connected) {
@@ -423,27 +542,44 @@ const Match = () => {
             )}
           </div>
 
-          {/* Swipe Hint */}
-          {!showCameraFilters && currentFilter === 'none' && (
+          {/* Swipe Hint - hidden when game active */}
+          {!showCameraFilters && currentFilter === 'none' && !isGameActive && (
             <div className="video-panel__swipe-hint">
               ← Swipe for filters →
             </div>
           )}
 
-          {/* Raccoon Feud Game Overlay (on MY side only) */}
+          {/* ===== GAME OVERLAY ZONE (MY SIDE ONLY) ===== */}
+          {/* Games overlay my video panel - stranger always visible */}
           {showFeud && (
-            <FeudGame
-              isOpen={showFeud}
-              onClose={() => setShowFeud(false)}
-              socket={socket}
-              myUserId={user?.user_id || user?.guest_id}
-              partnerUsername={partner?.username || 'Stranger'}
-              sessionId={sessionId}
-            />
+            <div className="game-container game-container--feud">
+              <FeudGame
+                isOpen={showFeud}
+                onClose={closeGame}
+                socket={socket}
+                myUserId={user?.user_id || user?.guest_id}
+                partnerUsername={partner?.username || 'Stranger'}
+                sessionId={sessionId}
+              />
+            </div>
+          )}
+          
+          {showTruthOrDare && (
+            <div className="game-container game-container--tod">
+              <TruthOrDare
+                isOpen={showTruthOrDare}
+                onClose={closeGame}
+                socket={socket}
+                myUserId={user?.user_id || user?.guest_id}
+                partnerUsername={partner?.username || 'Stranger'}
+                sessionId={sessionId}
+                isMobile={isMobile}
+              />
+            </div>
           )}
         </div>
 
-        {/* REMOTE VIDEO PANEL (Stranger) */}
+        {/* REMOTE VIDEO PANEL (Stranger) - ALWAYS VISIBLE */}
         {/* Desktop: order-2 (RIGHT) | Mobile: order-1 (TOP) */}
         <div 
           className="video-panel video-panel--remote"
@@ -477,25 +613,10 @@ const Match = () => {
             <span>{partner?.username || 'Stranger'}</span>
           </div>
         </div>
-
-        {/* Truth or Dare Game (on MY side overlay) */}
-        {showTruthOrDare && (
-          <div className="video-panel video-panel--local" style={{ position: 'absolute', zIndex: 30 }}>
-            <TruthOrDare
-              isOpen={showTruthOrDare}
-              onClose={() => setShowTruthOrDare(false)}
-              socket={socket}
-              myUserId={user?.user_id || user?.guest_id}
-              partnerUsername={partner?.username || 'Stranger'}
-              sessionId={sessionId}
-              isMobile={window.innerWidth < 1024}
-            />
-          </div>
-        )}
       </div>
 
       {/* ===== BOTTOM ACTION BAR ===== */}
-      <div className="match-bottombar">
+      <div className={`match-bottombar ${isGameActive ? 'match-bottombar--game-active' : ''}`}>
         <div className="match-bottombar__content">
           {/* Game & Filter Buttons */}
           <div className="match-bottombar__games">
@@ -512,12 +633,9 @@ const Match = () => {
               
               {/* Raccoon Feud */}
               <button
-                onClick={() => {
-                  if (!isPremium) { navigate('/premium'); return; }
-                  setShowFeud(!showFeud);
-                  setShowTruthOrDare(false);
-                }}
-                className={`match-bottombar__game-btn ${showFeud ? 'match-bottombar__game-btn--active' : ''}`}
+                onClick={() => toggleGame('feud')}
+                disabled={activeGame && activeGame !== 'feud'}
+                className={`match-bottombar__game-btn ${showFeud ? 'match-bottombar__game-btn--active' : ''} ${activeGame && activeGame !== 'feud' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 data-testid="feud-btn"
               >
                 <Trophy size={12} />
@@ -527,12 +645,9 @@ const Match = () => {
 
               {/* Truth or Dare */}
               <button
-                onClick={() => {
-                  if (!isPremium) { navigate('/premium'); return; }
-                  setShowTruthOrDare(!showTruthOrDare);
-                  setShowFeud(false);
-                }}
-                className={`match-bottombar__game-btn ${showTruthOrDare ? 'match-bottombar__game-btn--active' : ''}`}
+                onClick={() => toggleGame('truthordare')}
+                disabled={activeGame && activeGame !== 'truthordare'}
+                className={`match-bottombar__game-btn ${showTruthOrDare ? 'match-bottombar__game-btn--active' : ''} ${activeGame && activeGame !== 'truthordare' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 data-testid="tod-btn"
               >
                 <Sparkles size={12} />
@@ -541,17 +656,12 @@ const Match = () => {
               </button>
             </div>
 
-            {/* Scores (when games active) */}
-            {(showFeud || showTruthOrDare) && (
-              <div className="match-bottombar__scores">
-                <div className="match-bottombar__score match-bottombar__score--me">
-                  <span className="text-gray-400">You:</span>
-                  <span className="text-[#ffd700] font-bold ml-1">{myScore}</span>
-                </div>
-                <div className="match-bottombar__score">
-                  <span className="text-gray-400">{partner?.username?.slice(0, 6)}:</span>
-                  <span className="text-white font-bold ml-1">{partnerScore}</span>
-                </div>
+            {/* Active Game Indicator */}
+            {isGameActive && (
+              <div className="match-bottombar__active-game">
+                <span className="text-xs text-[#ffd700]/80">
+                  {showFeud ? '🦝 Feud' : '🍾 T/D'}
+                </span>
               </div>
             )}
 
@@ -565,7 +675,7 @@ const Match = () => {
             </button>
           </div>
 
-          {/* Chat Input */}
+          {/* Chat Input - still accessible during game */}
           {showChat && (
             <form onSubmit={handleSendMessage} className="match-bottombar__chat">
               <input
