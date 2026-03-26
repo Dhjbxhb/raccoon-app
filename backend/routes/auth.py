@@ -19,6 +19,7 @@ class SignupRequest(BaseModel):
     password: str
     gender: str
     date_of_birth: str
+    browser_locale: str | None = None  # Fallback for country detection
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -26,6 +27,7 @@ class LoginRequest(BaseModel):
 
 class GuestRequest(BaseModel):
     gender: str
+    browser_locale: str | None = None  # Fallback for country detection
 
 class AuthResponse(BaseModel):
     token: str
@@ -82,9 +84,14 @@ async def signup(data: SignupRequest, request: Request):
             detail="Gender must be Male or Female"
         )
     
-    # Auto-detect country from IP
+    # Auto-detect country from IP (with browser locale fallback)
     client_ip = request.client.host
-    country_info = CountryService.get_country_from_ip(client_ip)
+    # Get X-Forwarded-For header for proxied requests
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    
+    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
     # Create user
     user_id = str(uuid.uuid4())
@@ -96,6 +103,8 @@ async def signup(data: SignupRequest, request: Request):
         username=data.username,
         password_hash=password_hash,
         country=country_info['country'],
+        country_code=country_info['countryCode'],
+        country_flag=country_info['flag'],
         gender=data.gender.lower(),
         date_of_birth=data.date_of_birth
     )
@@ -104,8 +113,6 @@ async def signup(data: SignupRequest, request: Request):
     user_dict = user.model_dump()
     user_dict['created_at'] = user_dict['created_at'].isoformat()
     user_dict['last_active'] = user_dict['last_active'].isoformat()
-    user_dict['country_code'] = country_info['countryCode']
-    user_dict['country_flag'] = country_info['flag']
     await users.insert_one(user_dict)
     
     # Create token
@@ -116,7 +123,10 @@ async def signup(data: SignupRequest, request: Request):
         email=user.email,
         username=user.username,
         country=country_info['country'],
+        country_code=country_info['countryCode'],
+        country_flag=country_info['flag'],
         gender=user.gender,
+        age_verified=False,  # New users need to verify age
         premium_status=user.premium_status,
         is_admin=user.is_admin,
         total_sessions=user.total_sessions,
@@ -169,7 +179,10 @@ async def login(data: LoginRequest):
         email=user_dict['email'],
         username=user_dict['username'],
         country=user_dict['country'],
+        country_code=user_dict.get('country_code', 'US'),
+        country_flag=user_dict.get('country_flag', '🇺🇸'),
         gender=user_dict['gender'],
+        age_verified=user_dict.get('age_verified', False),
         premium_status=user_dict.get('premium_status', False),
         is_admin=user_dict.get('is_admin', False),
         total_sessions=user_dict.get('total_sessions', 0),
@@ -190,9 +203,14 @@ async def guest_login(data: GuestRequest, request: Request):
             detail="Gender must be Male or Female"
         )
     
-    # Auto-detect country from IP
+    # Auto-detect country from IP (with browser locale fallback)
     client_ip = request.client.host
-    country_info = CountryService.get_country_from_ip(client_ip)
+    # Get X-Forwarded-For header for proxied requests
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    
+    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
     # Generate guest ID and username
     guest_id = str(uuid.uuid4())
@@ -229,7 +247,11 @@ async def guest_login(data: GuestRequest, request: Request):
     guest_response = GuestResponse(
         guest_id=guest.guest_id,
         username=guest.username,
-        gender=guest.gender
+        gender=guest.gender,
+        age_verified=False,  # New guests need to verify age
+        country=country_info['country'],
+        country_code=country_info['countryCode'],
+        country_flag=country_info['flag']
     )
     
     return AuthResponse(token=token, user=guest_response)
@@ -244,7 +266,15 @@ async def get_current_user(request: Request):
         guest_dict = await guests.find_one({"guest_id": payload['user_id']}, {"_id": 0})
         if not guest_dict:
             raise HTTPException(status_code=404, detail="Guest session not found")
-        return GuestResponse(**guest_dict)
+        return GuestResponse(
+            guest_id=guest_dict['guest_id'],
+            username=guest_dict['username'],
+            gender=guest_dict['gender'],
+            age_verified=guest_dict.get('age_verified', False),
+            country=guest_dict.get('country'),
+            country_code=guest_dict.get('country_code'),
+            country_flag=guest_dict.get('country_flag')
+        )
     else:
         users = get_users_collection()
         user_dict = await users.find_one({"user_id": payload['user_id']}, {"_id": 0})
@@ -255,12 +285,49 @@ async def get_current_user(request: Request):
             email=user_dict['email'],
             username=user_dict['username'],
             country=user_dict['country'],
+            country_code=user_dict.get('country_code', 'US'),
+            country_flag=user_dict.get('country_flag', '🇺🇸'),
             gender=user_dict['gender'],
+            age_verified=user_dict.get('age_verified', False),
             premium_status=user_dict.get('premium_status', False),
             is_admin=user_dict.get('is_admin', False),
             total_sessions=user_dict.get('total_sessions', 0),
             total_time_spent=user_dict.get('total_time_spent', 0)
         )
+
+
+class AgeVerifyRequest(BaseModel):
+    confirmed: bool
+
+@router.post("/verify-age")
+async def verify_age(data: AgeVerifyRequest, request: Request):
+    """Verify user's age - persisted to database"""
+    if not data.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Age confirmation required"
+        )
+    
+    payload = await verify_token(request)
+    
+    if payload.get('is_guest'):
+        guests = get_guests_collection()
+        result = await guests.update_one(
+            {"guest_id": payload['user_id']},
+            {"$set": {"age_verified": True}}
+        )
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Guest session not found")
+    else:
+        users = get_users_collection()
+        result = await users.update_one(
+            {"user_id": payload['user_id']},
+            {"$set": {"age_verified": True}}
+        )
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"success": True, "age_verified": True}
 
 
 class SocialAuthRequest(BaseModel):
@@ -271,15 +338,21 @@ class SocialAuthRequest(BaseModel):
     phoneNumber: str | None = None
     provider: str
     idToken: str
+    browser_locale: str | None = None  # Fallback for country detection
 
 @router.post("/social", response_model=AuthResponse)
 async def social_auth(data: SocialAuthRequest, request: Request):
     """Handle social authentication (Google, Apple, Phone)"""
     users = get_users_collection()
     
-    # Auto-detect country from IP
+    # Auto-detect country from IP (with browser locale fallback)
     client_ip = request.client.host
-    country_info = CountryService.get_country_from_ip(client_ip)
+    # Get X-Forwarded-For header for proxied requests
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    
+    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
     # Check if user exists by Firebase UID or email
     existing_user = None
@@ -321,7 +394,10 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             email=existing_user.get('email', ''),
             username=existing_user['username'],
             country=existing_user.get('country', country_info['country']),
+            country_code=existing_user.get('country_code', country_info['countryCode']),
+            country_flag=existing_user.get('country_flag', country_info['flag']),
             gender=existing_user.get('gender', 'any'),
+            age_verified=existing_user.get('age_verified', False),
             premium_status=existing_user.get('premium_status', False),
             is_admin=existing_user.get('is_admin', False),
             total_sessions=existing_user.get('total_sessions', 0),
@@ -372,7 +448,10 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         email=data.email or "",
         username=username,
         country=country_info['country'],
+        country_code=country_info['countryCode'],
+        country_flag=country_info['flag'],
         gender="any",
+        age_verified=False,  # New social users need to verify age
         premium_status=False,
         is_admin=False,
         total_sessions=0,

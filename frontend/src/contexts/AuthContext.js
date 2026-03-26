@@ -47,7 +47,13 @@ export const AuthProvider = ({ children }) => {
 
   const loginAsGuest = async (gender = 'any') => {
     try {
-      const response = await axios.post(`${API_URL}/auth/guest`, { gender });
+      // Get browser locale for country detection fallback
+      const browserLocale = navigator.language || navigator.userLanguage || 'en-US';
+      
+      const response = await axios.post(`${API_URL}/auth/guest`, { 
+        gender,
+        browser_locale: browserLocale
+      });
       const { token: newToken, user: userData } = response.data;
       localStorage.setItem('raccoon_token', newToken);
       setToken(newToken);

@@ -10,8 +10,11 @@ class User(BaseModel):
     username: str
     password_hash: str
     country: str
+    country_code: str = "US"
+    country_flag: str = "🇺🇸"
     gender: str  # male, female, non-binary
     date_of_birth: str  # ISO format date
+    age_verified: bool = False  # Backend-persisted age verification
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_active: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     total_sessions: int = 0
@@ -25,7 +28,10 @@ class UserResponse(BaseModel):
     email: str
     username: str
     country: str
+    country_code: str = "US"
+    country_flag: str = "🇺🇸"
     gender: str
+    age_verified: bool = False
     premium_status: bool
     is_admin: bool
     total_sessions: int
@@ -37,4 +43,6 @@ class UserPublic(BaseModel):
     username: str
     gender: str
     country: str
+    country_code: str = "US"
+    country_flag: str = "🇺🇸"
     premium_status: bool

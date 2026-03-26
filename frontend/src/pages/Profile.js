@@ -115,7 +115,7 @@ const Profile = () => {
                   )}
                   {user.country && (
                     <div className="flex items-center gap-2">
-                      <Globe size={16} />
+                      <span className="text-lg">{user.country_flag || '🌐'}</span>
                       <span>{user.country}</span>
                     </div>
                   )}

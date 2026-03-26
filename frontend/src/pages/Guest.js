@@ -20,7 +20,11 @@ const Guest = () => {
   // Check if user is already logged in
   useEffect(() => {
     if (user) {
-      navigate('/match');
+      if (!user.age_verified) {
+        navigate('/verify-age');
+      } else {
+        navigate('/dashboard');
+      }
     }
   }, [user, navigate]);
 
@@ -54,7 +58,7 @@ const Guest = () => {
   const handleStartMatching = async () => {
     setLoading(true);
     try {
-      await loginAsGuest(selectedGender);
+      const userData = await loginAsGuest(selectedGender);
       
       // Store preferences
       sessionStorage.setItem('match_preferences', JSON.stringify({
@@ -62,7 +66,8 @@ const Guest = () => {
         country: selectedCountry
       }));
       
-      navigate('/match');
+      // Guests always need age verification
+      navigate('/verify-age');
     } catch (error) {
       toast.error('Failed to start. Please try again.');
       setLoading(false);

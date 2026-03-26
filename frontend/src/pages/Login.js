@@ -32,7 +32,13 @@ const Login = () => {
       const response = await axios.post(`${API_URL}/auth/login`, formData);
       login(response.data.token, response.data.user);
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      
+      // Redirect based on age verification status
+      if (response.data.user.age_verified) {
+        navigate('/dashboard');
+      } else {
+        navigate('/verify-age');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
     } finally {
@@ -43,10 +49,22 @@ const Login = () => {
   // Handle social auth backend sync
   const syncSocialAuth = async (userData) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/social`, userData);
+      // Get browser locale for country detection fallback
+      const browserLocale = navigator.language || navigator.userLanguage || 'en-US';
+      
+      const response = await axios.post(`${API_URL}/auth/social`, {
+        ...userData,
+        browser_locale: browserLocale
+      });
       login(response.data.token, response.data.user);
       toast.success('Welcome!');
-      navigate('/dashboard');
+      
+      // Redirect based on age verification status
+      if (response.data.user.age_verified) {
+        navigate('/dashboard');
+      } else {
+        navigate('/verify-age');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Authentication failed');
     }

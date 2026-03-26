@@ -41,10 +41,18 @@ const Signup = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_URL}/auth/signup`, formData);
+      // Get browser locale for country detection fallback
+      const browserLocale = navigator.language || navigator.userLanguage || 'en-US';
+      
+      const response = await axios.post(`${API_URL}/auth/signup`, {
+        ...formData,
+        browser_locale: browserLocale
+      });
       login(response.data.token, response.data.user);
       toast.success('Account created! Welcome to Raccoon!');
-      navigate('/dashboard');
+      
+      // New users always need age verification
+      navigate('/verify-age');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Signup failed');
     } finally {
@@ -55,10 +63,22 @@ const Signup = () => {
   // Handle social auth backend sync (same as Login)
   const syncSocialAuth = async (userData) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/social`, userData);
+      // Get browser locale for country detection fallback
+      const browserLocale = navigator.language || navigator.userLanguage || 'en-US';
+      
+      const response = await axios.post(`${API_URL}/auth/social`, {
+        ...userData,
+        browser_locale: browserLocale
+      });
       login(response.data.token, response.data.user);
       toast.success('Welcome!');
-      navigate('/dashboard');
+      
+      // Redirect based on age verification status
+      if (response.data.user.age_verified) {
+        navigate('/dashboard');
+      } else {
+        navigate('/verify-age');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Authentication failed');
     }

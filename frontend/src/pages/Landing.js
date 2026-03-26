@@ -9,6 +9,17 @@ const Landing = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [particles, setParticles] = useState([]);
 
+  // Redirect authenticated users appropriately
+  useEffect(() => {
+    if (user) {
+      if (!user.age_verified) {
+        navigate('/verify-age');
+      } else {
+        navigate('/dashboard');
+      }
+    }
+  }, [user, navigate]);
+
   // Generate floating particles
   useEffect(() => {
     const newParticles = Array.from({ length: 20 }, (_, i) => ({
@@ -23,11 +34,7 @@ const Landing = () => {
   }, []);
 
   const handleStart = () => {
-    if (user) {
-      navigate('/match');
-    } else {
-      navigate('/guest');
-    }
+    navigate('/guest');
   };
 
   return (
@@ -130,12 +137,6 @@ const Landing = () => {
         >
           Talk to real people instantly
         </p>
-
-        {/* Online indicator */}
-        <div className="mt-12 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-sm text-gray-400">1,234 people online</span>
-        </div>
       </div>
 
       {/* Footer Links */}
