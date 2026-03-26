@@ -32,8 +32,18 @@ const Match = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket, connected } = useSocket();
-  const { state, partner, sessionId, startMatching, skipMatch, blockUser } = useMatching(socket);
-  const { messages, partnerTyping, sendMessage, startTyping, stopTyping } = useChat(socket, sessionId);
+  const { 
+    state, 
+    partner, 
+    sessionId, 
+    isSkipping,
+    startMatching, 
+    skipMatch, 
+    blockUser,
+    endSession,
+    setAutoRejoin
+  } = useMatching(socket);
+  const { messages, partnerTyping, sendMessage, startTyping, stopTyping, clearMessages } = useChat(socket, sessionId);
   
   // Form states
   const [messageInput, setMessageInput] = useState('');
@@ -77,6 +87,23 @@ const Match = () => {
   const isPremium = user?.premium_status;
   const filterKeys = Object.keys(CAMERA_FILTERS);
   
+  // Reset UI state when match changes (prevents stale state)
+  useEffect(() => {
+    if (state !== 'matched') {
+      // Clean up game states
+      setShowTruthOrDare(false);
+      setShowFeud(false);
+      setMyScore(0);
+      setPartnerScore(0);
+      setShowCameraFilters(false);
+      setMessageInput('');
+      setSessionDuration(0);
+      
+      // Clear chat messages for new match
+      if (clearMessages) clearMessages();
+    }
+  }, [state, clearMessages]);
+
   // Track session duration
   useEffect(() => {
     if (state === 'matched' && partner) {
@@ -198,20 +225,43 @@ const Match = () => {
     setTypingTimeout(timeout);
   };
 
-  // Match actions
-  const handleSkip = () => {
+  // ========== SKIP LOGIC ==========
+  const handleSkip = useCallback(() => {
+    if (isSkipping) return; // Prevent double-skip
+    
+    // End WebRTC call first
     endCall();
+    
+    // Trigger skip (hook handles state reset and auto-rejoin)
     skipMatch();
-    toast.info('Finding next match...');
-  };
+    
+    // Show feedback
+    toast.info('Finding next match...', { duration: 1500 });
+  }, [isSkipping, endCall, skipMatch]);
 
-  const handleBlock = () => {
+  // Block user
+  const handleBlock = useCallback(() => {
     if (window.confirm('Block this user? You won\'t be matched again.')) {
       endCall();
       blockUser();
       toast.success('User blocked');
     }
-  };
+  }, [endCall, blockUser]);
+
+  // Handle back navigation - clean exit
+  const handleBackToDashboard = useCallback(() => {
+    // Disable auto-rejoin when leaving
+    setAutoRejoin(false);
+    
+    // End any active call
+    endCall();
+    
+    // End session if active
+    endSession();
+    
+    // Navigate
+    navigate('/dashboard');
+  }, [setAutoRejoin, endCall, endSession, navigate]);
 
   // ========== CONNECTING STATE ==========
   if (!connected) {
@@ -276,7 +326,9 @@ const Match = () => {
               style={{ objectPosition: 'center 30%' }}
             />
           </div>
-          <h2 className="text-2xl font-bold mb-2 text-white">Finding a Match</h2>
+          <h2 className="text-2xl font-bold mb-2 text-white">
+            {isSkipping ? 'Skipping...' : 'Finding a Match'}
+          </h2>
           <p className="text-gray-400 text-sm mb-8">{RACCOON_FACTS[currentFact]}</p>
           <div className="flex justify-center gap-2">
             {[0,1,2,3,4].map(i => (
@@ -297,8 +349,9 @@ const Match = () => {
         sessionDuration={sessionDuration}
         onReport={() => setShowReportModal(true)}
         onSkip={handleSkip}
-        onBack={() => navigate('/dashboard')}
+        onBack={handleBackToDashboard}
         isSearching={state === 'searching'}
+        isSkipping={isSkipping}
       />
 
       {/* ===== VIDEO AREA ===== */}

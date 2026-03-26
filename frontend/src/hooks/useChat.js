@@ -1,30 +1,44 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export const useChat = (socket, sessionId) => {
   const [messages, setMessages] = useState([]);
   const [partnerTyping, setPartnerTyping] = useState(false);
+  const prevSessionIdRef = useRef(null);
+  
+  // Clear messages when session changes
+  useEffect(() => {
+    if (sessionId !== prevSessionIdRef.current) {
+      setMessages([]);
+      setPartnerTyping(false);
+      prevSessionIdRef.current = sessionId;
+    }
+  }, [sessionId]);
   
   useEffect(() => {
-    if (!socket || !sessionId) return;
+    if (!socket) return;
 
-    socket.on('receive_message', (message) => {
+    const onReceiveMessage = (message) => {
       setMessages(prev => [...prev, message]);
-    });
+    };
 
-    socket.on('partner_typing', () => {
+    const onPartnerTyping = () => {
       setPartnerTyping(true);
-    });
+    };
 
-    socket.on('partner_stopped_typing', () => {
+    const onPartnerStoppedTyping = () => {
       setPartnerTyping(false);
-    });
+    };
+
+    socket.on('receive_message', onReceiveMessage);
+    socket.on('partner_typing', onPartnerTyping);
+    socket.on('partner_stopped_typing', onPartnerStoppedTyping);
 
     return () => {
-      socket.off('receive_message');
-      socket.off('partner_typing');
-      socket.off('partner_stopped_typing');
+      socket.off('receive_message', onReceiveMessage);
+      socket.off('partner_typing', onPartnerTyping);
+      socket.off('partner_stopped_typing', onPartnerStoppedTyping);
     };
-  }, [socket, sessionId]);
+  }, [socket]);
 
   const sendMessage = useCallback((content) => {
     if (socket && content.trim()) {
@@ -44,11 +58,18 @@ export const useChat = (socket, sessionId) => {
     }
   }, [socket]);
 
+  // Manual clear for state reset
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setPartnerTyping(false);
+  }, []);
+
   return {
     messages,
     partnerTyping,
     sendMessage,
     startTyping,
-    stopTyping
+    stopTyping,
+    clearMessages
   };
 };

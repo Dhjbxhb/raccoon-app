@@ -213,6 +213,32 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Responsive (desktop: full labels, mobile: compact)
   - Smooth hover/press states
 
+### Skip Logic & Session Exit (TASK 26) ✅
+- **Frontend Hook** (`/app/frontend/src/hooks/useMatching.js`):
+  - Clean skip flow with `isSkipping` loading state
+  - Auto-rejoin queue after skip
+  - Prevents double-skip with debouncing
+  - Safety timeout (3s) for forced state reset
+  - State cleanup prevents stale chat/video/game leaking
+  - `endSession()` for clean page exit
+  - `setAutoRejoin()` to control queue behavior
+- **useChat Hook** (`/app/frontend/src/hooks/useChat.js`):
+  - Auto-clear messages when session changes
+  - `clearMessages()` for manual reset
+- **Backend** (`/app/backend/websocket/socket_handlers.py`):
+  - `skip_match` event updates DB session:
+    - `status: 'ended'`
+    - `end_reason: 'skipped'`
+    - `ended_by: user_id`
+    - `duration_seconds` calculated
+    - `message_count` preserved
+  - Partner notified with `match_ended` event
+  - User returned to queue safely
+- **UI Feedback**:
+  - Skip button shows loading spinner while processing
+  - Toast notification "Finding next match..."
+  - Searching state shows "Skipping..." during transition
+
 ---
 
 ## Code Architecture
@@ -285,7 +311,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 26-46 pending (to be provided by user)
+- Tasks 27-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

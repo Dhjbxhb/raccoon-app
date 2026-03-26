@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Globe, Flag, SkipForward, Shield, Clock } from 'lucide-react';
+import { ArrowLeft, Star, Globe, Flag, SkipForward, Shield, Clock, Loader2 } from 'lucide-react';
 
 /**
  * MatchTopBar - Premium top bar for live match controls
@@ -8,7 +8,7 @@ import { ArrowLeft, Star, Globe, Flag, SkipForward, Shield, Clock } from 'lucide
  * Features:
  * - Stranger info (username, country, premium badge)
  * - Report button (always visible)
- * - Skip button (prominent, easy access)
+ * - Skip button (prominent, easy access, with loading state)
  * - Glass-morphism design
  * - Safe area aware (notch/status bar)
  */
@@ -18,7 +18,8 @@ const MatchTopBar = ({
   onReport,
   onSkip,
   onBack,
-  isSearching = false
+  isSearching = false,
+  isSkipping = false
 }) => {
   const navigate = useNavigate();
 
@@ -107,7 +108,7 @@ const MatchTopBar = ({
         ) : (
           <div className="match-topbar__searching">
             <span className="match-topbar__searching-text">
-              {isSearching ? 'Finding match...' : 'Connecting...'}
+              {isSkipping ? 'Skipping...' : isSearching ? 'Finding match...' : 'Connecting...'}
             </span>
           </div>
         )}
@@ -121,6 +122,7 @@ const MatchTopBar = ({
               className="match-topbar__report"
               data-testid="report-button"
               aria-label="Report user"
+              disabled={isSkipping}
             >
               <Flag size={16} />
               <span className="match-topbar__report-text">Report</span>
@@ -130,12 +132,22 @@ const MatchTopBar = ({
           {/* Skip Button */}
           <button
             onClick={onSkip}
-            className="match-topbar__skip"
+            className={`match-topbar__skip ${isSkipping ? 'match-topbar__skip--loading' : ''}`}
             data-testid="skip-button"
             aria-label="Skip to next match"
+            disabled={isSkipping}
           >
-            <SkipForward size={16} />
-            <span>Skip</span>
+            {isSkipping ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Skipping...</span>
+              </>
+            ) : (
+              <>
+                <SkipForward size={16} />
+                <span>Skip</span>
+              </>
+            )}
           </button>
         </div>
       </div>
