@@ -239,6 +239,27 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Toast notification "Finding next match..."
   - Searching state shows "Skipping..." during transition
 
+### Report System Backend (TASK 27) ✅
+- **Report Model** (`/app/backend/models/report.py`):
+  - Full report structure: report_id, reporter/reported info, reason, details, session_id
+  - ReportReason enum (harassment, spam, underage, hate_speech, etc.)
+  - ReportStatus enum (pending, under_review, resolved, dismissed, escalated)
+  - ModerationAction enum (warning, temp bans, permanent ban)
+  - Auto-priority calculation based on reason severity
+- **Report Routes** (`/app/backend/routes/reports.py`):
+  - `POST /api/reports/create` - Submit report with validation
+  - `GET /api/reports/my-reports` - User's submitted reports
+  - `GET /api/reports/admin/list` - Admin: list with filters
+  - `GET /api/reports/admin/{id}` - Admin: get report details
+  - `PATCH /api/reports/admin/{id}` - Admin: update status/action
+  - `GET /api/reports/admin/stats` - Admin: report statistics
+- **Validation**:
+  - Can't report yourself
+  - Can't report non-existent users
+  - Rate limiting (1 report/user/hour)
+  - Session linkage validated if provided
+- **Database**: Reports stored with indexes for efficient querying
+
 ---
 
 ## Code Architecture
@@ -311,7 +332,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 27-46 pending (to be provided by user)
+- Tasks 28-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration
