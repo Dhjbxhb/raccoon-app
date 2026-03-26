@@ -307,6 +307,31 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Typing indicator debounce (1.5s timeout)
   - Auto-clear on session change
 
+### Matching Filter System (TASK 30) ✅
+- **Full-Featured Filter Modal** (`/app/frontend/src/components/MatchingFilters.js`):
+  - Premium-themed glass-morphism modal
+  - Complete list of 200+ countries with flag emojis
+  - Searchable country dropdown with live filtering
+  - Gender preference filter (Anyone/Male/Female)
+  - Premium lock indicators on non-free options
+  - Auto-detected country suggestion
+  - Reset and Apply buttons
+- **useMatching Hook Integration** (`/app/frontend/src/hooks/useMatching.js`):
+  - `startMatching(genderFilter, countryFilter)` passes filters to backend
+  - `lastFiltersRef` stores filters for auto-rejoin after skip
+- **Backend Queue Logic** (`/app/backend/services/matching_service.py`):
+  - `add_to_queue()` accepts `gender_filter` and `country_filter`
+  - Progressive filter relaxation for fast matching:
+    1. Perfect match (exact gender + country)
+    2. Relaxed country (gender only)
+    3. Relaxed all (any compatible user)
+  - Bidirectional filter compatibility checking
+- **Socket Handler** (`/app/backend/websocket/socket_handlers.py`):
+  - `join_queue` event extracts and passes filter params
+- **Premium Gating**:
+  - Free users: Only "Anyone" gender, "Any Country"
+  - Premium users: All gender options, specific country selection
+
 ---
 
 ## Code Architecture
@@ -379,7 +404,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 30-46 pending (to be provided by user)
+- Tasks 31-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration
