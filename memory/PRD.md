@@ -195,6 +195,40 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Set `stripe_price_id` on each plan in PREMIUM_PLANS
   - Uncomment Stripe SDK imports in payments.py
 
+### Premium Feature Gating System (TASK 38) ✅
+- **Backend Enforcement** (`/app/backend/middleware/premium_guard.py`):
+  - `PremiumFeature` enum: GENDER_FILTER, COUNTRY_FILTER, CAMERA_FILTERS, PRIORITY_MATCHING, MINI_GAMES, etc.
+  - `PREMIUM_FEATURES` config with free values: gender='any', country='ANY', camera=['none', 'warm', 'cool']
+  - `PremiumGuard` class with async validation methods:
+    - `check_premium_status()` - Gets premium status from subscription service
+    - `validate_gender_filter()` - Returns (allowed, message, effective_filter)
+    - `validate_country_filter()` - Returns (allowed, message, effective_filter)
+    - `validate_camera_filter()` - Returns (allowed, message, effective_filter)
+    - `validate_game_access()` - Returns (allowed, message)
+  - Filters automatically downgraded to free values if non-premium
+- **Socket Handler Enforcement** (`/app/backend/websocket/socket_handlers.py`):
+  - `join_queue`: Validates gender/country filters, emits `premium_filter_blocked` if downgraded
+  - `start_feud_game`: Validates game access, emits `premium_required` if blocked
+  - `start_tod_game`: Validates game access, emits `premium_required` if blocked
+- **Frontend MatchingFilters** (`/app/frontend/src/components/MatchingFilters.js`):
+  - Premium banner: "Filters are a Premium feature" with crown icon
+  - Lock icons on Gender (Male/Female) and Country Preference labels
+  - Lock badges on individual locked options
+  - `PremiumPromptModal` integration for locked feature clicks
+  - Free options (Anyone, Any Country) remain selectable
+- **Frontend CameraFilters** (`/app/frontend/src/components/match/CameraFilters.jsx`):
+  - Premium lock indicators on locked filters
+  - `PremiumPromptModal` when selecting locked filter
+- **PremiumGate Components** (`/app/frontend/src/components/premium/PremiumGate.jsx`):
+  - `PremiumGate` wrapper: overlay, inline, disable variants
+  - `PremiumBadge`: Small premium indicator
+  - `PremiumPromptModal`: Crown icon, feature name, Upgrade/Maybe Later buttons
+  - `FeatureLockedToast`: Inline message for locked features
+- **Match Page Socket Listeners** (`/app/frontend/src/pages/Match.js`):
+  - `premium_filter_blocked`: Shows toast when filters downgraded
+  - `premium_required`: Shows PremiumPromptModal for blocked games
+- **Testing**: All 8 test cases passed (100% frontend success rate)
+
 ### Country Detection
 - Multi-provider IP geolocation fallback (ipapi.co, ip-api.com, ipwho.is)
 - Never shows "Not detected" - defaults to US if all providers fail
