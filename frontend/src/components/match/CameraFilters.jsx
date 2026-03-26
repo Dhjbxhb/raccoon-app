@@ -1,6 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Crown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { VIDEO_FILTERS, getOrderedFilters, getCSSFilter } from '@/utils/videoFilters';
+import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/filters.css';
 
 /**
@@ -23,6 +25,7 @@ const CameraFilters = ({
   onClose,
   compact = false
 }) => {
+  const navigate = useNavigate();
   const filters = useMemo(() => getOrderedFilters(), []);
   const filterIds = useMemo(() => filters.map(f => f.id), [filters]);
   const currentIndex = filterIds.indexOf(currentFilter);
@@ -33,6 +36,10 @@ const CameraFilters = ({
   const [touchDelta, setTouchDelta] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Premium prompt modal state
+  const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
+  const [premiumFilterName, setPremiumFilterName] = useState('');
   
   // Haptic feedback (if available)
   const vibrate = useCallback(() => {
@@ -56,6 +63,22 @@ const CameraFilters = ({
     return indices;
   }, [currentIndex, filterIds.length, visibleSide]);
   
+  // Handle premium upgrade navigation
+  const handlePremiumUpgrade = useCallback(() => {
+    setShowPremiumPrompt(false);
+    if (onPremiumRequired) {
+      onPremiumRequired();
+    } else {
+      navigate('/premium');
+    }
+  }, [onPremiumRequired, navigate]);
+
+  // Show premium prompt with filter name
+  const showPremiumModal = useCallback((filterName) => {
+    setPremiumFilterName(filterName);
+    setShowPremiumPrompt(true);
+  }, []);
+
   // Handle filter change with premium check
   const changeToIndex = useCallback((newIndex) => {
     if (isAnimating) return;
@@ -69,7 +92,7 @@ const CameraFilters = ({
     
     // Premium check
     if (filter.premium && !isPremium) {
-      onPremiumRequired?.();
+      showPremiumModal(`${filter.name} Camera Filter`);
       vibrate();
       return;
     }
@@ -82,7 +105,7 @@ const CameraFilters = ({
     requestAnimationFrame(() => {
       setTimeout(() => setIsAnimating(false), 150);
     });
-  }, [filters, filterIds.length, isPremium, onFilterChange, onPremiumRequired, isAnimating, vibrate]);
+  }, [filters, filterIds.length, isPremium, onFilterChange, isAnimating, vibrate, showPremiumModal]);
   
   // Navigate to previous/next
   const goToPrevious = useCallback(() => changeToIndex(currentIndex - 1), [changeToIndex, currentIndex]);
@@ -312,6 +335,14 @@ const CameraFilters = ({
           Swipe to change filter
         </div>
       )}
+
+      {/* Premium Prompt Modal */}
+      <PremiumPromptModal
+        isOpen={showPremiumPrompt}
+        onClose={() => setShowPremiumPrompt(false)}
+        featureName={premiumFilterName}
+        onUpgrade={handlePremiumUpgrade}
+      />
     </div>
   );
 };

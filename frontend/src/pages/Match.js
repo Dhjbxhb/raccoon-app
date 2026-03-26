@@ -8,7 +8,7 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Loader2, Trophy, 
-  Sparkles, Filter, X, MessageCircle
+  Sparkles, Filter, X, MessageCircle, Crown
 } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
@@ -17,6 +17,7 @@ import MatchingFilters from '@/components/MatchingFilters';
 import FeudGame from '@/components/games/FeudGame';
 import TruthOrDare from '@/components/games/TruthOrDare';
 import CameraFilters from '@/components/match/CameraFilters';
+import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
 import '@/styles/match.css';
 import '@/styles/chat.css';
@@ -83,6 +84,10 @@ const Match = () => {
   const [activeGame, setActiveGame] = useState(null); // null | 'feud' | 'truthordare'
   const [gameSessionId, setGameSessionId] = useState(null);
   
+  // Premium prompt modal state
+  const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
+  const [premiumFeatureName, setPremiumFeatureName] = useState('');
+  
   // Derived game visibility states
   const showFeud = activeGame === 'feud';
   const showTruthOrDare = activeGame === 'truthordare';
@@ -147,8 +152,19 @@ const Match = () => {
     }
   }, [state, sessionId, resetAllGameState]);
   
+  // ========== PREMIUM PROMPT HANDLERS ==========
+  const showPremiumModal = useCallback((featureName) => {
+    setPremiumFeatureName(featureName);
+    setShowPremiumPrompt(true);
+  }, []);
+
+  const handlePremiumUpgrade = useCallback(() => {
+    setShowPremiumPrompt(false);
+    navigate('/premium');
+  }, [navigate]);
+
   // ========== SOCKET EVENT CLEANUP ==========
-  // Listen for game end events to clean up properly
+  // Listen for game end events and premium blocks to clean up properly
   useEffect(() => {
     if (!socket) return;
     
@@ -174,18 +190,42 @@ const Match = () => {
       resetAllGameState();
     };
     
+    // Handle premium feature blocks from backend
+    const handlePremiumFilterBlocked = (data) => {
+      if (data.warnings && data.warnings.length > 0) {
+        // Show toast for downgraded filters
+        toast.info(
+          <div className="flex items-center gap-2">
+            <Crown size={16} className="text-yellow-400" />
+            <span>{data.warnings[0]}</span>
+          </div>,
+          { duration: 4000 }
+        );
+      }
+    };
+    
+    // Handle premium required events (games, etc)
+    const handlePremiumRequired = (data) => {
+      const featureName = data.game || data.feature || 'This feature';
+      showPremiumModal(featureName);
+    };
+    
     socket.on('feud_game_ended', handleFeudEnded);
     socket.on('tod_game_ended', handleTodEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
+    socket.on('premium_filter_blocked', handlePremiumFilterBlocked);
+    socket.on('premium_required', handlePremiumRequired);
     
     return () => {
       socket.off('feud_game_ended', handleFeudEnded);
       socket.off('tod_game_ended', handleTodEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
+      socket.off('premium_filter_blocked', handlePremiumFilterBlocked);
+      socket.off('premium_required', handlePremiumRequired);
     };
-  }, [socket, activeGame, resetAllGameState]);
+  }, [socket, activeGame, resetAllGameState, showPremiumModal]);
 
   // Track session duration
   useEffect(() => {
@@ -314,7 +354,8 @@ const Match = () => {
   // Start game - prevents conflicts
   const startGame = useCallback((gameType) => {
     if (!isPremium) {
-      navigate('/premium');
+      const gameName = gameType === 'feud' ? 'Raccoon Feud' : 'Truth or Dare';
+      showPremiumModal(gameName);
       return;
     }
     
@@ -326,7 +367,7 @@ const Match = () => {
     
     setActiveGame(gameType);
     setGameSessionId(sessionId);
-  }, [isPremium, isGameActive, sessionId, navigate]);
+  }, [isPremium, isGameActive, sessionId, showPremiumModal]);
   
   // Close game - safe cleanup
   const closeGame = useCallback(() => {
@@ -735,6 +776,14 @@ const Match = () => {
           }}
         />
       )}
+
+      {/* Premium Prompt Modal */}
+      <PremiumPromptModal
+        isOpen={showPremiumPrompt}
+        onClose={() => setShowPremiumPrompt(false)}
+        featureName={premiumFeatureName}
+        onUpgrade={handlePremiumUpgrade}
+      />
     </div>
   );
 };

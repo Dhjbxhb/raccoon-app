@@ -7,6 +7,7 @@ Handles all real-time communication including:
 - Chat messaging with moderation
 - WebRTC signaling
 - Game events (Raccoon Feud, Truth or Dare)
+- Premium feature enforcement
 """
 
 import socketio
@@ -17,6 +18,7 @@ from services.matching_service import matching_queue
 from services.auth_service import AuthService
 from services.ban_service import ban_service
 from services.premium_service import premium_service
+from middleware.premium_guard import premium_guard, PremiumFeature
 from services.db_service import (
     get_users_collection, 
     get_guests_collection, 
@@ -158,7 +160,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def join_queue(sid, data):
-        """Add user to matching queue with ban and premium enforcement"""
+        """Add user to matching queue with ban, premium, and filter enforcement"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -207,11 +209,47 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             user_data['premium_status'] = user_data.get('premium_status', False)
             
             # Get filters from request
-            gender_filter = data.get('gender_filter', 'any')
-            country_filter = data.get('country_filter', 'ANY')
+            requested_gender = data.get('gender_filter', 'any')
+            requested_country = data.get('country_filter', 'ANY')
             
-            # Try to match
-            match = matching_queue.add_to_queue(user_id, user_data, gender_filter, country_filter)
+            # ========== PREMIUM FILTER ENFORCEMENT ==========
+            # Backend enforces premium filters - this cannot be bypassed
+            
+            # Validate gender filter
+            gender_allowed, gender_msg, gender_filter = await premium_guard.validate_gender_filter(
+                user_id, requested_gender, is_guest
+            )
+            
+            # Validate country filter
+            country_allowed, country_msg, country_filter = await premium_guard.validate_country_filter(
+                user_id, requested_country, is_guest
+            )
+            
+            # Notify user if filters were downgraded
+            filter_warnings = []
+            if not gender_allowed:
+                filter_warnings.append(gender_msg)
+            if not country_allowed:
+                filter_warnings.append(country_msg)
+            
+            if filter_warnings:
+                await sio.emit('premium_filter_blocked', {
+                    'warnings': filter_warnings,
+                    'applied_gender': gender_filter,
+                    'applied_country': country_filter,
+                    'requested_gender': requested_gender,
+                    'requested_country': requested_country
+                }, room=sid)
+                logger.info(f"User {user_id} filter downgraded: {filter_warnings}")
+            
+            # Use the validated (potentially downgraded) filters
+            effective_gender = gender_filter
+            effective_country = country_filter
+            
+            # ========== END PREMIUM ENFORCEMENT ==========
+            
+            # Try to match with enforced filters
+            match = matching_queue.add_to_queue(user_id, user_data, effective_gender, effective_country)
             
             if match:
                 # Match found immediately!
@@ -274,7 +312,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 await sio.emit('queue_joined', {
                     'position': position,
                     'message': 'Searching for a match...',
-                    'total_waiting': stats['total_waiting']
+                    'total_waiting': stats['total_waiting'],
+                    'applied_filters': {
+                        'gender': effective_gender,
+                        'country': effective_country
+                    }
                 }, room=sid)
         
         except Exception as e:
@@ -510,12 +552,25 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def start_feud_game(sid):
-        """Start a Raccoon Feud game between matched users"""
+        """Start a Raccoon Feud game between matched users - PREMIUM ONLY"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
                 if not user_id:
                     return
+            
+            # ========== PREMIUM GAME ENFORCEMENT ==========
+            allowed, message = await premium_guard.validate_game_access(user_id, 'Raccoon Feud', is_guest)
+            if not allowed:
+                await sio.emit('premium_required', {
+                    'feature': 'mini_games',
+                    'game': 'Raccoon Feud',
+                    'message': message
+                }, room=sid)
+                logger.info(f"Non-premium user {user_id} blocked from starting Feud game")
+                return
+            # ========== END PREMIUM ENFORCEMENT ==========
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:
@@ -660,12 +715,25 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def start_tod_game(sid):
-        """Start a Truth or Dare game between matched users"""
+        """Start a Truth or Dare game between matched users - PREMIUM ONLY"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
                 if not user_id:
                     return
+            
+            # ========== PREMIUM GAME ENFORCEMENT ==========
+            allowed, message = await premium_guard.validate_game_access(user_id, 'Truth or Dare', is_guest)
+            if not allowed:
+                await sio.emit('premium_required', {
+                    'feature': 'mini_games',
+                    'game': 'Truth or Dare',
+                    'message': message
+                }, room=sid)
+                logger.info(f"Non-premium user {user_id} blocked from starting ToD game")
+                return
+            # ========== END PREMIUM ENFORCEMENT ==========
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Globe, Users, Lock, Crown, Search, MapPin } from 'lucide-react';
+import { PremiumPromptModal } from './premium/PremiumGate';
 
 // Complete list of all countries with flags
 const ALL_COUNTRIES = [
@@ -209,11 +211,16 @@ const MatchingFilters = ({
   initialFilters = {},
   userCountry = null
 }) => {
+  const navigate = useNavigate();
   const [genderFilter, setGenderFilter] = useState(initialFilters.gender || 'any');
   const [countryFilter, setCountryFilter] = useState(initialFilters.country || 'ANY');
   const [showCountryList, setShowCountryList] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [detectedCountry, setDetectedCountry] = useState(null);
+  
+  // Premium prompt modal state
+  const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
+  const [premiumFeatureName, setPremiumFeatureName] = useState('');
 
   // Auto-detect country on mount
   useEffect(() => {
@@ -240,10 +247,26 @@ const MatchingFilters = ({
     );
   }, [searchQuery]);
 
+  // Show premium prompt with feature name
+  const showPremiumModal = (featureName) => {
+    setPremiumFeatureName(featureName);
+    setShowPremiumPrompt(true);
+  };
+
+  // Handle premium upgrade navigation
+  const handlePremiumUpgrade = () => {
+    setShowPremiumPrompt(false);
+    if (onPremiumRequired) {
+      onPremiumRequired();
+    } else {
+      navigate('/premium');
+    }
+  };
+
   // Handle gender selection
   const handleGenderSelect = (gender) => {
     if (!isPremium && gender !== 'any') {
-      onPremiumRequired?.();
+      showPremiumModal('Gender Filter');
       return;
     }
     setGenderFilter(gender);
@@ -252,7 +275,7 @@ const MatchingFilters = ({
   // Handle country selection
   const handleCountrySelect = (countryCode) => {
     if (!isPremium && countryCode !== 'ANY') {
-      onPremiumRequired?.();
+      showPremiumModal('Country Filter');
       return;
     }
     setCountryFilter(countryCode);
@@ -279,7 +302,7 @@ const MatchingFilters = ({
   // Select detected country
   const handleSelectDetected = () => {
     if (!isPremium) {
-      onPremiumRequired?.();
+      showPremiumModal('Country Filter');
       return;
     }
     if (detectedCountry) {
@@ -476,6 +499,14 @@ const MatchingFilters = ({
           </button>
         </div>
       </div>
+
+      {/* Premium Prompt Modal */}
+      <PremiumPromptModal
+        isOpen={showPremiumPrompt}
+        onClose={() => setShowPremiumPrompt(false)}
+        featureName={premiumFeatureName}
+        onUpgrade={handlePremiumUpgrade}
+      />
     </div>
   );
 };
