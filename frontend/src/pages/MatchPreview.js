@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Trophy, Sparkles, Filter, MessageCircle, Loader2 } from 'lucide-react';
+import { Send, Trophy, Sparkles, Filter, MessageCircle } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
+import ReportModal from '@/components/match/ReportModal';
 import '@/styles/match.css';
 
 /**
@@ -10,6 +11,7 @@ import '@/styles/match.css';
  */
 const MatchPreview = () => {
   const navigate = useNavigate();
+  const [showReportModal, setShowReportModal] = useState(false);
   
   // Mock partner data
   const partner = {
@@ -17,7 +19,8 @@ const MatchPreview = () => {
     country: 'United States',
     country_code: 'US',
     premium: true,
-    verified: true
+    verified: true,
+    guest_id: 'mock-user-for-preview'
   };
 
   return (
@@ -26,7 +29,7 @@ const MatchPreview = () => {
       <MatchTopBar
         partner={partner}
         sessionDuration={127}
-        onReport={() => alert('Report clicked')}
+        onReport={() => setShowReportModal(true)}
         onSkip={() => alert('Skip clicked')}
         onBack={() => navigate('/dashboard')}
       />
@@ -121,13 +124,22 @@ const MatchPreview = () => {
       </div>
 
       {/* Layout Info Overlay */}
-      <div className="fixed bottom-4 left-4 z-50 px-4 py-3 bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-xs">
+      <div className="fixed bottom-4 left-4 z-40 px-4 py-3 bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-xs">
         <p className="text-white font-bold mb-1">Layout Preview Mode</p>
         <p className="text-gray-400">
           Desktop: Left=Me, Right=Stranger<br/>
           Mobile: Top=Stranger, Bottom=Me
         </p>
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <ReportModal 
+          partner={partner}
+          sessionId={null}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 };
