@@ -4,8 +4,11 @@ import { Trophy, Sparkles, Filter, MessageCircle } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
 import ChatPanel from '@/components/match/ChatPanel';
+import CameraFilters from '@/components/match/CameraFilters';
+import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
 import '@/styles/match.css';
 import '@/styles/chat.css';
+import '@/styles/filters.css';
 
 /**
  * MatchPreview - Static preview of the Match page layout
@@ -15,6 +18,8 @@ const MatchPreview = () => {
   const navigate = useNavigate();
   const [showReportModal, setShowReportModal] = useState(false);
   const [showChat, setShowChat] = useState(true);
+  const [showCameraFilters, setShowCameraFilters] = useState(false);
+  const [currentFilter, setCurrentFilter] = useState('none');
   
   // Mock partner data
   const partner = {
@@ -51,14 +56,17 @@ const MatchPreview = () => {
         
         {/* LOCAL VIDEO PANEL (Me) - LEFT on desktop, BOTTOM on mobile */}
         <div className="video-panel video-panel--local" data-testid="local-video-panel">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1a] flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1a] flex items-center justify-center"
+            style={{ filter: getCSSFilter(currentFilter) }}
+          >
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#7c3aed]/30 to-[#4c1d95]/30 flex items-center justify-center border-2 border-[#7c3aed]/30">
                 <span className="text-4xl">👤</span>
               </div>
               <p className="text-white font-bold text-lg">YOUR VIDEO</p>
               <p className="text-gray-500 text-sm mt-1">Camera preview</p>
-              <p className="text-[#7c3aed] text-xs mt-2">Desktop: LEFT | Mobile: BOTTOM</p>
+              <p className="text-[#7c3aed] text-xs mt-2">Filter: {VIDEO_FILTERS[currentFilter]?.name}</p>
             </div>
           </div>
           
@@ -67,10 +75,31 @@ const MatchPreview = () => {
             <span>You</span>
           </div>
 
+          {/* Active Filter Badge */}
+          {currentFilter !== 'none' && (
+            <div className="video-panel__filter-badge">
+              <span>{VIDEO_FILTERS[currentFilter]?.icon}</span>
+              <span>{VIDEO_FILTERS[currentFilter]?.name}</span>
+            </div>
+          )}
+
           <div className="video-panel__filter-controls">
-            <button className="video-panel__filter-btn">
-              <Sparkles size={22} />
-            </button>
+            {showCameraFilters ? (
+              <CameraFilters
+                currentFilter={currentFilter}
+                onFilterChange={setCurrentFilter}
+                isPremium={true}
+                visible={true}
+                onClose={() => setShowCameraFilters(false)}
+              />
+            ) : (
+              <button 
+                className={`video-panel__filter-btn ${currentFilter !== 'none' ? 'video-panel__filter-btn--active' : ''}`}
+                onClick={() => setShowCameraFilters(true)}
+              >
+                <Sparkles size={22} />
+              </button>
+            )}
           </div>
         </div>
 

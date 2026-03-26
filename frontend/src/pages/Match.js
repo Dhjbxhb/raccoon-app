@@ -16,10 +16,11 @@ import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
 import TruthOrDareGame from '@/components/TruthOrDareGame';
 import RaccoonFeudGame from '@/components/RaccoonFeudGame';
-import CameraFilterSelector from '@/components/CameraFilterSelector';
-import { CAMERA_FILTERS } from '@/hooks/useCameraFilters';
+import CameraFilters from '@/components/match/CameraFilters';
+import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
 import '@/styles/match.css';
 import '@/styles/chat.css';
+import '@/styles/filters.css';
 
 const RACCOON_FACTS = [
   "Raccoons are extremely intelligent animals",
@@ -86,7 +87,12 @@ const Match = () => {
   } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
   const isPremium = user?.premium_status;
-  const filterKeys = Object.keys(CAMERA_FILTERS);
+  const filterKeys = Object.keys(VIDEO_FILTERS);
+  
+  // Get live CSS filter style based on current filter
+  const getLiveFilterStyle = useCallback((filterId) => {
+    return getCSSFilter(filterId);
+  }, []);
   
   // Reset UI state when match changes (prevents stale state)
   useEffect(() => {
@@ -157,9 +163,9 @@ const Match = () => {
       }
       
       const newFilterKey = filterKeys[newIndex];
-      const filter = CAMERA_FILTERS[newFilterKey];
+      const filter = VIDEO_FILTERS[newFilterKey];
       
-      if (filter.premium && !isPremium) {
+      if (filter?.premium && !isPremium) {
         toast.info('Premium filter - upgrade to unlock');
         navigate('/premium');
       } else {
@@ -375,7 +381,7 @@ const Match = () => {
             playsInline
             muted
             className="video-panel__video video-panel__video--mirrored"
-            style={{ filter: getFilterStyle(currentFilter) }}
+            style={{ filter: getLiveFilterStyle(currentFilter) }}
           />
           
           {/* My Label */}
@@ -387,8 +393,8 @@ const Match = () => {
           {/* Active Filter Badge */}
           {currentFilter !== 'none' && (
             <div className="video-panel__filter-badge">
-              <span>{CAMERA_FILTERS[currentFilter]?.icon}</span>
-              <span>{CAMERA_FILTERS[currentFilter]?.name}</span>
+              <span>{VIDEO_FILTERS[currentFilter]?.icon}</span>
+              <span>{VIDEO_FILTERS[currentFilter]?.name}</span>
             </div>
           )}
 
@@ -396,19 +402,14 @@ const Match = () => {
           <div className="video-panel__filter-controls">
             {showCameraFilters ? (
               <div className="relative">
-                <CameraFilterSelector
+                <CameraFilters
                   currentFilter={currentFilter}
                   onFilterChange={handleFilterSelect}
                   isPremium={isPremium}
                   onPremiumRequired={() => navigate('/premium')}
                   visible={true}
+                  onClose={() => setShowCameraFilters(false)}
                 />
-                <button 
-                  onClick={() => setShowCameraFilters(false)}
-                  className="absolute -top-2 -right-2 p-1.5 bg-black/80 hover:bg-black rounded-full z-30"
-                >
-                  <X size={14} />
-                </button>
               </div>
             ) : (
               <button

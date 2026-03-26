@@ -332,6 +332,36 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Free users: Only "Anyone" gender, "Any Country"
   - Premium users: All gender options, specific country selection
 
+### Live Camera Filter System (TASK 31) ✅
+- **Video Filter Engine** (`/app/frontend/src/utils/videoFilters.js`):
+  - Core filter definitions with CSS values and canvas overlays
+  - 13 filters across 4 categories: Basic, Beauty, Cinematic, Fun
+  - Filters include: None, Beauty, Smooth, Glow, Warm, Cool, Vintage, B&W, Cinema, Raccoon, Neon, Sparkle, VHS, Dreamy
+  - CSS-based filtering for 60fps performance
+  - Canvas overlay renderer for advanced effects (raccoon mask, vignette, scanlines)
+  - `VideoFilterEngine` class for frame processing
+- **Swipe-Based Camera Filters UI** (`/app/frontend/src/components/match/CameraFilters.jsx`):
+  - Horizontal swipe interaction (touch + mouse drag)
+  - Circular filter icons with center = active selection
+  - Purple glow ring on active filter
+  - Smooth cubic-bezier animations
+  - Premium lock badges with crown icon
+  - Dot indicators for all filters
+  - Arrow navigation buttons (desktop)
+  - "Swipe to change filter" hint text
+  - Haptic feedback on filter change (mobile)
+  - Keyboard navigation (arrow keys + Escape)
+- **Styling** (`/app/frontend/src/styles/filters.css`):
+  - Glass-morphism filter panel
+  - Responsive design for mobile
+  - Animated pulse ring on active filter
+  - Premium crown badges
+- **Integration with Match Page** (`/app/frontend/src/pages/Match.js`):
+  - Live CSS filter application on video element
+  - Filter badge shows active filter name + icon
+  - Swipe on video panel changes filters
+  - Premium check before applying premium filters
+
 ---
 
 ## Code Architecture
@@ -404,7 +434,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 31-46 pending (to be provided by user)
+- Tasks 32-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

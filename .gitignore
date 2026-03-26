@@ -51,3 +51,4 @@ out/
 supervisord.pid
 supervisord.log
 frontend/node_modules/.cache/default-development/21.pack
+frontend/node_modules/.cache/default-development/5.pack
