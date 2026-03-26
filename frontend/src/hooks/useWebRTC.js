@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-  ]
-};
-
+/**
+ * Production-ready WebRTC Hook for Raccoon App
+ * 
+ * Features:
+ * - Polite peer pattern to prevent race conditions
+ * - ICE candidate queuing for reliable connections
+ * - Auto-start on match with proper cleanup
+ * - Connection state monitoring and reconnection handling
+ * - Camera filter support (CSS-based)
+ */
 export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
+  // State
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -19,31 +21,67 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const [error, setError] = useState(null);
   const [currentFilter, setCurrentFilter] = useState('none');
   
+  // Refs
   const peerConnection = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
+  
+  // WebRTC negotiation state
+  const makingOffer = useRef(false);
+  const ignoreOffer = useRef(false);
+  const isSettingRemoteAnswerPending = useRef(false);
+  const pendingCandidates = useRef([]);
   const autoStarted = useRef(false);
+  const currentSessionId = useRef(null);
+  const connectionTimeout = useRef(null);
 
-  // Initialize peer connection
-  const createPeerConnection = useCallback(() => {
+  // Determine if this peer is "polite" (receiver) or "impolite" (offerer)
+  // Use a stable comparison - the peer with the "smaller" partnerId is the offerer
+  const isPolite = useCallback(() => {
+    if (!partnerId || !socket?.id) return true;
+    // If we receive an offer, we're the polite peer (we yield)
+    return partnerId < (socket.id || '');
+  }, [partnerId, socket?.id]);
+
+  // Clean up peer connection
+  const cleanupPeerConnection = useCallback(() => {
+    if (connectionTimeout.current) {
+      clearTimeout(connectionTimeout.current);
+      connectionTimeout.current = null;
+    }
+    
     if (peerConnection.current) {
       peerConnection.current.close();
+      peerConnection.current = null;
     }
+    
+    makingOffer.current = false;
+    ignoreOffer.current = false;
+    isSettingRemoteAnswerPending.current = false;
+    pendingCandidates.current = [];
+  }, []);
+
+  // Initialize peer connection with proper event handlers
+  const createPeerConnection = useCallback(() => {
+    cleanupPeerConnection();
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
+    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
         socket.emit('webrtc_ice_candidate', {
-          candidate: event.candidate,
+          candidate: event.candidate.toJSON(),
           session_id: sessionId
         });
       }
     };
 
+    // Handle incoming tracks (remote video/audio)
     pc.ontrack = (event) => {
+      console.log('Received remote track:', event.track.kind);
       const [stream] = event.streams;
       setRemoteStream(stream);
       if (remoteVideoRef.current) {
@@ -51,42 +89,84 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       }
     };
 
+    // Monitor connection state
     pc.onconnectionstatechange = () => {
+      console.log('Connection state:', pc.connectionState);
       setConnectionState(pc.connectionState);
-      if (pc.connectionState === 'failed') {
+      
+      if (pc.connectionState === 'connected') {
+        // Clear connection timeout on success
+        if (connectionTimeout.current) {
+          clearTimeout(connectionTimeout.current);
+          connectionTimeout.current = null;
+        }
+        setError(null);
+      } else if (pc.connectionState === 'failed') {
         setError('Connection failed. Please try again.');
+      } else if (pc.connectionState === 'disconnected') {
+        // Give some time for reconnection before showing error
+        setTimeout(() => {
+          if (peerConnection.current?.connectionState === 'disconnected') {
+            setError('Connection lost. Reconnecting...');
+          }
+        }, 3000);
       }
     };
 
+    // Handle ICE connection state changes
     pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'disconnected') {
         setConnectionState('disconnected');
+      } else if (pc.iceConnectionState === 'failed') {
+        // Attempt ICE restart
+        console.log('ICE failed, attempting restart...');
+        pc.restartIce();
       }
+    };
+
+    // Handle negotiation needed (for renegotiation)
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOffer.current = true;
+        await pc.setLocalDescription();
+        socket?.emit('webrtc_offer', {
+          offer: pc.localDescription,
+          session_id: sessionId
+        });
+      } catch (err) {
+        console.error('Negotiation error:', err);
+      } finally {
+        makingOffer.current = false;
+      }
+    };
+
+    // Handle ICE gathering state
+    pc.onicegatheringstatechange = () => {
+      console.log('ICE gathering state:', pc.iceGatheringState);
     };
 
     peerConnection.current = pc;
     return pc;
-  }, [socket, sessionId]);
+  }, [socket, sessionId, cleanupPeerConnection]);
 
-  // Get user media
+  // Get user media with proper constraints
   const startLocalStream = useCallback(async (video = true, audio = true) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: video ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
-        } : false,
-        audio: audio ? {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } : false
-      });
+      // Stop any existing stream first
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = getMediaConstraints();
+      if (!video) constraints.video = false;
+      if (!audio) constraints.audio = false;
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       setLocalStream(stream);
-      setIsVideoEnabled(video);
-      setIsAudioEnabled(audio);
+      setIsVideoEnabled(video && stream.getVideoTracks().length > 0);
+      setIsAudioEnabled(audio && stream.getAudioTracks().length > 0);
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -95,90 +175,197 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       return stream;
     } catch (err) {
       console.error('Error accessing media devices:', err);
-      setError('Could not access camera/microphone. Please check permissions.');
+      
+      // Provide more specific error messages
+      if (err.name === 'NotAllowedError') {
+        setError('Camera/microphone access denied. Please grant permissions and try again.');
+      } else if (err.name === 'NotFoundError') {
+        setError('No camera or microphone found. Please connect a device.');
+      } else if (err.name === 'NotReadableError') {
+        setError('Camera/microphone is already in use by another application.');
+      } else {
+        setError('Could not access camera/microphone. Please check permissions.');
+      }
       throw err;
     }
-  }, []);
+  }, [localStream]);
 
-  // Start video call
+  // Start the call (as the offerer)
   const startCall = useCallback(async () => {
     try {
       setError(null);
+      setConnectionState('connecting');
+      
       const stream = await startLocalStream(true, true);
       const pc = createPeerConnection();
 
-      // Add tracks to peer connection
+      // Add all tracks to the peer connection
       stream.getTracks().forEach(track => {
         pc.addTrack(track, stream);
       });
 
       // Create and send offer
-      const offer = await pc.createOffer();
+      makingOffer.current = true;
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
       await pc.setLocalDescription(offer);
 
-      socket.emit('webrtc_offer', {
-        offer: offer,
+      socket?.emit('webrtc_offer', {
+        offer: pc.localDescription.toJSON(),
         session_id: sessionId
       });
 
-      setConnectionState('connecting');
+      // Set connection timeout
+      connectionTimeout.current = setTimeout(() => {
+        if (peerConnection.current?.connectionState !== 'connected') {
+          setError('Connection timeout. Please try again.');
+          setConnectionState('failed');
+        }
+      }, CONNECTION_TIMEOUT);
+
     } catch (err) {
       console.error('Error starting call:', err);
-      setError('Failed to start video call');
+      if (!error) { // Don't override more specific errors
+        setError('Failed to start video call');
+      }
+      setConnectionState('failed');
+    } finally {
+      makingOffer.current = false;
     }
-  }, [socket, sessionId, startLocalStream, createPeerConnection]);
+  }, [socket, sessionId, startLocalStream, createPeerConnection, error]);
 
-  // Handle incoming offer
+  // Handle incoming offer (with polite peer pattern)
   const handleOffer = useCallback(async (offer) => {
     try {
-      setError(null);
-      const stream = await startLocalStream(true, true);
-      const pc = createPeerConnection();
-
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
-
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const pc = peerConnection.current;
       
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      // Check for collision
+      const offerCollision = makingOffer.current || 
+        (pc?.signalingState !== 'stable' && pc?.signalingState !== 'have-local-offer');
+      
+      const polite = isPolite();
+      ignoreOffer.current = !polite && offerCollision;
+      
+      if (ignoreOffer.current) {
+        console.log('Ignoring colliding offer (impolite peer)');
+        return;
+      }
 
-      socket.emit('webrtc_answer', {
-        answer: answer,
+      setError(null);
+      setConnectionState('connecting');
+
+      // Ensure we have local stream
+      let stream = localStream;
+      if (!stream) {
+        stream = await startLocalStream(true, true);
+      }
+
+      // Create or get peer connection
+      let connection = pc;
+      if (!connection) {
+        connection = createPeerConnection();
+        stream.getTracks().forEach(track => {
+          connection.addTrack(track, stream);
+        });
+      }
+
+      // Handle rollback if needed
+      if (connection.signalingState !== 'stable') {
+        await Promise.all([
+          connection.setLocalDescription({ type: 'rollback' }),
+          connection.setRemoteDescription(new RTCSessionDescription(offer))
+        ]);
+      } else {
+        await connection.setRemoteDescription(new RTCSessionDescription(offer));
+      }
+
+      // Process any queued ICE candidates
+      while (pendingCandidates.current.length > 0) {
+        const candidate = pendingCandidates.current.shift();
+        try {
+          await connection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.warn('Error adding queued ICE candidate:', e);
+        }
+      }
+      
+      // Create and send answer
+      const answer = await connection.createAnswer();
+      await connection.setLocalDescription(answer);
+
+      socket?.emit('webrtc_answer', {
+        answer: connection.localDescription.toJSON(),
         session_id: sessionId
       });
 
-      setConnectionState('connecting');
     } catch (err) {
       console.error('Error handling offer:', err);
       setError('Failed to answer video call');
+      setConnectionState('failed');
     }
-  }, [socket, sessionId, startLocalStream, createPeerConnection]);
+  }, [socket, sessionId, localStream, startLocalStream, createPeerConnection, isPolite]);
 
   // Handle incoming answer
   const handleAnswer = useCallback(async (answer) => {
     try {
-      if (peerConnection.current) {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
+      const pc = peerConnection.current;
+      if (!pc) {
+        console.warn('No peer connection for answer');
+        return;
+      }
+
+      if (pc.signalingState === 'stable') {
+        console.log('Connection already stable, ignoring answer');
+        return;
+      }
+
+      isSettingRemoteAnswerPending.current = true;
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      isSettingRemoteAnswerPending.current = false;
+
+      // Process any queued ICE candidates
+      while (pendingCandidates.current.length > 0) {
+        const candidate = pendingCandidates.current.shift();
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.warn('Error adding queued ICE candidate:', e);
+        }
       }
     } catch (err) {
       console.error('Error handling answer:', err);
+      isSettingRemoteAnswerPending.current = false;
     }
   }, []);
 
-  // Handle ICE candidate
+  // Handle ICE candidate with queuing
   const handleIceCandidate = useCallback(async (candidate) => {
     try {
-      if (peerConnection.current && candidate) {
-        await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+      const pc = peerConnection.current;
+      
+      if (!pc || !candidate) {
+        return;
       }
+
+      // Queue candidates if remote description not set yet
+      if (!pc.remoteDescription || isSettingRemoteAnswerPending.current) {
+        console.log('Queuing ICE candidate');
+        pendingCandidates.current.push(candidate);
+        return;
+      }
+
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (err) {
-      console.error('Error adding ICE candidate:', err);
+      // Ignore errors for candidates that arrive after connection is established
+      if (err.name !== 'InvalidStateError') {
+        console.warn('Error adding ICE candidate:', err);
+      }
     }
   }, []);
 
-  // Toggle video
+  // Toggle video track
   const toggleVideo = useCallback(() => {
     if (localStream) {
       const videoTrack = localStream.getVideoTracks()[0];
@@ -189,7 +376,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, [localStream]);
 
-  // Toggle audio
+  // Toggle audio track
   const toggleAudio = useCallback(() => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
@@ -200,126 +387,143 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, [localStream]);
 
-  // End call
+  // End call and cleanup
   const endCall = useCallback(() => {
+    // Stop local media tracks
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
     }
 
-    if (peerConnection.current) {
-      peerConnection.current.close();
-      peerConnection.current = null;
+    // Clear video elements
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
     }
 
+    // Cleanup peer connection
+    cleanupPeerConnection();
+
+    // Reset state
     setRemoteStream(null);
     setConnectionState('disconnected');
     setIsVideoEnabled(false);
+    setIsAudioEnabled(false);
+    setError(null);
+    autoStarted.current = false;
     
+    // Notify partner
     socket?.emit('webrtc_end_call', { session_id: sessionId });
-  }, [localStream, socket, sessionId]);
+  }, [localStream, socket, sessionId, cleanupPeerConnection]);
 
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('webrtc_offer', (data) => {
+    const onOffer = (data) => {
+      console.log('Received WebRTC offer');
       handleOffer(data.offer);
-    });
+    };
 
-    socket.on('webrtc_answer', (data) => {
+    const onAnswer = (data) => {
+      console.log('Received WebRTC answer');
       handleAnswer(data.answer);
-    });
+    };
 
-    socket.on('webrtc_ice_candidate', (data) => {
+    const onIceCandidate = (data) => {
       handleIceCandidate(data.candidate);
-    });
+    };
 
-    socket.on('webrtc_end_call', () => {
+    const onEndCall = () => {
+      console.log('Partner ended call');
       endCall();
-    });
+    };
+
+    socket.on('webrtc_offer', onOffer);
+    socket.on('webrtc_answer', onAnswer);
+    socket.on('webrtc_ice_candidate', onIceCandidate);
+    socket.on('webrtc_end_call', onEndCall);
 
     return () => {
-      socket.off('webrtc_offer');
-      socket.off('webrtc_answer');
-      socket.off('webrtc_ice_candidate');
-      socket.off('webrtc_end_call');
+      socket.off('webrtc_offer', onOffer);
+      socket.off('webrtc_answer', onAnswer);
+      socket.off('webrtc_ice_candidate', onIceCandidate);
+      socket.off('webrtc_end_call', onEndCall);
     };
   }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
 
+  // Reset autoStarted when sessionId changes (new match)
+  useEffect(() => {
+    if (sessionId !== currentSessionId.current) {
+      autoStarted.current = false;
+      currentSessionId.current = sessionId;
+    }
+  }, [sessionId]);
+
   // Cleanup on unmount
   useEffect(() => {
+    // Capture ref values at effect time
+    const animationFrame = animationFrameRef.current;
+    
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      if (peerConnection.current) {
-        peerConnection.current.close();
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+      // Use captured values in cleanup
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
       }
     };
-  }, [localStream]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally empty - cleanup only runs on unmount
 
-  // Auto-start camera and mic when match starts
+  // Auto-start camera and initiate call when matched
   useEffect(() => {
     if (autoStart && sessionId && partnerId && !autoStarted.current && !localStream) {
       autoStarted.current = true;
-      // Small delay to ensure socket is ready
+      
+      // Small delay to ensure socket is ready and both peers are synchronized
       const timer = setTimeout(() => {
         startCall().catch(err => {
-          console.log('Auto-start video failed, user may need to grant permissions:', err);
+          console.log('Auto-start video failed:', err.message);
+          // Don't reset autoStarted here - user can manually retry
         });
-      }, 500);
+      }, 800); // Slightly longer delay for better synchronization
+      
       return () => clearTimeout(timer);
     }
   }, [autoStart, sessionId, partnerId, localStream, startCall]);
 
-  // Get CSS filter style for video - matches useCameraFilters
+  // Get CSS filter style for video
   const getFilterStyle = useCallback((filter) => {
-    switch (filter) {
+    const filterStyles = {
       // Beauty filters
-      case 'beauty':
-        return 'brightness(1.08) contrast(1.05) saturate(1.15)';
-      case 'smooth':
-        return 'brightness(1.1) contrast(0.92) saturate(1.08) blur(0.4px)';
-      case 'glow':
-        return 'brightness(1.15) contrast(1.02) saturate(1.1)';
+      beauty: 'brightness(1.08) contrast(1.05) saturate(1.15)',
+      smooth: 'brightness(1.1) contrast(0.92) saturate(1.08) blur(0.4px)',
+      glow: 'brightness(1.15) contrast(1.02) saturate(1.1)',
       
-      // Mask filters
-      case 'raccoon':
-        return 'contrast(1.15) brightness(1.02) saturate(0.9)';
-      case 'cat':
-        return 'brightness(1.05) contrast(1.1) saturate(1.2)';
-      case 'dog':
-        return 'brightness(1.08) contrast(1.05) sepia(0.1)';
+      // Mask filters (color overlay effect)
+      raccoon: 'contrast(1.15) brightness(1.02) saturate(0.9)',
+      cat: 'brightness(1.05) contrast(1.1) saturate(1.2)',
+      dog: 'brightness(1.08) contrast(1.05) sepia(0.1)',
       
       // Color tone filters
-      case 'warm':
-        return 'brightness(1.08) sepia(0.25) saturate(1.4) contrast(1.02)';
-      case 'cool':
-        return 'brightness(1.05) saturate(0.85) hue-rotate(15deg) contrast(1.08)';
-      case 'vintage':
-        return 'sepia(0.45) contrast(1.15) brightness(0.92) saturate(0.75)';
-      case 'bw':
-        return 'grayscale(1) contrast(1.2) brightness(1.05)';
+      warm: 'brightness(1.08) sepia(0.25) saturate(1.4) contrast(1.02)',
+      cool: 'brightness(1.05) saturate(0.85) hue-rotate(15deg) contrast(1.08)',
+      vintage: 'sepia(0.45) contrast(1.15) brightness(0.92) saturate(0.75)',
+      bw: 'grayscale(1) contrast(1.2) brightness(1.05)',
       
       // Fun effect filters
-      case 'neon':
-        return 'brightness(1.2) contrast(1.35) saturate(1.6)';
-      case 'sparkle':
-        return 'brightness(1.18) contrast(1.08) saturate(1.25)';
-      case 'vhs':
-        return 'brightness(1.05) contrast(1.25) saturate(1.3) hue-rotate(-5deg)';
-      case 'comic':
-        return 'contrast(1.5) brightness(1.1) saturate(1.4)';
-      case 'dreamy':
-        return 'brightness(1.12) contrast(0.9) saturate(1.15) blur(0.5px)';
+      neon: 'brightness(1.2) contrast(1.35) saturate(1.6)',
+      sparkle: 'brightness(1.18) contrast(1.08) saturate(1.25)',
+      vhs: 'brightness(1.05) contrast(1.25) saturate(1.3) hue-rotate(-5deg)',
+      comic: 'contrast(1.5) brightness(1.1) saturate(1.4)',
+      dreamy: 'brightness(1.12) contrast(0.9) saturate(1.15) blur(0.5px)',
       
-      default:
-        return 'none';
-    }
+      // Default
+      none: 'none'
+    };
+    
+    return filterStyles[filter] || 'none';
   }, []);
 
   // Change filter
@@ -328,16 +532,21 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   }, []);
 
   return {
+    // Stream refs
     localStream,
     remoteStream,
     localVideoRef,
     remoteVideoRef,
     canvasRef,
+    
+    // State
     isVideoEnabled,
     isAudioEnabled,
     connectionState,
     error,
     currentFilter,
+    
+    // Actions
     startCall,
     endCall,
     toggleVideo,

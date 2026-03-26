@@ -40,6 +40,11 @@ api_router.include_router(reports_router)
 async def root():
     return {"message": "🦝 Raccoon App API - Real-time matching platform"}
 
+# Health check endpoint
+@api_router.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "raccoon-api"}
+
 # Include the router in the main app
 app.include_router(api_router)
 
