@@ -7,7 +7,7 @@ import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
-  ArrowLeft, Send, SkipForward, UserX, Loader2, Star, Globe, Trophy, 
+  ArrowLeft, Send, SkipForward, Loader2, Star, Globe, Trophy, 
   Sparkles, Filter, Flag, X, MessageCircle
 } from 'lucide-react';
 import MatchingFilters from '@/components/MatchingFilters';
@@ -15,6 +15,7 @@ import TruthOrDareGame from '@/components/TruthOrDareGame';
 import RaccoonFeudGame from '@/components/RaccoonFeudGame';
 import CameraFilterSelector from '@/components/CameraFilterSelector';
 import { CAMERA_FILTERS } from '@/hooks/useCameraFilters';
+import '@/styles/match.css';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -33,19 +34,22 @@ const Match = () => {
   const { state, partner, sessionId, startMatching, skipMatch, blockUser } = useMatching(socket);
   const { messages, partnerTyping, sendMessage, startTyping, stopTyping } = useChat(socket, sessionId);
   
+  // Form states
   const [messageInput, setMessageInput] = useState('');
   const [typingTimeout, setTypingTimeout] = useState(null);
   const [currentFact, setCurrentFact] = useState(0);
+  
+  // UI states
   const [showFilters, setShowFilters] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
   const [showCameraFilters, setShowCameraFilters] = useState(false);
   const [showChat, setShowChat] = useState(true);
-  const messagesEndRef = useRef(null);
   
-  // Swipe gesture refs for camera filters
+  // Refs
+  const messagesEndRef = useRef(null);
   const filterTouchStart = useRef(null);
-  const videoContainerRef = useRef(null);
+  const localPanelRef = useRef(null);
   
   // Game states
   const [showTruthOrDare, setShowTruthOrDare] = useState(false);
@@ -59,10 +63,7 @@ const Match = () => {
     remoteVideoRef,
     localStream,
     remoteStream,
-    isVideoEnabled,
-    isAudioEnabled,
     currentFilter,
-    startCall,
     endCall,
     changeFilter,
     getFilterStyle
@@ -100,11 +101,9 @@ const Match = () => {
       let newIndex;
       
       if (deltaX > 0) {
-        // Swipe right = previous filter
         newIndex = currentIdx - 1;
         if (newIndex < 0) newIndex = filterKeys.length - 1;
       } else {
-        // Swipe left = next filter
         newIndex = currentIdx + 1;
         if (newIndex >= filterKeys.length) newIndex = 0;
       }
@@ -117,7 +116,6 @@ const Match = () => {
         navigate('/premium');
       } else {
         changeFilter(newFilterKey);
-        // Show filter selector briefly
         setShowCameraFilters(true);
         setTimeout(() => setShowCameraFilters(false), 2000);
       }
@@ -126,20 +124,24 @@ const Match = () => {
     filterTouchStart.current = null;
   }, [getCurrentFilterIndex, filterKeys, isPremium, changeFilter, navigate]);
 
+  // Navigation effects
   useEffect(() => {
     if (!user) navigate('/login');
   }, [user, navigate]);
 
+  // Scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-start matching when idle
   useEffect(() => {
     if (state === 'idle' && user) {
       startMatching(matchingFilters.gender, matchingFilters.country);
     }
-  }, [state, user]);
+  }, [state, user, matchingFilters, startMatching]);
 
+  // Rotate raccoon facts during search
   useEffect(() => {
     if (state !== 'searching') return;
     const interval = setInterval(() => {
@@ -148,12 +150,14 @@ const Match = () => {
     return () => clearInterval(interval);
   }, [state]);
 
+  // Handle matching filters
   const handleApplyFilters = (filters) => {
     setMatchingFilters(filters);
     if (state === 'searching') startMatching(filters.gender, filters.country);
     toast.success('Filters applied!');
   };
 
+  // Message handlers
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (messageInput.trim()) {
@@ -174,6 +178,7 @@ const Match = () => {
     setTypingTimeout(timeout);
   };
 
+  // Match actions
   const handleSkip = () => {
     endCall();
     skipMatch();
@@ -188,36 +193,50 @@ const Match = () => {
     }
   };
 
-  // Connecting state
+  // ========== CONNECTING STATE ==========
   if (!connected) {
     return (
-      <div className="min-h-screen bg-[#050508] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#7c3aed] animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Connecting...</p>
+      <div className="match-container">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-[#7c3aed] animate-spin mx-auto mb-4" />
+            <p className="text-white text-lg">Connecting...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Searching state
+  // ========== SEARCHING STATE ==========
   if (state === 'searching') {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center relative overflow-hidden px-4">
+      <div className="match-container">
+        {/* Background */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510] to-[#1a0a2e]/40" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-40"
+          <div 
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-40"
             style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)', filter: 'blur(80px)' }}
           />
         </div>
 
-        <button onClick={() => navigate('/dashboard')} className="absolute top-4 left-4 p-3 hover:bg-white/10 rounded-full z-20">
+        {/* Nav buttons */}
+        <button 
+          onClick={() => navigate('/dashboard')} 
+          className="absolute top-4 left-4 p-3 hover:bg-white/10 rounded-full z-20"
+          data-testid="back-from-search"
+        >
           <ArrowLeft size={20} className="text-white/60" />
         </button>
-        <button onClick={() => setShowFilters(true)} className="absolute top-4 right-4 p-3 hover:bg-white/10 rounded-full z-20">
+        <button 
+          onClick={() => setShowFilters(true)} 
+          className="absolute top-4 right-4 p-3 hover:bg-white/10 rounded-full z-20"
+          data-testid="open-filters-search"
+        >
           <Filter size={20} className="text-white/60" />
         </button>
 
+        {/* Filters Modal */}
         <MatchingFilters
           isOpen={showFilters}
           onClose={() => setShowFilters(false)}
@@ -227,14 +246,17 @@ const Match = () => {
           initialFilters={matchingFilters}
         />
 
-        <div className="relative z-10 text-center">
+        {/* Search UI */}
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
           <div className="w-32 h-32 mx-auto mb-8 rounded-full overflow-hidden bg-[#7c3aed]/20 animate-pulse">
             <img 
               src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
-              alt="Raccoon" className="w-full h-full object-cover scale-150" style={{ objectPosition: 'center 30%' }}
+              alt="Raccoon" 
+              className="w-full h-full object-cover scale-150" 
+              style={{ objectPosition: 'center 30%' }}
             />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Finding a Match</h2>
+          <h2 className="text-2xl font-bold mb-2 text-white">Finding a Match</h2>
           <p className="text-gray-400 text-sm mb-8">{RACCOON_FACTS[currentFact]}</p>
           <div className="flex justify-center gap-2">
             {[0,1,2,3,4].map(i => (
@@ -248,27 +270,31 @@ const Match = () => {
 
   // ========== MATCHED STATE ==========
   return (
-    <div className="h-screen bg-[#050508] text-white flex flex-col overflow-hidden">
-      {/* TOP BAR - Stranger info + Report/Skip */}
-      <div className="relative z-30 px-3 py-2 md:px-4 md:py-2.5 bg-black/80 backdrop-blur-xl border-b border-white/10 flex-shrink-0">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          {/* Back */}
-          <button onClick={() => navigate('/dashboard')} className="p-2 hover:bg-white/10 rounded-lg" data-testid="back-button">
+    <div className="match-container" data-testid="match-page">
+      {/* ===== TOP BAR ===== */}
+      <div className="match-topbar">
+        <div className="match-topbar__content">
+          {/* Back Button */}
+          <button 
+            onClick={() => navigate('/dashboard')} 
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors" 
+            data-testid="back-button"
+          >
             <ArrowLeft size={18} className="text-white/60" />
           </button>
           
-          {/* Stranger Info - Center */}
+          {/* Partner Info */}
           {partner && (
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-xl flex items-center justify-center text-sm font-bold shadow-lg">
+            <div className="match-topbar__partner">
+              <div className="match-topbar__avatar">
                 {partner.username?.charAt(0).toUpperCase()}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm">{partner.username}</span>
+                  <span className="match-topbar__name">{partner.username}</span>
                   {partner.premium && <Star size={14} className="text-yellow-400 fill-yellow-400" />}
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <div className="match-topbar__location">
                   <Globe size={11} />
                   <span>{partner.country || 'Unknown'}</span>
                 </div>
@@ -276,8 +302,8 @@ const Match = () => {
             </div>
           )}
 
-          {/* Report + Skip */}
-          <div className="flex items-center gap-2">
+          {/* Actions */}
+          <div className="match-topbar__actions">
             <button
               onClick={() => setShowReportModal(true)}
               className="px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
@@ -298,15 +324,18 @@ const Match = () => {
         </div>
       </div>
 
-      {/* MAIN CONTENT - Split Video Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+      {/* ===== VIDEO AREA ===== */}
+      {/* Desktop: Left=Me, Right=Stranger | Mobile: Top=Stranger, Bottom=Me */}
+      <div className="match-videos">
         
-        {/* ===== DESKTOP: LEFT = MY VIDEO (50%) | MOBILE: BOTTOM = MY VIDEO ===== */}
+        {/* LOCAL VIDEO PANEL (Me) */}
+        {/* Desktop: order-1 (LEFT) | Mobile: order-2 (BOTTOM) */}
         <div 
-          ref={videoContainerRef}
-          className="order-2 lg:order-1 h-1/2 lg:h-full lg:w-1/2 relative bg-gradient-to-br from-gray-900 to-black"
+          ref={localPanelRef}
+          className="video-panel video-panel--local"
           onTouchStart={handleVideoSwipeStart}
           onTouchEnd={handleVideoSwipeEnd}
+          data-testid="local-video-panel"
         >
           {/* My Video */}
           <video
@@ -314,26 +343,26 @@ const Match = () => {
             autoPlay
             playsInline
             muted
-            className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-200"
+            className="video-panel__video video-panel__video--mirrored"
             style={{ filter: getFilterStyle(currentFilter) }}
           />
           
-          {/* My label */}
-          <div className="absolute top-3 left-3 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-lg text-xs font-medium flex items-center gap-2 z-10">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            You
+          {/* My Label */}
+          <div className="video-panel__label video-panel__label--top-left">
+            <div className="video-panel__indicator bg-green-500" />
+            <span>You</span>
           </div>
 
-          {/* Current filter indicator (shows briefly on swipe) */}
+          {/* Active Filter Badge */}
           {currentFilter !== 'none' && (
-            <div className="absolute top-3 right-3 px-3 py-1.5 bg-[#7c3aed]/80 backdrop-blur-sm rounded-lg text-xs font-medium flex items-center gap-2 z-10 animate-fade-in">
+            <div className="video-panel__filter-badge">
               <span>{CAMERA_FILTERS[currentFilter]?.icon}</span>
               <span>{CAMERA_FILTERS[currentFilter]?.name}</span>
             </div>
           )}
 
-          {/* Swipeable Camera Filter Selector - Snapchat style */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+          {/* Camera Filter Controls */}
+          <div className="video-panel__filter-controls">
             {showCameraFilters ? (
               <div className="relative">
                 <CameraFilterSelector
@@ -353,11 +382,7 @@ const Match = () => {
             ) : (
               <button
                 onClick={() => setShowCameraFilters(true)}
-                className={`p-3.5 rounded-full transition-all backdrop-blur-sm ${
-                  currentFilter !== 'none' 
-                    ? 'bg-[#7c3aed] shadow-[0_0_20px_rgba(124,58,237,0.5)]' 
-                    : 'bg-black/60 hover:bg-black/80'
-                }`}
+                className={`video-panel__filter-btn ${currentFilter !== 'none' ? 'video-panel__filter-btn--active' : ''}`}
                 data-testid="open-camera-filters"
               >
                 <Sparkles size={22} />
@@ -365,16 +390,16 @@ const Match = () => {
             )}
           </div>
 
-          {/* Swipe hint overlay (fades after first swipe) */}
+          {/* Swipe Hint */}
           {!showCameraFilters && currentFilter === 'none' && (
-            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-xs text-white/40 flex items-center gap-2 pointer-events-none animate-pulse">
-              <span>← Swipe for filters →</span>
+            <div className="video-panel__swipe-hint">
+              ← Swipe for filters →
             </div>
           )}
 
-          {/* RACCOON FEUD - Overlays MY SIDE only */}
+          {/* Raccoon Feud Game Overlay (on MY side only) */}
           {showFeud && (
-            <div className="absolute inset-0 z-30">
+            <div className="match-game-overlay">
               <RaccoonFeudGame
                 isOpen={showFeud}
                 onClose={() => setShowFeud(false)}
@@ -389,36 +414,42 @@ const Match = () => {
           )}
         </div>
 
-        {/* ===== DESKTOP: RIGHT = STRANGER VIDEO (50%) | MOBILE: TOP = STRANGER VIDEO ===== */}
-        <div className="order-1 lg:order-2 h-1/2 lg:h-full lg:w-1/2 relative bg-gradient-to-br from-black to-gray-900">
+        {/* REMOTE VIDEO PANEL (Stranger) */}
+        {/* Desktop: order-2 (RIGHT) | Mobile: order-1 (TOP) */}
+        <div 
+          className="video-panel video-panel--remote"
+          data-testid="remote-video-panel"
+        >
           {/* Stranger Video */}
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className="absolute inset-0 w-full h-full object-cover"
+            className="video-panel__video"
           />
           
-          {/* Waiting placeholder */}
+          {/* Connecting Placeholder */}
           {!remoteStream && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/90">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-[#7c3aed]/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                  <Loader2 size={36} className="text-[#7c3aed] animate-spin" />
+            <div className="video-panel__placeholder">
+              <div className="video-panel__placeholder-content">
+                <div className="video-panel__placeholder-avatar">
+                  <Loader2 size={32} className="video-panel__spinner" />
                 </div>
-                <p className="text-gray-400 text-sm">Connecting to {partner?.username}...</p>
+                <p className="video-panel__placeholder-text">
+                  Connecting to {partner?.username}...
+                </p>
               </div>
             </div>
           )}
 
-          {/* Stranger label */}
-          <div className="absolute top-3 right-3 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-lg text-xs font-medium flex items-center gap-2 z-10">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            {partner?.username}
+          {/* Stranger Label */}
+          <div className="video-panel__label video-panel__label--top-right">
+            <div className="video-panel__indicator bg-blue-500" />
+            <span>{partner?.username || 'Stranger'}</span>
           </div>
         </div>
 
-        {/* CENTER - Truth or Dare Bottle (overlays center between both videos) */}
+        {/* Truth or Dare Game (Center Overlay) */}
         {showTruthOrDare && (
           <TruthOrDareGame
             isOpen={showTruthOrDare}
@@ -432,18 +463,19 @@ const Match = () => {
         )}
       </div>
 
-      {/* BOTTOM ACTION BAR */}
-      <div className="relative z-30 bg-black/90 backdrop-blur-xl border-t border-white/10 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-2 sm:px-3 py-2 sm:py-3 pb-safe">
+      {/* ===== BOTTOM ACTION BAR ===== */}
+      <div className="match-bottombar">
+        <div className="match-bottombar__content">
           {/* Game & Filter Buttons */}
-          <div className="flex items-center justify-between mb-2 sm:mb-3 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          <div className="match-bottombar__games">
+            <div className="match-bottombar__game-btns">
               {/* Matching Filters */}
               <button
                 onClick={() => setShowFilters(true)}
-                className="px-2 sm:px-3 py-1.5 sm:py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all flex-shrink-0"
+                className="match-bottombar__game-btn"
+                data-testid="filters-btn"
               >
-                <Filter size={12} className="sm:w-3.5 sm:h-3.5" />
+                <Filter size={12} />
                 <span className="hidden xs:inline">Filters</span>
               </button>
               
@@ -454,13 +486,11 @@ const Match = () => {
                   setShowFeud(!showFeud);
                   setShowTruthOrDare(false);
                 }}
-                className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all flex-shrink-0 ${
-                  showFeud ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-white/5 hover:bg-white/10 border border-white/10'
-                }`}
+                className={`match-bottombar__game-btn ${showFeud ? 'match-bottombar__game-btn--active' : ''}`}
                 data-testid="feud-btn"
               >
-                <Trophy size={12} className="sm:w-3.5 sm:h-3.5" />
-                Feud
+                <Trophy size={12} />
+                <span>Feud</span>
                 {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
               </button>
 
@@ -471,26 +501,23 @@ const Match = () => {
                   setShowTruthOrDare(!showTruthOrDare);
                   setShowFeud(false);
                 }}
-                className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all flex-shrink-0 ${
-                  showTruthOrDare ? 'bg-pink-500/30 text-pink-300 border border-pink-500/50' : 'bg-white/5 hover:bg-white/10 border border-white/10'
-                }`}
+                className={`match-bottombar__game-btn ${showTruthOrDare ? 'match-bottombar__game-btn--active' : ''}`}
                 data-testid="tod-btn"
               >
-                <Sparkles size={12} className="sm:w-3.5 sm:h-3.5" />
-                <span className="hidden xs:inline">T/D</span>
-                <span className="xs:hidden">T/D</span>
+                <Sparkles size={12} />
+                <span>T/D</span>
                 {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
               </button>
             </div>
 
-            {/* Score Display when games active */}
+            {/* Scores (when games active) */}
             {(showFeud || showTruthOrDare) && (
-              <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-                <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-[#7c3aed]/20 rounded-lg text-[10px] sm:text-xs">
+              <div className="match-bottombar__scores">
+                <div className="match-bottombar__score match-bottombar__score--me">
                   <span className="text-gray-400">You:</span>
                   <span className="text-[#ffd700] font-bold ml-1">{myScore}</span>
                 </div>
-                <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white/5 rounded-lg text-[10px] sm:text-xs">
+                <div className="match-bottombar__score">
                   <span className="text-gray-400">{partner?.username?.slice(0, 6)}:</span>
                   <span className="text-white font-bold ml-1">{partnerScore}</span>
                 </div>
@@ -500,79 +527,65 @@ const Match = () => {
             {/* Chat Toggle */}
             <button
               onClick={() => setShowChat(!showChat)}
-              className={`p-1.5 sm:p-2 rounded-lg transition-all flex-shrink-0 ${showChat ? 'bg-[#7c3aed] text-white' : 'bg-white/5 text-gray-400'}`}
+              className={`match-bottombar__chat-toggle ${showChat ? 'match-bottombar__chat-toggle--active' : ''}`}
+              data-testid="chat-toggle"
             >
-              <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
+              <MessageCircle size={16} />
             </button>
           </div>
 
-          {/* Chat Input - Mobile optimized */}
+          {/* Chat Input */}
           {showChat && (
-            <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-2.5">
+            <form onSubmit={handleSendMessage} className="match-bottombar__chat">
               <input
                 type="text"
                 value={messageInput}
                 onChange={handleInputChange}
                 placeholder="Type a message..."
-                className="flex-1 bg-white/5 border border-white/10 focus:border-[#7c3aed]/50 focus:bg-white/8 rounded-xl sm:rounded-2xl h-10 sm:h-12 px-3 sm:px-5 text-white placeholder:text-gray-500 outline-none text-sm transition-all shadow-inner"
+                className="match-bottombar__input"
                 data-testid="message-input"
               />
               <button
                 type="submit"
                 disabled={!messageInput.trim()}
-                className="px-3 sm:px-5 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#8b5cf6] hover:to-[#7c3aed] rounded-xl sm:rounded-2xl disabled:opacity-40 disabled:hover:from-[#7c3aed] disabled:hover:to-[#6d28d9] transition-all font-medium text-sm shadow-[0_2px_12px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_20px_rgba(124,58,237,0.4)]"
+                className="match-bottombar__send"
                 data-testid="send-button"
               >
-                <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
+                <Send size={16} />
               </button>
             </form>
           )}
         </div>
       </div>
 
-      {/* Chat Messages Overlay - Premium styling with glow */}
+      {/* ===== CHAT MESSAGES OVERLAY (Desktop only) ===== */}
       {showChat && messages.length > 0 && (
-        <div className="absolute bottom-28 right-4 w-80 max-h-72 bg-gradient-to-br from-black/90 to-[#0a0a15]/95 backdrop-blur-2xl rounded-3xl border border-white/10 overflow-hidden z-20 hidden lg:block shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-          {/* Chat header */}
-          <div className="px-4 py-2.5 border-b border-white/5 bg-white/5">
-            <div className="flex items-center gap-2">
+        <div className="match-chat">
+          <div className="match-chat__header">
+            <div className="match-chat__title">
               <MessageCircle size={14} className="text-[#7c3aed]" />
-              <span className="text-xs font-medium text-gray-300">Chat</span>
-              <span className="text-xs text-gray-500">• {messages.length} messages</span>
+              <span>Chat</span>
+              <span className="text-gray-500">• {messages.length} messages</span>
             </div>
           </div>
           
-          {/* Messages container */}
-          <div className="max-h-56 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          <div className="match-chat__messages">
             {messages.map((msg, index) => {
               const isOwn = msg.sender_id === user?.user_id || msg.sender_id === user?.guest_id;
               return (
                 <div 
                   key={index} 
-                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-fade-in`}
-                  style={{ animationDelay: `${index * 30}ms` }}
+                  className={`match-chat__message ${isOwn ? 'match-chat__message--own' : 'match-chat__message--partner'}`}
                 >
-                  <div 
-                    className={`max-w-[85%] px-4 py-2.5 text-sm leading-relaxed transition-all ${
-                      isOwn
-                        ? 'bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white rounded-2xl rounded-br-md shadow-[0_2px_12px_rgba(124,58,237,0.35)]'
-                        : 'bg-white/10 text-white rounded-2xl rounded-bl-md border border-white/5 shadow-[0_2px_8px_rgba(0,0,0,0.2)]'
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
+                  {msg.content}
                 </div>
               );
             })}
             {partnerTyping && (
-              <div className="flex justify-start animate-fade-in">
-                <div className="px-4 py-3 bg-white/10 rounded-2xl rounded-bl-md border border-white/5">
-                  <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-[#a855f7] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-[#c084fc] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </div>
+              <div className="match-chat__typing">
+                <div className="match-chat__typing-dot" />
+                <div className="match-chat__typing-dot" />
+                <div className="match-chat__typing-dot" />
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -580,7 +593,7 @@ const Match = () => {
         </div>
       )}
 
-      {/* Matching Filters Modal */}
+      {/* ===== MODALS ===== */}
       <MatchingFilters
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
@@ -590,7 +603,6 @@ const Match = () => {
         initialFilters={matchingFilters}
       />
 
-      {/* Report Modal */}
       {showReportModal && partner && (
         <ReportModal 
           partner={partner}
@@ -602,7 +614,7 @@ const Match = () => {
   );
 };
 
-// Report Modal
+// ========== REPORT MODAL ==========
 const ReportModal = ({ partner, sessionId, onClose }) => {
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');
@@ -663,7 +675,7 @@ const ReportModal = ({ partner, sessionId, onClose }) => {
       <div className="relative w-full max-w-md bg-gradient-to-br from-[#1a1a2e] to-[#0a0a15] border border-white/10 rounded-2xl overflow-hidden">
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
+            <h2 className="text-lg font-bold flex items-center gap-2 text-white">
               <Flag size={20} className="text-orange-400" />
               Report User
             </h2>
@@ -700,13 +712,13 @@ const ReportModal = ({ partner, sessionId, onClose }) => {
         </div>
 
         <div className="p-4 border-t border-white/10 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-medium">
+          <button onClick={onClose} className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-medium text-white">
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!reason || submitting}
-            className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {submitting ? <Loader2 size={16} className="animate-spin" /> : <Flag size={16} />}
             Submit Report

@@ -170,6 +170,29 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Connection state indicators
   - Error handling with user feedback
 
+### Match Page Video Layout (TASK 24) ✅
+- **Desktop Layout** (≥1024px):
+  - Side-by-side split (50/50)
+  - LEFT = My video (local) with green "You" label
+  - RIGHT = Stranger video (remote) with blue label
+  - No floating mini-preview - both videos equal size
+- **Mobile Layout** (<1024px):
+  - Vertical stack
+  - TOP = Stranger video
+  - BOTTOM = My video
+  - Both panels large and visible
+- **Styling** (`/app/frontend/src/styles/match.css`):
+  - Premium dark theme with subtle purple glow
+  - Rounded corners (16px desktop, 14px mobile)
+  - 4px gap between panels
+  - Smooth transitions and animations
+  - Glass-morphism labels and controls
+- **Components**:
+  - `VideoPanel.jsx` - Reusable video container
+  - Top bar with partner info, Report/Skip buttons
+  - Bottom bar with games, chat toggle, message input
+  - Chat overlay (desktop) with message bubbles
+
 ---
 
 ## Code Architecture
@@ -242,7 +265,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 24-46 pending (to be provided by user)
+- Tasks 25-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

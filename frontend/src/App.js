@@ -10,6 +10,7 @@ import Guest from '@/pages/Guest';
 import AgeVerification from '@/pages/AgeVerification';
 import Dashboard from '@/pages/Dashboard';
 import Match from '@/pages/Match';
+import MatchPreview from '@/pages/MatchPreview';
 import Premium from '@/pages/Premium';
 import PremiumSuccess from '@/pages/PremiumSuccess';
 import GameFeud from '@/pages/GameFeud';
@@ -102,6 +103,7 @@ function AppRoutes() {
       <Route path="/guest" element={<Guest />} />
       <Route path="/premium" element={<Premium />} />
       <Route path="/premium/success" element={<PremiumSuccess />} />
+      <Route path="/match-preview" element={<MatchPreview />} />
       
       {/* Legal Pages - Public */}
       <Route path="/terms" element={<Terms />} />
