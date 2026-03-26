@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Sparkles, Filter, MessageCircle } from 'lucide-react';
+import { Trophy, Sparkles, Filter, MessageCircle, Gamepad } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
 import ChatPanel from '@/components/match/ChatPanel';
 import CameraFilters from '@/components/match/CameraFilters';
+import FeudGame from '@/components/games/FeudGame';
+import TruthOrDare from '@/components/games/TruthOrDare';
 import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
 import '@/styles/match.css';
 import '@/styles/chat.css';
 import '@/styles/filters.css';
+import '@/styles/games.css';
 
 /**
  * MatchPreview - Static preview of the Match page layout
@@ -20,6 +23,8 @@ const MatchPreview = () => {
   const [showChat, setShowChat] = useState(true);
   const [showCameraFilters, setShowCameraFilters] = useState(false);
   const [currentFilter, setCurrentFilter] = useState('none');
+  const [showFeud, setShowFeud] = useState(false);
+  const [showTod, setShowTod] = useState(false);
   
   // Mock partner data
   const partner = {
@@ -171,6 +176,24 @@ const MatchPreview = () => {
         />
       )}
 
+      {/* Game Buttons */}
+      <div className="fixed bottom-4 right-4 z-30 flex gap-2">
+        <button
+          onClick={() => { setShowFeud(!showFeud); setShowTod(false); }}
+          className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all ${showFeud ? 'bg-[#ffd700] text-[#1a237e]' : 'bg-black/80 text-white hover:bg-[#ffd700]/20'}`}
+          data-testid="toggle-feud-btn"
+        >
+          🦝 Raccoon Feud
+        </button>
+        <button
+          onClick={() => { setShowTod(!showTod); setShowFeud(false); }}
+          className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all ${showTod ? 'bg-pink-500 text-white' : 'bg-black/80 text-white hover:bg-pink-500/20'}`}
+          data-testid="toggle-tod-btn"
+        >
+          🍾 Truth or Dare
+        </button>
+      </div>
+
       {/* Layout Info Overlay */}
       <div className="fixed bottom-4 left-4 z-30 px-4 py-3 bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-xs">
         <p className="text-white font-bold mb-1">Layout Preview Mode</p>
@@ -179,6 +202,35 @@ const MatchPreview = () => {
           Mobile: Top=Stranger, Bottom=Me
         </p>
       </div>
+
+      {/* Feud Game (Mock - no socket) */}
+      {showFeud && (
+        <div className="fixed top-[4rem] left-4 z-40 w-96 h-[70vh] rounded-xl overflow-hidden">
+          <FeudGame
+            isOpen={showFeud}
+            onClose={() => setShowFeud(false)}
+            socket={null}
+            myUserId="preview-user"
+            partnerUsername={partner.username}
+            sessionId="preview-session"
+          />
+        </div>
+      )}
+
+      {/* Truth or Dare (Mock - no socket) */}
+      {showTod && (
+        <div className="fixed top-[4rem] left-4 z-40 w-96 h-[70vh] rounded-xl overflow-hidden">
+          <TruthOrDare
+            isOpen={showTod}
+            onClose={() => setShowTod(false)}
+            socket={null}
+            myUserId="preview-user"
+            partnerUsername={partner.username}
+            sessionId="preview-session"
+            isMobile={false}
+          />
+        </div>
+      )}
 
       {/* Report Modal */}
       {showReportModal && (

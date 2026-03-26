@@ -625,7 +625,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def start_tod_game(sid):
-        """Start a Truth or Dare game"""
+        """Start a Truth or Dare game between matched users"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -640,21 +640,45 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             session_id = session_data['session_id']
             player1_id = session_data['user1']['user_id']
             player2_id = session_data['user2']['user_id']
+            player1_username = session_data['user1'].get('username', 'Player 1')
+            player2_username = session_data['user2'].get('username', 'Player 2')
+            
+            # Check if another game is active
+            if feud_service.has_active_game(session_id):
+                await sio.emit('error', {'message': 'Another game is already active'}, room=sid)
+                return
             
             # Mark game as active
             matching_queue.set_game_active(user_id, 'tod')
             
-            # Create game
-            game = truth_or_dare_service.create_game(session_id, player1_id, player2_id)
+            # Create game with usernames
+            game = truth_or_dare_service.create_game(
+                session_id, 
+                player1_id, 
+                player2_id,
+                player1_username,
+                player2_username
+            )
+            
+            if 'error' in game:
+                await sio.emit('error', {'message': game['error']}, room=sid)
+                return
             
             # Notify both players
             player1_socket = session_data['user1']['socket_id']
             player2_socket = session_data['user2']['socket_id']
             
-            await sio.emit('tod_game_started', {'game_state': game}, room=player1_socket)
-            await sio.emit('tod_game_started', {'game_state': game}, room=player2_socket)
+            await sio.emit('tod_game_started', {
+                'game_state': game,
+                'your_id': player1_id
+            }, room=player1_socket)
             
-            logger.info(f"Truth or Dare game started for session {session_id}")
+            await sio.emit('tod_game_started', {
+                'game_state': game,
+                'your_id': player2_id
+            }, room=player2_socket)
+            
+            logger.info(f"Truth or Dare game started: {player1_username} vs {player2_username}")
         
         except Exception as e:
             logger.error(f"Error starting ToD game: {e}")
@@ -752,7 +776,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             logger.error(f"Error in ToD question: {e}")
     
     @sio.event
-    async def tod_complete_round(sid):
+    async def tod_complete_round(sid, data=None):
         """Complete current round"""
         try:
             async with sio.session(sid) as session:
@@ -765,10 +789,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 return
             
             session_id = session_data['session_id']
-            result = truth_or_dare_service.complete_round(session_id, user_id)
+            completed = data.get('completed', True) if data else True
+            result = truth_or_dare_service.complete_round(session_id, user_id, completed)
             
             if 'error' in result:
-                await sio.emit('error', {'message': result['error']}, room=sid)
+                await sio.emit('tod_error', {'message': result['error']}, room=sid)
                 return
             
             player1_socket = session_data['user1']['socket_id']
@@ -776,9 +801,50 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             await sio.emit('tod_round_complete', result, room=player1_socket)
             await sio.emit('tod_round_complete', result, room=player2_socket)
+            
+            # Save to DB periodically
+            if result['rounds_played'] % 3 == 0:
+                await truth_or_dare_service.save_to_db(session_id)
         
         except Exception as e:
             logger.error(f"Error in ToD round complete: {e}")
+    
+    @sio.event
+    async def end_tod_game(sid):
+        """End Truth or Dare game"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            # Save to DB before ending
+            await truth_or_dare_service.save_to_db(session_id)
+            
+            result = truth_or_dare_service.end_game(session_id)
+            
+            if result:
+                player1_socket = session_data['user1']['socket_id']
+                player2_socket = session_data['user2']['socket_id']
+                
+                await sio.emit('tod_game_ended', {
+                    'reason': 'ended',
+                    'game_state': result
+                }, room=player1_socket)
+                
+                await sio.emit('tod_game_ended', {
+                    'reason': 'ended',
+                    'game_state': result
+                }, room=player2_socket)
+        
+        except Exception as e:
+            logger.error(f"Error ending ToD game: {e}")
     
     # ============================================
     # WEBRTC SIGNALING HANDLERS

@@ -14,13 +14,14 @@ import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
 import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
-import TruthOrDareGame from '@/components/TruthOrDareGame';
-import RaccoonFeudGame from '@/components/RaccoonFeudGameMultiplayer';
+import FeudGame from '@/components/games/FeudGame';
+import TruthOrDare from '@/components/games/TruthOrDare';
 import CameraFilters from '@/components/match/CameraFilters';
 import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
 import '@/styles/match.css';
 import '@/styles/chat.css';
 import '@/styles/filters.css';
+import '@/styles/games.css';
 
 const RACCOON_FACTS = [
   "Raccoons are extremely intelligent animals",
@@ -431,18 +432,14 @@ const Match = () => {
 
           {/* Raccoon Feud Game Overlay (on MY side only) */}
           {showFeud && (
-            <div className="match-game-overlay">
-              <RaccoonFeudGame
-                isOpen={showFeud}
-                onClose={() => setShowFeud(false)}
-                socket={socket}
-                myUserId={user?.user_id || user?.guest_id}
-                partnerUsername={partner?.username || 'Stranger'}
-                sessionId={sessionId}
-                isPremium={isPremium}
-                isOverlay={true}
-              />
-            </div>
+            <FeudGame
+              isOpen={showFeud}
+              onClose={() => setShowFeud(false)}
+              socket={socket}
+              myUserId={user?.user_id || user?.guest_id}
+              partnerUsername={partner?.username || 'Stranger'}
+              sessionId={sessionId}
+            />
           )}
         </div>
 
@@ -481,17 +478,19 @@ const Match = () => {
           </div>
         </div>
 
-        {/* Truth or Dare Game (Center Overlay) */}
+        {/* Truth or Dare Game (on MY side overlay) */}
         {showTruthOrDare && (
-          <TruthOrDareGame
-            isOpen={showTruthOrDare}
-            onClose={() => setShowTruthOrDare(false)}
-            myScore={myScore}
-            partnerScore={partnerScore}
-            onScoreUpdate={(points) => setMyScore(prev => prev + points)}
-            isPremium={isPremium}
-            isMobile={window.innerWidth < 1024}
-          />
+          <div className="video-panel video-panel--local" style={{ position: 'absolute', zIndex: 30 }}>
+            <TruthOrDare
+              isOpen={showTruthOrDare}
+              onClose={() => setShowTruthOrDare(false)}
+              socket={socket}
+              myUserId={user?.user_id || user?.guest_id}
+              partnerUsername={partner?.username || 'Stranger'}
+              sessionId={sessionId}
+              isMobile={window.innerWidth < 1024}
+            />
+          </div>
         )}
       </div>
 
