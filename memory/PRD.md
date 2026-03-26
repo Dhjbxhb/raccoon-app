@@ -193,6 +193,26 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Bottom bar with games, chat toggle, message input
   - Chat overlay (desktop) with message bubbles
 
+### Premium Match Top Bar (TASK 25) ✅
+- **Component** (`/app/frontend/src/components/match/MatchTopBar.jsx`):
+  - Reusable top bar for match controls
+  - Safe area aware (notch/status bar support)
+- **Partner Info Display**:
+  - Avatar with first letter + premium gold badge
+  - Username (truncated on mobile)
+  - Country with flag emoji + location icon
+  - Verified badge support
+  - Session duration timer (MM:SS format)
+- **Action Buttons**:
+  - Report button: Orange styling, icon-only on mobile
+  - Skip button: Prominent purple with glow effect
+  - Both always visible (NOT hidden in menus)
+- **Styling**:
+  - Glass-morphism (blur + gradient overlay)
+  - Doesn't block video content
+  - Responsive (desktop: full labels, mobile: compact)
+  - Smooth hover/press states
+
 ---
 
 ## Code Architecture
@@ -265,7 +285,7 @@ Test mode working. Needs production keys for live payments.
 ---
 
 ## Upcoming Tasks (From User's Master List)
-- Tasks 25-46 pending (to be provided by user)
+- Tasks 26-46 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

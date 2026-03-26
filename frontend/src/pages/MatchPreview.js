@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, SkipForward, Star, Globe, Trophy, Sparkles, Filter, Flag, MessageCircle, Loader2 } from 'lucide-react';
+import { Send, Trophy, Sparkles, Filter, MessageCircle, Loader2 } from 'lucide-react';
+import MatchTopBar from '@/components/match/MatchTopBar';
 import '@/styles/match.css';
 
 /**
@@ -14,44 +15,21 @@ const MatchPreview = () => {
   const partner = {
     username: 'CoolRaccoon42',
     country: 'United States',
-    premium: true
+    country_code: 'US',
+    premium: true,
+    verified: true
   };
 
   return (
     <div className="match-container" data-testid="match-preview">
-      {/* ===== TOP BAR ===== */}
-      <div className="match-topbar">
-        <div className="match-topbar__content">
-          <button onClick={() => navigate('/dashboard')} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-            <ArrowLeft size={18} className="text-white/60" />
-          </button>
-          
-          <div className="match-topbar__partner">
-            <div className="match-topbar__avatar">C</div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="match-topbar__name">{partner.username}</span>
-                <Star size={14} className="text-yellow-400 fill-yellow-400" />
-              </div>
-              <div className="match-topbar__location">
-                <Globe size={11} />
-                <span>{partner.country}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="match-topbar__actions">
-            <button className="px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all">
-              <Flag size={14} />
-              <span className="hidden sm:inline">Report</span>
-            </button>
-            <button className="px-4 py-1.5 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(124,58,237,0.3)]">
-              <SkipForward size={14} />
-              Skip
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* ===== TOP BAR - Using the component ===== */}
+      <MatchTopBar
+        partner={partner}
+        sessionDuration={127}
+        onReport={() => alert('Report clicked')}
+        onSkip={() => alert('Skip clicked')}
+        onBack={() => navigate('/dashboard')}
+      />
 
       {/* ===== VIDEO AREA ===== */}
       <div className="match-videos">

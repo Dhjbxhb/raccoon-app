@@ -7,9 +7,10 @@ import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
-  ArrowLeft, Send, SkipForward, Loader2, Star, Globe, Trophy, 
+  ArrowLeft, Send, Loader2, Trophy, 
   Sparkles, Filter, Flag, X, MessageCircle
 } from 'lucide-react';
+import MatchTopBar from '@/components/match/MatchTopBar';
 import MatchingFilters from '@/components/MatchingFilters';
 import TruthOrDareGame from '@/components/TruthOrDareGame';
 import RaccoonFeudGame from '@/components/RaccoonFeudGame';
@@ -56,6 +57,10 @@ const Match = () => {
   const [showFeud, setShowFeud] = useState(false);
   const [myScore, setMyScore] = useState(0);
   const [partnerScore, setPartnerScore] = useState(0);
+  
+  // Session duration tracking
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const sessionStartRef = useRef(null);
 
   // WebRTC hook - AUTO START when matched
   const {
@@ -71,6 +76,21 @@ const Match = () => {
 
   const isPremium = user?.premium_status;
   const filterKeys = Object.keys(CAMERA_FILTERS);
+  
+  // Track session duration
+  useEffect(() => {
+    if (state === 'matched' && partner) {
+      sessionStartRef.current = Date.now();
+      const interval = setInterval(() => {
+        setSessionDuration(Math.floor((Date.now() - sessionStartRef.current) / 1000));
+      }, 1000);
+      return () => {
+        clearInterval(interval);
+        setSessionDuration(0);
+        sessionStartRef.current = null;
+      };
+    }
+  }, [state, partner]);
   
   // Get current filter index for swipe navigation
   const getCurrentFilterIndex = useCallback(() => {
@@ -272,57 +292,14 @@ const Match = () => {
   return (
     <div className="match-container" data-testid="match-page">
       {/* ===== TOP BAR ===== */}
-      <div className="match-topbar">
-        <div className="match-topbar__content">
-          {/* Back Button */}
-          <button 
-            onClick={() => navigate('/dashboard')} 
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors" 
-            data-testid="back-button"
-          >
-            <ArrowLeft size={18} className="text-white/60" />
-          </button>
-          
-          {/* Partner Info */}
-          {partner && (
-            <div className="match-topbar__partner">
-              <div className="match-topbar__avatar">
-                {partner.username?.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="match-topbar__name">{partner.username}</span>
-                  {partner.premium && <Star size={14} className="text-yellow-400 fill-yellow-400" />}
-                </div>
-                <div className="match-topbar__location">
-                  <Globe size={11} />
-                  <span>{partner.country || 'Unknown'}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="match-topbar__actions">
-            <button
-              onClick={() => setShowReportModal(true)}
-              className="px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
-              data-testid="report-button"
-            >
-              <Flag size={14} />
-              <span className="hidden sm:inline">Report</span>
-            </button>
-            <button
-              onClick={handleSkip}
-              className="px-4 py-1.5 bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(124,58,237,0.3)]"
-              data-testid="skip-button"
-            >
-              <SkipForward size={14} />
-              Skip
-            </button>
-          </div>
-        </div>
-      </div>
+      <MatchTopBar
+        partner={partner}
+        sessionDuration={sessionDuration}
+        onReport={() => setShowReportModal(true)}
+        onSkip={handleSkip}
+        onBack={() => navigate('/dashboard')}
+        isSearching={state === 'searching'}
+      />
 
       {/* ===== VIDEO AREA ===== */}
       {/* Desktop: Left=Me, Right=Stranger | Mobile: Top=Stranger, Bottom=Me */}
