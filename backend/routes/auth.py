@@ -175,7 +175,7 @@ async def signup(data: SignupRequest, request: Request):
 
 @router.post("/login", response_model=AuthResponse)
 async def login(data: LoginRequest):
-    """Login existing user"""
+    """Login existing user with ban expiry check"""
     users = get_users_collection()
     
     # Find user
@@ -193,12 +193,33 @@ async def login(data: LoginRequest):
             detail="Invalid email or password"
         )
     
-    # Check if banned
-    if user_dict.get('is_banned', False):
+    # Import ban service for temp ban expiry check
+    from services.ban_service import ban_service
+    
+    # Check ban status with automatic temp ban expiry
+    is_banned, ban_reason, ban_expires = await ban_service.check_ban_status(
+        user_dict['user_id'], 
+        is_guest=False
+    )
+    
+    if is_banned:
+        error_msg = "Your account has been banned"
+        if ban_reason:
+            error_msg += f": {ban_reason}"
+        if ban_expires:
+            error_msg += f". Ban expires at {ban_expires}"
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account has been banned"
+            detail=error_msg
         )
+    
+    # Import premium service for premium expiry check
+    from services.premium_service import premium_service
+    
+    # Check and enforce premium status (auto-expire if needed)
+    is_premium, premium_tier, premium_expires = await premium_service.check_premium_status(
+        user_dict['user_id']
+    )
     
     # Update last_active and last_login
     await users.update_one(
@@ -225,8 +246,8 @@ async def login(data: LoginRequest):
         country_flag=user_dict.get('country_flag', '🇺🇸'),
         gender=user_dict['gender'],
         age_verified=user_dict.get('age_verified', False),
-        premium_status=user_dict.get('premium_status', False),
-        premium_tier=user_dict.get('premium_tier', 'free'),
+        premium_status=is_premium,  # Use checked premium status
+        premium_tier=premium_tier,
         is_admin=user_dict.get('is_admin', False),
         is_moderator=user_dict.get('is_moderator', False),
         total_sessions=user_dict.get('total_sessions', 0),

@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 import uuid
 from services.matching_service import matching_queue
 from services.auth_service import AuthService
+from services.ban_service import ban_service
+from services.premium_service import premium_service
 from services.db_service import (
     get_users_collection, 
     get_guests_collection, 
@@ -93,7 +95,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def authenticate(sid, data):
-        """Authenticate user with JWT token"""
+        """Authenticate user with JWT token and check ban status"""
         try:
             token = data.get('token')
             if not token:
@@ -108,6 +110,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             user_id = payload['user_id']
             is_guest = payload.get('is_guest', False)
             
+            # CHECK BAN STATUS - This is critical enforcement
+            is_banned, ban_reason, ban_expires = await ban_service.check_ban_status(user_id, is_guest)
+            if is_banned:
+                await sio.emit('user_banned', {
+                    'reason': ban_reason or 'Your account has been banned',
+                    'expires_at': ban_expires
+                }, room=sid)
+                logger.warning(f"Banned user {user_id} attempted to authenticate")
+                return
+            
             # Store user_id in socket session
             async with sio.session(sid) as session:
                 session['user_id'] = user_id
@@ -120,11 +132,18 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             else:
                 users = get_users_collection()
                 user_data = await users.find_one({'user_id': user_id}, {'_id': 0})
+                
+                # Also check and enforce premium expiry
+                if user_data:
+                    is_premium, tier, expires = await premium_service.check_premium_status(user_id)
+                    user_data['premium_status'] = is_premium
+                    user_data['premium_tier'] = tier
             
             await sio.emit('authenticated', {
                 'user_id': user_id,
                 'username': user_data.get('username') if user_data else 'User',
-                'is_guest': is_guest
+                'is_guest': is_guest,
+                'premium_status': user_data.get('premium_status', False) if user_data else False
             }, room=sid)
             
             logger.info(f"User {user_id} authenticated on socket {sid}")
@@ -139,7 +158,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def join_queue(sid, data):
-        """Add user to matching queue"""
+        """Add user to matching queue with ban and premium enforcement"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -148,6 +167,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
                     return
+            
+            # ENFORCE BAN - Double check ban status before allowing queue join
+            is_banned, ban_reason, ban_expires = await ban_service.check_ban_status(user_id, is_guest)
+            if is_banned:
+                await sio.emit('user_banned', {
+                    'reason': ban_reason or 'Your account has been banned',
+                    'expires_at': ban_expires
+                }, room=sid)
+                logger.warning(f"Banned user {user_id} attempted to join queue")
+                return
             
             # Prevent joining if already in session
             if matching_queue.is_user_in_session(user_id):
@@ -161,6 +190,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             else:
                 users = get_users_collection()
                 user_data = await users.find_one({'user_id': user_id}, {'_id': 0})
+                
+                # Check and enforce premium status (auto-expire if needed)
+                if user_data:
+                    is_premium, tier, expires = await premium_service.check_premium_status(user_id)
+                    user_data['premium_status'] = is_premium
+                    user_data['premium_tier'] = tier
             
             if not user_data:
                 await sio.emit('error', {'message': 'User not found'}, room=sid)

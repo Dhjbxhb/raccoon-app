@@ -7,8 +7,11 @@ import {
   AlertTriangle, CheckCircle, XCircle, Crown, Clock, TrendingUp, 
   MessageSquare, Activity, Zap, Eye, Flag, Settings, ChevronDown,
   ChevronUp, Calendar, Globe, Mail, Phone, User, X, Check,
-  AlertCircle, FileText, BarChart3, UserX, UserCheck, Loader2
+  AlertCircle, FileText, BarChart3, UserX, UserCheck, Loader2,
+  History
 } from 'lucide-react';
+import AdminActionLogs from '@/components/admin/AdminActionLogs';
+import '@/styles/admin.css';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -19,6 +22,7 @@ const tabs = [
   { id: 'reports', label: 'Reports', icon: Flag },
   { id: 'premium', label: 'Premium', icon: Crown },
   { id: 'matches', label: 'Sessions', icon: Zap },
+  { id: 'logs', label: 'Audit Log', icon: History },
 ];
 
 const Admin = () => {
@@ -841,6 +845,11 @@ const Admin = () => {
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* Audit Logs Tab */}
+              {activeTab === 'logs' && (
+                <AdminActionLogs token={localStorage.getItem('raccoon_token')} />
               )}
             </>
           )}

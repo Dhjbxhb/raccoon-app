@@ -105,7 +105,7 @@ Build a premium real-time social matching platform for text and video chat. The 
   - View chat messages from specific sessions
   - Moderation capability for chat review
 - **Frontend UI** (`/app/frontend/src/pages/Admin.js`):
-  - 5 tabs: Dashboard, Users, Reports, Premium, Sessions
+  - 6 tabs: Dashboard, Users, Reports, Premium, Sessions, Audit Log
   - Space-themed glass-morphism design
   - Live online indicator
   - User detail modals with actions
@@ -113,6 +113,39 @@ Build a premium real-time social matching platform for text and video chat. The 
   - Premium grant modal with duration options
   - Report action modal with ban option
   - Session message viewer modal
+
+### Admin Action System (TASK 36) ✅
+- **Backend Services Created**:
+  - `/app/backend/services/ban_service.py` - Centralized ban management
+  - `/app/backend/services/premium_service.py` - Centralized premium management
+  - `/app/backend/services/admin_log_service.py` - Audit logging service
+  - `/app/backend/models/admin_log.py` - Audit log model
+- **Ban System Features**:
+  - Permanent ban: `is_banned=true`, `ban_expires_at=null`
+  - Temporary ban: `is_banned=true`, `ban_expires_at=<datetime>`
+  - Auto-unban: Temp bans auto-expire when checked (login, socket auth, queue join)
+  - Ban enforcement at: Login route, Socket authenticate, Queue join handler
+  - Ban fields: `is_banned`, `ban_reason`, `ban_expires_at`, `banned_at`, `banned_by`
+  - Unban fields: `unbanned_at`, `unbanned_by`
+- **Premium System Features**:
+  - Temporary premium with auto-expire
+  - Lifetime premium (no expiry)
+  - Fields: `premium_status`, `premium_tier`, `premium_expires_at`, `premium_granted_at/by`, `premium_removed_at/by`
+- **Report Moderation Workflow**:
+  - Status: pending → reviewed → actioned/ignored
+  - Direct user ban from report action
+  - Admin notes for audit trail
+- **Audit Logging System**:
+  - All actions logged to `admin_logs` collection
+  - Types: ban_user, unban_user, temp_ban_user, grant_premium, remove_premium, action_report, etc.
+  - Logs: admin_id, admin_username, target_id, target_type, details, ip_address, timestamp
+  - API: `GET /api/admin/logs` with filtering
+  - UI: Audit Log tab with action type filters
+- **Frontend Components**:
+  - `/app/frontend/src/components/admin/AdminUsersTable.jsx`
+  - `/app/frontend/src/components/admin/AdminReportsTable.jsx`
+  - `/app/frontend/src/components/admin/AdminActionLogs.jsx`
+  - `/app/frontend/src/styles/admin.css`
 
 ### Country Detection
 - Multi-provider IP geolocation fallback (ipapi.co, ip-api.com, ipwho.is)
@@ -496,14 +529,15 @@ Build a premium real-time social matching platform for text and video chat. The 
 ```
 /app/
 ├── backend/
-│   ├── models/
+│   ├── models/ (admin_log, feud_question, truth_session, user)
 │   ├── routes/ (auth, admin, payments, reports)
-│   ├── services/ (auth, country, db, matching, game, moderation)
-│   ├── websocket/ (socket_handlers)
+│   ├── services/ (auth, ban, premium, admin_log, matching, game, moderation, db)
+│   ├── websocket/ (socket_handlers with ban enforcement)
 │   └── server.py
 └── frontend/
     └── src/
         ├── components/
+        │   ├── admin/ (AdminUsersTable, AdminReportsTable, AdminActionLogs) ✅
         │   ├── auth/ (AuthComponents.jsx)
         │   ├── background/ (SpaceBackground.jsx) ✅
         │   ├── branding/ (RaccoonLogo.jsx)
@@ -512,6 +546,7 @@ Build a premium real-time social matching platform for text and video chat. The 
         ├── contexts/ (AuthContext, SocketContext)
         ├── hooks/ (useAuth, useChat, useMatching, useWebRTC)
         ├── pages/ (Landing, Login, Signup, Guest, Match, Premium, Admin, etc.)
+        ├── styles/ (admin.css, match.css, games.css, filters.css)
         └── App.js
 ```
 
@@ -526,9 +561,12 @@ Build a premium real-time social matching platform for text and video chat. The 
 - POST /api/reports/create
 - GET /api/admin/dashboard
 - GET /api/admin/users
-- POST /api/admin/users/{id}/ban
-- POST /api/admin/users/{id}/premium
-- Socket.IO: /api/socket.io
+- POST /api/admin/users/{id}/ban (with ban_service + audit logging)
+- POST /api/admin/users/{id}/premium (with premium_service + audit logging)
+- POST /api/admin/reports/{id}/action (with audit logging)
+- GET /api/admin/logs (audit log retrieval)
+- POST /api/admin/process-expired (manual expiry processing)
+- Socket.IO: /api/socket.io (with ban enforcement on authenticate/join_queue)
 
 ---
 
@@ -563,7 +601,8 @@ Test mode working. Needs production keys for live payments.
 
 ## Upcoming Tasks (From User's Master List)
 - **TASK 35/41**: ✅ COMPLETED (Admin Panel with real DB metrics)
-- Tasks 36-41 pending (to be provided by user)
+- **TASK 36/41**: ✅ COMPLETED (Admin actions: ban/unban/temp-ban/premium/reports + audit logging)
+- Tasks 37-41 pending (to be provided by user)
 
 ## Future/Backlog
 - Full Stripe production integration

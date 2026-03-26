@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -7,6 +7,10 @@ from services.db_service import (
     get_users_collection, get_guests_collection, get_matches_collection, 
     get_messages_collection, get_reports_collection, get_sessions_collection
 )
+from services.admin_log_service import admin_log_service
+from services.ban_service import ban_service
+from services.premium_service import premium_service
+from models.admin_log import AdminActionType
 import uuid
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -56,6 +60,11 @@ async def get_current_admin(authorization: Optional[str] = Header(None)):
     # Check if user is admin from JWT payload
     if not payload.get('is_admin', False):
         raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get admin username for logging
+    users = get_users_collection()
+    admin_user = await users.find_one({'user_id': payload['user_id']}, {'_id': 0, 'username': 1})
+    payload['username'] = admin_user.get('username', 'Admin') if admin_user else 'Admin'
     
     return payload
 
@@ -355,79 +364,162 @@ async def get_user_details(user_id: str, admin = Depends(get_current_admin)):
     }
 
 @router.post("/users/{user_id}/ban")
-async def ban_user(user_id: str, data: BanUpdate, admin = Depends(get_current_admin)):
-    """Ban or unban a user with optional duration"""
+async def ban_user(user_id: str, data: BanUpdate, request: Request, admin = Depends(get_current_admin)):
+    """Ban or unban a user with optional duration and full audit logging"""
     users_collection = get_users_collection()
     
-    update_data = {
-        'is_banned': data.is_banned,
-        'ban_reason': data.reason if data.is_banned else None
-    }
-    
-    if data.is_banned and data.duration_hours:
-        # Temporary ban
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=data.duration_hours)
-        update_data['ban_expires_at'] = expires_at.isoformat()
-    elif data.is_banned:
-        # Permanent ban
-        update_data['ban_expires_at'] = None
-    else:
-        # Unban
-        update_data['ban_expires_at'] = None
-        update_data['ban_reason'] = None
-    
-    result = await users_collection.update_one(
-        {'user_id': user_id},
-        {'$set': update_data}
-    )
-    
-    if result.modified_count == 0:
+    # Get target user info for logging
+    target_user = await users_collection.find_one({'user_id': user_id}, {'_id': 0, 'username': 1})
+    if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    action = "banned" if data.is_banned else "unbanned"
-    duration = f" for {data.duration_hours} hours" if data.duration_hours and data.is_banned else ""
+    # Get client IP for audit
+    client_ip = request.client.host
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    
+    if data.is_banned:
+        # Ban user using ban service
+        result = await ban_service.ban_user(
+            user_id=user_id,
+            reason=data.reason,
+            duration_hours=data.duration_hours,
+            banned_by=admin['user_id'],
+            is_guest=False
+        )
+        
+        # Determine action type for audit log
+        action_type = AdminActionType.TEMP_BAN_USER if data.duration_hours else AdminActionType.BAN_USER
+        
+        # Log the action
+        await admin_log_service.log_action(
+            action_type=action_type,
+            admin_id=admin['user_id'],
+            admin_username=admin.get('username', 'Admin'),
+            target_id=user_id,
+            target_type='user',
+            target_username=target_user.get('username'),
+            details={
+                'reason': data.reason,
+                'duration_hours': data.duration_hours,
+                'ban_type': 'temporary' if data.duration_hours else 'permanent',
+                'expires_at': result.get('expires_at')
+            },
+            ip_address=client_ip
+        )
+        
+        action = "banned"
+        duration = f" for {data.duration_hours} hours" if data.duration_hours else " permanently"
+    else:
+        # Unban user
+        await ban_service.unban_user(
+            user_id=user_id,
+            unbanned_by=admin['user_id'],
+            is_guest=False
+        )
+        
+        # Log the unban action
+        await admin_log_service.log_action(
+            action_type=AdminActionType.UNBAN_USER,
+            admin_id=admin['user_id'],
+            admin_username=admin.get('username', 'Admin'),
+            target_id=user_id,
+            target_type='user',
+            target_username=target_user.get('username'),
+            details={'previous_reason': data.reason},
+            ip_address=client_ip
+        )
+        
+        action = "unbanned"
+        duration = ""
     
     return {'message': f'User {action}{duration}', 'success': True}
 
 @router.post("/users/{user_id}/premium")
-async def update_premium(user_id: str, data: PremiumUpdate, admin = Depends(get_current_admin)):
-    """Update user premium status with optional duration"""
+async def update_premium(user_id: str, data: PremiumUpdate, request: Request, admin = Depends(get_current_admin)):
+    """Update user premium status with optional duration and full audit logging"""
     users_collection = get_users_collection()
     
-    update_data = {
-        'premium_status': data.premium
-    }
-    
-    if data.premium and data.duration_days:
-        expires_at = datetime.now(timezone.utc) + timedelta(days=data.duration_days)
-        update_data['premium_expires_at'] = expires_at.isoformat()
-        update_data['premium_granted_at'] = datetime.now(timezone.utc).isoformat()
-        update_data['premium_granted_by'] = admin['user_id']
-    elif data.premium:
-        # Permanent premium
-        update_data['premium_expires_at'] = None
-        update_data['premium_granted_at'] = datetime.now(timezone.utc).isoformat()
-        update_data['premium_granted_by'] = admin['user_id']
-    else:
-        update_data['premium_expires_at'] = None
-    
-    result = await users_collection.update_one(
-        {'user_id': user_id},
-        {'$set': update_data}
-    )
-    
-    if result.modified_count == 0:
+    # Get target user info for logging
+    target_user = await users_collection.find_one({'user_id': user_id}, {'_id': 0, 'username': 1})
+    if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    action = "granted" if data.premium else "removed"
-    duration = f" for {data.duration_days} days" if data.duration_days and data.premium else ""
+    # Get client IP for audit
+    client_ip = request.client.host
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    
+    if data.premium:
+        # Grant premium using premium service
+        result = await premium_service.grant_premium(
+            user_id=user_id,
+            duration_days=data.duration_days,
+            tier='premium',
+            granted_by=admin['user_id'],
+            reason='admin_grant'
+        )
+        
+        # Log the action
+        await admin_log_service.log_action(
+            action_type=AdminActionType.GRANT_PREMIUM,
+            admin_id=admin['user_id'],
+            admin_username=admin.get('username', 'Admin'),
+            target_id=user_id,
+            target_type='user',
+            target_username=target_user.get('username'),
+            details={
+                'duration_days': data.duration_days,
+                'grant_type': 'temporary' if data.duration_days else 'lifetime',
+                'expires_at': result.get('expires_at')
+            },
+            ip_address=client_ip
+        )
+        
+        action = "granted"
+        duration = f" for {data.duration_days} days" if data.duration_days else " (lifetime)"
+    else:
+        # Remove premium
+        await premium_service.remove_premium(
+            user_id=user_id,
+            removed_by=admin['user_id'],
+            reason='admin_removal'
+        )
+        
+        # Log the removal action
+        await admin_log_service.log_action(
+            action_type=AdminActionType.REMOVE_PREMIUM,
+            admin_id=admin['user_id'],
+            admin_username=admin.get('username', 'Admin'),
+            target_id=user_id,
+            target_type='user',
+            target_username=target_user.get('username'),
+            details={'reason': 'admin_removal'},
+            ip_address=client_ip
+        )
+        
+        action = "removed"
+        duration = ""
     
     return {'message': f'Premium {action}{duration}', 'success': True}
 
 @router.post("/users/{user_id}/admin")
-async def update_admin_status(user_id: str, data: AdminUpdate, admin = Depends(get_current_admin)):
-    """Update user admin status"""
+async def update_admin_status(user_id: str, data: AdminUpdate, request: Request, admin = Depends(get_current_admin)):
+    """Update user admin status with audit logging"""
     users_collection = get_users_collection()
+    
+    # Get target user info for logging
+    target_user = await users_collection.find_one({'user_id': user_id}, {'_id': 0, 'username': 1})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get client IP for audit
+    client_ip = request.client.host
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
     
     result = await users_collection.update_one(
         {'user_id': user_id},
@@ -435,7 +527,20 @@ async def update_admin_status(user_id: str, data: AdminUpdate, admin = Depends(g
     )
     
     if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found or no change")
+    
+    # Log the action
+    action_type = AdminActionType.GRANT_ADMIN if data.is_admin else AdminActionType.REMOVE_ADMIN
+    await admin_log_service.log_action(
+        action_type=action_type,
+        admin_id=admin['user_id'],
+        admin_username=admin.get('username', 'Admin'),
+        target_id=user_id,
+        target_type='user',
+        target_username=target_user.get('username'),
+        details={'new_admin_status': data.is_admin},
+        ip_address=client_ip
+    )
     
     return {'message': f'Admin status updated to {data.is_admin}', 'success': True}
 
@@ -485,14 +590,20 @@ async def get_reports(
     }
 
 @router.post("/reports/{report_id}/action")
-async def action_report(report_id: str, data: ReportAction, admin = Depends(get_current_admin)):
-    """Take action on a report"""
+async def action_report(report_id: str, data: ReportAction, request: Request, admin = Depends(get_current_admin)):
+    """Take action on a report with full audit logging"""
     reports_collection = get_reports_collection()
     users_collection = get_users_collection()
     
     report = await reports_collection.find_one({'report_id': report_id}, {'_id': 0})
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    
+    # Get client IP for audit
+    client_ip = request.client.host
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
     
     update_data = {
         'status': data.status,
@@ -506,18 +617,62 @@ async def action_report(report_id: str, data: ReportAction, admin = Depends(get_
         {'$set': update_data}
     )
     
+    # Determine action type for audit log
+    if data.status == 'actioned':
+        action_type = AdminActionType.ACTION_REPORT
+    elif data.status == 'ignored':
+        action_type = AdminActionType.DISMISS_REPORT
+    else:
+        action_type = AdminActionType.REVIEW_REPORT
+    
+    # Log the report action
+    await admin_log_service.log_action(
+        action_type=action_type,
+        admin_id=admin['user_id'],
+        admin_username=admin.get('username', 'Admin'),
+        target_id=report_id,
+        target_type='report',
+        target_username=report.get('reported_username'),
+        details={
+            'status': data.status,
+            'admin_notes': data.admin_notes,
+            'reported_id': report.get('reported_id'),
+            'reporter_id': report.get('reporter_id'),
+            'reason': report.get('reason'),
+            'ban_user': data.ban_user,
+            'ban_duration_hours': data.ban_duration_hours
+        },
+        ip_address=client_ip
+    )
+    
     # Ban user if requested
     if data.ban_user and report.get('reported_id'):
-        ban_data = {
-            'is_banned': True,
-            'ban_reason': f"Banned from report: {report.get('reason')}"
-        }
-        if data.ban_duration_hours:
-            ban_data['ban_expires_at'] = (datetime.now(timezone.utc) + timedelta(hours=data.ban_duration_hours)).isoformat()
+        reported_user = await users_collection.find_one({'user_id': report['reported_id']}, {'_id': 0, 'username': 1})
         
-        await users_collection.update_one(
-            {'user_id': report['reported_id']},
-            {'$set': ban_data}
+        # Use ban service
+        await ban_service.ban_user(
+            user_id=report['reported_id'],
+            reason=f"Banned from report: {report.get('reason')}",
+            duration_hours=data.ban_duration_hours,
+            banned_by=admin['user_id'],
+            is_guest=False
+        )
+        
+        # Log the ban action separately
+        action_type = AdminActionType.TEMP_BAN_USER if data.ban_duration_hours else AdminActionType.BAN_USER
+        await admin_log_service.log_action(
+            action_type=action_type,
+            admin_id=admin['user_id'],
+            admin_username=admin.get('username', 'Admin'),
+            target_id=report['reported_id'],
+            target_type='user',
+            target_username=reported_user.get('username') if reported_user else None,
+            details={
+                'reason': f"Banned from report: {report.get('reason')}",
+                'duration_hours': data.ban_duration_hours,
+                'from_report_id': report_id
+            },
+            ip_address=client_ip
         )
     
     return {'message': 'Report updated', 'success': True}
@@ -635,6 +790,43 @@ async def get_premium_users(
 # ============================================
 # SETUP / UTILITY
 # ============================================
+
+@router.get("/logs")
+async def get_admin_logs(
+    admin = Depends(get_current_admin),
+    admin_id: Optional[str] = Query(None),
+    target_id: Optional[str] = Query(None),
+    action_type: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100)
+):
+    """Get admin action audit logs with filters"""
+    result = await admin_log_service.get_logs(
+        admin_id=admin_id,
+        target_id=target_id,
+        action_type=action_type,
+        page=page,
+        limit=limit
+    )
+    return result
+
+@router.get("/logs/user/{user_id}")
+async def get_user_admin_history(user_id: str, admin = Depends(get_current_admin)):
+    """Get all admin actions taken on a specific user"""
+    logs = await admin_log_service.get_user_action_history(user_id)
+    return {'logs': logs, 'count': len(logs)}
+
+@router.post("/process-expired")
+async def process_expired_items(admin = Depends(get_current_admin)):
+    """Manually trigger processing of expired bans and premiums"""
+    unbanned_count = await ban_service.process_expired_bans()
+    expired_premium_count = await premium_service.process_expired_premiums()
+    
+    return {
+        'success': True,
+        'unbanned_users': unbanned_count,
+        'expired_premiums': expired_premium_count
+    }
 
 @router.post("/setup-admin")
 async def setup_admin_account():
