@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Filter, Sparkles, Users, Shield, Gamepad2, BadgeCheck, 
-  Zap, Globe, Camera, Ban, MessageSquare, Crown, Star
+  Zap, Globe, Camera, Ban, Crown
 } from 'lucide-react';
 
 const PremiumFeatureList = ({ compact = false }) => {
@@ -102,20 +102,10 @@ const PremiumFeatureList = ({ compact = false }) => {
         })}
       </div>
 
-      {/* Social Proof */}
-      <div className="premium-social-proof">
-        <div className="proof-item">
-          <Star className="proof-icon" size={20} />
-          <span><strong>50,000+</strong> Premium Members</span>
-        </div>
-        <div className="proof-item">
-          <MessageSquare className="proof-icon" size={20} />
-          <span><strong>4.8/5</strong> Average Rating</span>
-        </div>
-        <div className="proof-item">
-          <Users className="proof-icon" size={20} />
-          <span><strong>24/7</strong> Support</span>
-        </div>
+      {/* Growing Community - No fake numbers */}
+      <div className="premium-community-note">
+        <Crown className="community-icon" size={20} />
+        <span>Join our growing community of premium members</span>
       </div>
     </div>
   );
