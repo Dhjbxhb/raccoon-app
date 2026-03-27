@@ -10,19 +10,14 @@ import Guest from '@/pages/Guest';
 import AgeVerification from '@/pages/AgeVerification';
 import Dashboard from '@/pages/Dashboard';
 import Match from '@/pages/Match';
-import MatchPreview from '@/pages/MatchPreview';
 import Premium from '@/pages/Premium';
 import PremiumSuccess from '@/pages/PremiumSuccess';
-import GameFeud from '@/pages/GameFeud';
-import GameTruthOrDare from '@/pages/GameTruthOrDare';
 import Admin from '@/pages/Admin';
 import Profile from '@/pages/Profile';
 import Terms from '@/pages/Terms';
 import Privacy from '@/pages/Privacy';
 import Guidelines from '@/pages/Guidelines';
 import Refund from '@/pages/Refund';
-import FilterTest from '@/pages/FilterTest';
-import ChatTest from '@/pages/ChatTest';
 import '@/App.css';
 
 // Remove external branding
@@ -103,7 +98,6 @@ function AppRoutes() {
       <Route path="/guest" element={<Guest />} />
       <Route path="/premium" element={<Premium />} />
       <Route path="/premium/success" element={<PremiumSuccess />} />
-      <Route path="/match-preview" element={<MatchPreview />} />
       
       {/* Legal Pages - Public */}
       <Route path="/terms" element={<Terms />} />
@@ -139,22 +133,6 @@ function AppRoutes() {
         } 
       />
       <Route 
-        path="/game/feud" 
-        element={
-          <ProtectedRoute>
-            <GameFeud />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/game/truth-or-dare" 
-        element={
-          <ProtectedRoute>
-            <GameTruthOrDare />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
         path="/admin" 
         element={
           <ProtectedRoute>
@@ -167,22 +145,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Profile />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/filter-test" 
-        element={
-          <ProtectedRoute>
-            <FilterTest />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/chat-test" 
-        element={
-          <ProtectedRoute>
-            <ChatTest />
           </ProtectedRoute>
         } 
       />
