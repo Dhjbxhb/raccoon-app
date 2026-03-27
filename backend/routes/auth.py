@@ -13,18 +13,15 @@ import random
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-# In-memory OTP storage (in production, use Redis or DB)
-otp_storage = {}
-
 class SignupRequest(BaseModel):
     email: EmailStr
     username: str
     password: str
     gender: str
     date_of_birth: str
-    browser_locale: str | None = None  # Fallback for country detection
-    terms_accepted: bool = False  # User agreed to Terms of Service
-    privacy_accepted: bool = False  # User agreed to Privacy Policy
+    browser_locale: str | None = None
+    terms_accepted: bool = False
+    privacy_accepted: bool = False
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -32,20 +29,11 @@ class LoginRequest(BaseModel):
 
 class GuestRequest(BaseModel):
     gender: str
-    browser_locale: str | None = None  # Fallback for country detection
+    browser_locale: str | None = None
 
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse | GuestResponse
-
-class SendOTPRequest(BaseModel):
-    phone_number: str
-    browser_locale: str | None = None
-
-class VerifyOTPRequest(BaseModel):
-    phone_number: str
-    otp: str
-    browser_locale: str | None = None
 
 @router.post("/signup", response_model=AuthResponse)
 async def signup(data: SignupRequest, request: Request):
@@ -98,23 +86,22 @@ async def signup(data: SignupRequest, request: Request):
             detail="Username already taken"
         )
     
-    # Validate gender (Male or Female only)
+    # Validate gender
     if data.gender.lower() not in ['male', 'female']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Gender must be Male or Female"
         )
     
-    # Auto-detect country from IP (with browser locale fallback)
+    # Auto-detect country from IP
     client_ip = request.client.host
-    # Get X-Forwarded-For header for proxied requests
     forwarded_for = request.headers.get('X-Forwarded-For')
     if forwarded_for:
         client_ip = forwarded_for.split(',')[0].strip()
     
     country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
-    # Create user with full model
+    # Create user
     user_id = str(uuid.uuid4())
     password_hash = AuthService.hash_password(data.password)
     now = datetime.now(timezone.utc)
@@ -156,7 +143,6 @@ async def signup(data: SignupRequest, request: Request):
         "last_active": now.isoformat(),
         "last_login": now.isoformat(),
         "failed_login_attempts": 0,
-        # Legal agreement tracking
         "terms_accepted": data.terms_accepted,
         "terms_accepted_at": now.isoformat() if data.terms_accepted else None,
         "terms_version": "2025-12",
@@ -167,7 +153,6 @@ async def signup(data: SignupRequest, request: Request):
     
     await users.insert_one(user_dict)
     
-    # Create token
     token = AuthService.create_token(user_id)
     
     user_response = UserResponse(
@@ -178,7 +163,7 @@ async def signup(data: SignupRequest, request: Request):
         country_code=country_info['countryCode'],
         country_flag=country_info['flag'],
         gender=data.gender.lower(),
-        age_verified=False,  # New users need to verify age
+        age_verified=False,
         premium_status=False,
         premium_tier="free",
         is_admin=False,
@@ -191,10 +176,9 @@ async def signup(data: SignupRequest, request: Request):
 
 @router.post("/login", response_model=AuthResponse)
 async def login(data: LoginRequest):
-    """Login existing user with ban expiry check"""
+    """Login existing user"""
     users = get_users_collection()
     
-    # Find user
     user_dict = await users.find_one({"email": data.email}, {"_id": 0})
     if not user_dict:
         raise HTTPException(
@@ -202,17 +186,14 @@ async def login(data: LoginRequest):
             detail="Invalid email or password"
         )
     
-    # Verify password
     if not AuthService.verify_password(data.password, user_dict['password_hash']):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
     
-    # Import ban service for temp ban expiry check
+    # Check ban status
     from services.ban_service import ban_service
-    
-    # Check ban status with automatic temp ban expiry
     is_banned, ban_reason, ban_expires = await ban_service.check_ban_status(
         user_dict['user_id'], 
         is_guest=False
@@ -229,10 +210,8 @@ async def login(data: LoginRequest):
             detail=error_msg
         )
     
-    # Import premium service for premium expiry check
+    # Check premium status
     from services.premium_service import premium_service
-    
-    # Check and enforce premium status (auto-expire if needed)
     is_premium, premium_tier, premium_expires = await premium_service.check_premium_status(
         user_dict['user_id']
     )
@@ -247,7 +226,6 @@ async def login(data: LoginRequest):
         }}
     )
     
-    # Create token
     token = AuthService.create_token(
         user_dict['user_id'],
         is_admin=user_dict.get('is_admin', False)
@@ -262,7 +240,7 @@ async def login(data: LoginRequest):
         country_flag=user_dict.get('country_flag', '🇺🇸'),
         gender=user_dict['gender'],
         age_verified=user_dict.get('age_verified', False),
-        premium_status=is_premium,  # Use checked premium status
+        premium_status=is_premium,
         premium_tier=premium_tier,
         is_admin=user_dict.get('is_admin', False),
         is_moderator=user_dict.get('is_moderator', False),
@@ -279,28 +257,23 @@ async def guest_login(data: GuestRequest, request: Request):
     """Create guest session"""
     guests = get_guests_collection()
     
-    # Validate gender (Male or Female only)
     if data.gender.lower() not in ['male', 'female']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Gender must be Male or Female"
         )
     
-    # Auto-detect country from IP (with browser locale fallback)
     client_ip = request.client.host
-    # Get X-Forwarded-For header for proxied requests
     forwarded_for = request.headers.get('X-Forwarded-For')
     if forwarded_for:
         client_ip = forwarded_for.split(',')[0].strip()
     
     country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
-    # Generate guest ID and username
     guest_id = str(uuid.uuid4())
     guest_number = random.randint(1000, 9999)
     username = f"Guest{guest_number}"
     
-    # Check if username exists (unlikely but possible)
     existing = await guests.find_one({"username": username}, {"_id": 0})
     while existing:
         guest_number = random.randint(1000, 9999)
@@ -309,7 +282,6 @@ async def guest_login(data: GuestRequest, request: Request):
     
     now = datetime.now(timezone.utc)
     
-    # Create guest with full model
     guest_dict = {
         "guest_id": guest_id,
         "username": username,
@@ -332,14 +304,13 @@ async def guest_login(data: GuestRequest, request: Request):
     
     await guests.insert_one(guest_dict)
     
-    # Create token (1 day expiry for guests)
     token = AuthService.create_token(guest_id, is_guest=True)
     
     guest_response = GuestResponse(
         guest_id=guest_id,
         username=username,
         gender=data.gender.lower(),
-        age_verified=False,  # New guests need to verify age
+        age_verified=False,
         country=country_info['country'],
         country_code=country_info['countryCode'],
         country_flag=country_info['flag'],
@@ -432,32 +403,83 @@ class SocialAuthRequest(BaseModel):
     email: str | None = None
     displayName: str | None = None
     photoURL: str | None = None
-    phoneNumber: str | None = None
     provider: str
     idToken: str
-    browser_locale: str | None = None  # Fallback for country detection
+    browser_locale: str | None = None
+    isAnonymous: bool = False
 
 @router.post("/social", response_model=AuthResponse)
 async def social_auth(data: SocialAuthRequest, request: Request):
-    """Handle social authentication (Google, Apple, Phone)"""
+    """Handle social authentication (Google, Anonymous)"""
     users = get_users_collection()
+    guests = get_guests_collection()
     
-    # Auto-detect country from IP (with browser locale fallback)
+    # Auto-detect country from IP
     client_ip = request.client.host
-    # Get X-Forwarded-For header for proxied requests
     forwarded_for = request.headers.get('X-Forwarded-For')
     if forwarded_for:
         client_ip = forwarded_for.split(',')[0].strip()
     
     country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
-    # Check if user exists by Firebase UID or email
+    # Handle anonymous users - create as guest
+    if data.isAnonymous or data.provider == 'anonymous':
+        guest_id = str(uuid.uuid4())
+        guest_number = random.randint(1000, 9999)
+        username = f"Guest{guest_number}"
+        
+        existing = await guests.find_one({"username": username}, {"_id": 0})
+        while existing:
+            guest_number = random.randint(1000, 9999)
+            username = f"Guest{guest_number}"
+            existing = await guests.find_one({"username": username}, {"_id": 0})
+        
+        now = datetime.now(timezone.utc)
+        
+        guest_dict = {
+            "guest_id": guest_id,
+            "firebase_uid": data.uid,
+            "username": username,
+            "gender": "any",
+            "country": country_info['country'],
+            "country_code": country_info['countryCode'],
+            "country_flag": country_info['flag'],
+            "age_verified": False,
+            "session_expires_at": (now + timedelta(days=7)).isoformat(),
+            "is_active": True,
+            "is_banned": False,
+            "total_sessions": 0,
+            "total_time_spent": 0,
+            "total_matches": 0,
+            "total_messages_sent": 0,
+            "total_reports_received": 0,
+            "auth_provider": "anonymous",
+            "created_at": now.isoformat(),
+            "last_active": now.isoformat(),
+        }
+        
+        await guests.insert_one(guest_dict)
+        
+        token = AuthService.create_token(guest_id, is_guest=True)
+        
+        guest_response = GuestResponse(
+            guest_id=guest_id,
+            username=username,
+            gender="any",
+            age_verified=False,
+            country=country_info['country'],
+            country_code=country_info['countryCode'],
+            country_flag=country_info['flag'],
+            total_sessions=0,
+            total_time_spent=0
+        )
+        
+        return AuthResponse(token=token, user=guest_response)
+    
+    # Check if user exists by Firebase UID or email (for Google login)
     existing_user = None
     if data.email:
         existing_user = await users.find_one({"email": data.email}, {"_id": 0})
-    
-    if not existing_user and data.phoneNumber:
-        existing_user = await users.find_one({"phone_number": data.phoneNumber}, {"_id": 0})
     
     if not existing_user:
         existing_user = await users.find_one({"firebase_uid": data.uid}, {"_id": 0})
@@ -480,7 +502,6 @@ async def social_auth(data: SocialAuthRequest, request: Request):
                 detail="Your account has been banned"
             )
         
-        # Create token
         token = AuthService.create_token(
             existing_user['user_id'],
             is_admin=existing_user.get('is_admin', False)
@@ -503,216 +524,26 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         
         return AuthResponse(token=token, user=user_response)
     
-    # Create new user
+    # Create new user (Google sign-in)
     user_id = str(uuid.uuid4())
     username = data.displayName or f"User{random.randint(1000, 9999)}"
     
-    # Ensure username is unique
     existing_username = await users.find_one({"username": username}, {"_id": 0})
     if existing_username:
         username = f"{username}{random.randint(100, 999)}"
+    
+    now = datetime.now(timezone.utc)
     
     new_user = {
         "user_id": user_id,
         "firebase_uid": data.uid,
         "email": data.email or "",
-        "phone_number": data.phoneNumber,
         "username": username,
-        "password_hash": "",  # No password for social auth
+        "password_hash": "",
         "country": country_info['country'],
         "country_code": country_info['countryCode'],
         "country_flag": country_info['flag'],
-        "gender": "any",  # Will be set later in profile
-        "date_of_birth": None,
-        "premium_status": False,
-        "is_admin": False,
-        "is_banned": False,
-        "total_sessions": 0,
-        "total_time_spent": 0,
-        "auth_provider": data.provider,
-        "photo_url": data.photoURL,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "last_active": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await users.insert_one(new_user)
-    
-    # Create token
-    token = AuthService.create_token(user_id)
-    
-    user_response = UserResponse(
-        user_id=user_id,
-        email=data.email or "",
-        username=username,
-        country=country_info['country'],
-        country_code=country_info['countryCode'],
-        country_flag=country_info['flag'],
-        gender="any",
-        age_verified=False,  # New social users need to verify age
-        premium_status=False,
-        is_admin=False,
-        total_sessions=0,
-        total_time_spent=0
-    )
-    
-    return AuthResponse(token=token, user=user_response)
-
-
-
-@router.post("/phone/send-otp")
-async def send_phone_otp(data: SendOTPRequest, request: Request):
-    """
-    Send OTP to phone number (mock implementation)
-    In production, integrate with Twilio, AWS SNS, or similar service
-    """
-    phone = data.phone_number.strip()
-    
-    # Validate phone format
-    digits = ''.join(filter(str.isdigit, phone))
-    if len(digits) < 10:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid phone number format"
-        )
-    
-    # Generate 6-digit OTP
-    otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-    
-    # Store OTP with expiration (5 minutes)
-    otp_storage[phone] = {
-        'otp': otp,
-        'expires_at': datetime.now(timezone.utc) + timedelta(minutes=5),
-        'attempts': 0
-    }
-    
-    # In production, send actual SMS here
-    # For now, log it (would be sent via Twilio/SNS in production)
-    print(f"[DEV] OTP for {phone}: {otp}")
-    
-    return {
-        "success": True,
-        "message": "Verification code sent",
-        # In development, return OTP for testing (remove in production!)
-        "dev_otp": otp if request.app.debug else None
-    }
-
-
-@router.post("/phone/verify-otp", response_model=AuthResponse)
-async def verify_phone_otp(data: VerifyOTPRequest, request: Request):
-    """
-    Verify OTP and authenticate/create user
-    """
-    phone = data.phone_number.strip()
-    otp = data.otp.strip()
-    
-    # Check if OTP exists
-    stored = otp_storage.get(phone)
-    if not stored:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No verification code found. Please request a new code."
-        )
-    
-    # Check expiration
-    if datetime.now(timezone.utc) > stored['expires_at']:
-        del otp_storage[phone]
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification code expired. Please request a new code."
-        )
-    
-    # Check attempts
-    if stored['attempts'] >= 3:
-        del otp_storage[phone]
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Too many failed attempts. Please request a new code."
-        )
-    
-    # Verify OTP
-    if stored['otp'] != otp:
-        otp_storage[phone]['attempts'] += 1
-        remaining = 3 - otp_storage[phone]['attempts']
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid verification code. {remaining} attempts remaining."
-        )
-    
-    # OTP verified - clean up
-    del otp_storage[phone]
-    
-    # Auto-detect country from IP
-    client_ip = request.client.host
-    forwarded_for = request.headers.get('X-Forwarded-For')
-    if forwarded_for:
-        client_ip = forwarded_for.split(',')[0].strip()
-    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
-    
-    # Check if user exists with this phone number
-    users = get_users_collection()
-    existing_user = await users.find_one({"phone_number": phone}, {"_id": 0})
-    
-    if existing_user:
-        # Check if banned
-        if existing_user.get('is_banned', False):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your account has been banned"
-            )
-        
-        # Update last active
-        await users.update_one(
-            {"phone_number": phone},
-            {"$set": {"last_active": datetime.now(timezone.utc).isoformat()}}
-        )
-        
-        # Create token
-        token = AuthService.create_token(
-            existing_user['user_id'],
-            is_admin=existing_user.get('is_admin', False)
-        )
-        
-        user_response = UserResponse(
-            user_id=existing_user['user_id'],
-            email=existing_user.get('email', ''),
-            username=existing_user['username'],
-            country=existing_user.get('country', country_info['country']),
-            country_code=existing_user.get('country_code', country_info['countryCode']),
-            country_flag=existing_user.get('country_flag', country_info['flag']),
-            gender=existing_user.get('gender', 'any'),
-            age_verified=existing_user.get('age_verified', False),
-            premium_status=existing_user.get('premium_status', False),
-            is_admin=existing_user.get('is_admin', False),
-            total_sessions=existing_user.get('total_sessions', 0),
-            total_time_spent=existing_user.get('total_time_spent', 0)
-        )
-        
-        return AuthResponse(token=token, user=user_response)
-    
-    # Create new user
-    user_id = str(uuid.uuid4())
-    username = f"User{random.randint(1000, 9999)}"
-    
-    # Ensure username is unique
-    existing_username = await users.find_one({"username": username}, {"_id": 0})
-    while existing_username:
-        username = f"User{random.randint(1000, 9999)}"
-        existing_username = await users.find_one({"username": username}, {"_id": 0})
-    
-    # Generate unique placeholder email for phone users (to satisfy unique index)
-    placeholder_email = f"phone_{phone.replace('+', '')}@phone.local"
-    
-    new_user = {
-        "user_id": user_id,
-        "phone_number": phone,
-        "email": placeholder_email,  # Unique placeholder for index compatibility
-        "username": username,
-        "password_hash": "",  # No password for phone auth
-        "login_method": "phone",
-        "country": country_info['country'],
-        "country_code": country_info['countryCode'],
-        "country_flag": country_info['flag'],
-        "gender": "any",  # Will be set later in profile
+        "gender": "any",
         "date_of_birth": None,
         "age_verified": False,
         "account_status": "active",
@@ -726,21 +557,26 @@ async def verify_phone_otp(data: VerifyOTPRequest, request: Request):
         "total_matches": 0,
         "total_messages_sent": 0,
         "total_reports_received": 0,
-        "phone_verified": True,  # Verified via OTP
-        "auth_provider": "phone",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "last_active": datetime.now(timezone.utc).isoformat()
+        "auth_provider": data.provider,
+        "photo_url": data.photoURL,
+        "terms_accepted": True,
+        "terms_accepted_at": now.isoformat(),
+        "terms_version": "2025-12",
+        "privacy_accepted": True,
+        "privacy_accepted_at": now.isoformat(),
+        "privacy_version": "2025-12",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+        "last_active": now.isoformat()
     }
     
     await users.insert_one(new_user)
     
-    # Create token
     token = AuthService.create_token(user_id)
     
     user_response = UserResponse(
         user_id=user_id,
-        email="",
+        email=data.email or "",
         username=username,
         country=country_info['country'],
         country_code=country_info['countryCode'],
@@ -754,16 +590,3 @@ async def verify_phone_otp(data: VerifyOTPRequest, request: Request):
     )
     
     return AuthResponse(token=token, user=user_response)
-
-
-@router.post("/phone/resend-otp")
-async def resend_phone_otp(data: SendOTPRequest, request: Request):
-    """Resend OTP - same as send but clears previous code first"""
-    phone = data.phone_number.strip()
-    
-    # Clear previous OTP if exists
-    if phone in otp_storage:
-        del otp_storage[phone]
-    
-    # Call send_otp logic
-    return await send_phone_otp(data, request)

@@ -9,12 +9,10 @@ import {
   AuthCard, 
   AuthInput, 
   AuthButton, 
-  AuthDivider,
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
-import { SocialAuthButtonGrid } from '@/components/auth/SocialAuthButtons';
-import { PhoneAuth } from '@/components/auth/PhoneAuth';
-import { isFirebaseReady, signInWithGoogle, signInWithApple, setupRecaptcha, sendOTP, verifyOTP } from '@/services/firebase.service';
+import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
+import { isFirebaseReady, signInWithGoogle, signInAnonymousUser } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
   getErrorMessage,
@@ -32,9 +30,6 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(null);
-  
-  // Auth mode: 'email' | 'phone'
-  const [authMode, setAuthMode] = useState('email');
 
   const firebaseReady = isFirebaseReady();
 
@@ -61,10 +56,8 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Prevent duplicate submits
     if (loading) return;
     
-    // Client-side validation
     const validation = validateLoginForm(formData.email, formData.password);
     if (!validation.valid) {
       setErrors(validation.errors);
@@ -80,11 +73,9 @@ const Login = () => {
         password: formData.password
       });
       
-      // Store token and user data
       login(response.data.token, response.data.user);
       toast.success('Welcome back!');
       
-      // Redirect based on age verification status
       if (response.data.user.age_verified) {
         navigate('/dashboard');
       } else {
@@ -93,7 +84,6 @@ const Login = () => {
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       
-      // Show inline error for credential issues
       if (errorMsg.toLowerCase().includes('email') || errorMsg.toLowerCase().includes('password')) {
         setErrors({ form: errorMsg });
       } else if (errorMsg.toLowerCase().includes('banned')) {
@@ -150,93 +140,28 @@ const Login = () => {
     }
   };
 
-  // Apple login handler
-  const handleAppleLogin = async () => {
-    if (!firebaseReady) {
-      toast.info('Apple login requires Firebase configuration');
-      return;
-    }
+  // Anonymous login handler - creates guest user via backend
+  const handleAnonymousLogin = async () => {
     if (socialLoading) return;
-
-    setSocialLoading('apple');
-    try {
-      const userData = await signInWithApple();
-      await syncSocialAuth(userData);
-    } catch (error) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast.error('Apple login failed');
-      }
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
-  // Phone auth state
-  const [phoneNumberForVerify, setPhoneNumberForVerify] = useState('');
-
-  // Phone auth handlers
-  const handlePhoneSendOTP = async (phoneNumber) => {
-    setPhoneNumberForVerify(phoneNumber); // Store for verification
     
-    if (firebaseReady) {
-      // Use Firebase phone auth
-      await setupRecaptcha('recaptcha-container');
-      await sendOTP(phoneNumber);
-    } else {
-      // Use backend OTP (mock)
-      const response = await axios.post(`${API_URL}/auth/phone/send-otp`, {
-        phone_number: phoneNumber,
-        browser_locale: getBrowserLocale()
-      });
-      if (response.data.dev_otp) {
-        toast.info(`Dev mode - OTP: ${response.data.dev_otp}`);
-      }
-    }
-  };
-
-  const handlePhoneVerifyOTP = async (otp) => {
-    if (firebaseReady) {
-      // Use Firebase verification
-      const userData = await verifyOTP(otp);
-      await syncSocialAuth(userData);
-      return userData;
-    } else {
-      // Use backend verification with stored phone number
-      const response = await axios.post(`${API_URL}/auth/phone/verify-otp`, {
-        phone_number: phoneNumberForVerify,
-        otp: otp,
-        browser_locale: getBrowserLocale()
-      });
-      login(response.data.token, response.data.user);
-      toast.success('Welcome!');
-      
-      if (response.data.user.age_verified) {
-        navigate('/dashboard');
+    setSocialLoading('anonymous');
+    try {
+      // If Firebase is ready, use Firebase anonymous auth
+      if (firebaseReady) {
+        const userData = await signInAnonymousUser();
+        await syncSocialAuth(userData);
       } else {
+        // Fallback to backend guest creation
+        const browserLocale = getBrowserLocale();
+        const response = await axios.post(`${API_URL}/auth/guest`, { 
+          gender: 'male',
+          browser_locale: browserLocale
+        });
+        
+        login(response.data.token, response.data.user);
+        toast.success(`Welcome, ${response.data.user.username}!`);
         navigate('/verify-age');
       }
-      return response.data;
-    }
-  };
-
-  // Guest login handler - creates real backend user
-  const handleGuestLogin = async () => {
-    if (socialLoading) return;
-    
-    setSocialLoading('guest');
-    try {
-      const browserLocale = getBrowserLocale();
-      const response = await axios.post(`${API_URL}/auth/guest`, { 
-        gender: 'male', // Default to male for guest
-        browser_locale: browserLocale
-      });
-      
-      // Store token and user - this creates a REAL backend user
-      login(response.data.token, response.data.user);
-      toast.success(`Welcome, ${response.data.user.username}!`);
-      
-      // Guests always need age verification
-      navigate('/verify-age');
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -261,73 +186,56 @@ const Login = () => {
         title="Welcome Back"
         subtitle="Sign in to continue to Raccoon"
       >
-        {authMode === 'email' ? (
-          <>
-            {/* Email/Password Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Form-level error */}
-              {errors.form && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm" data-testid="login-form-error">
-                  {errors.form}
-                </div>
-              )}
-              
-              <AuthInput
-                label="Email"
-                icon={Mail}
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleFieldChange('email', e.target.value)}
-                placeholder="your@email.com"
-                required
-                autoComplete="email"
-                testId="login-email-input"
-                error={errors.email}
-              />
-              <AuthInput
-                label="Password"
-                icon={Lock}
-                type="password"
-                value={formData.password}
-                onChange={(e) => handleFieldChange('password', e.target.value)}
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-                testId="login-password-input"
-                error={errors.password}
-              />
-              <AuthButton 
-                loading={loading} 
-                disabled={loading || !!socialLoading}
-                testId="login-submit-button"
-              >
-                Sign In
-                <ArrowRight size={18} />
-              </AuthButton>
-            </form>
-
-            <AuthDivider />
-
-            {/* Social Login Grid */}
-            <SocialAuthButtonGrid
-              onGoogleClick={handleGoogleLogin}
-              onAppleClick={handleAppleLogin}
-              onPhoneClick={() => setAuthMode('phone')}
-              onGuestClick={handleGuestLogin}
-              loadingProvider={socialLoading}
-              disabled={loading}
-            />
-          </>
-        ) : (
-          /* Phone Auth Flow */
-          <PhoneAuth
-            onSendOTP={handlePhoneSendOTP}
-            onVerifyOTP={handlePhoneVerifyOTP}
-            onBack={() => setAuthMode('email')}
-            loading={!!socialLoading}
-            firebaseReady={firebaseReady}
+        {/* Email/Password Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Form-level error */}
+          {errors.form && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm" data-testid="login-form-error">
+              {errors.form}
+            </div>
+          )}
+          
+          <AuthInput
+            label="Email"
+            icon={Mail}
+            type="email"
+            value={formData.email}
+            onChange={(e) => handleFieldChange('email', e.target.value)}
+            placeholder="your@email.com"
+            required
+            autoComplete="email"
+            testId="login-email-input"
+            error={errors.email}
           />
-        )}
+          <AuthInput
+            label="Password"
+            icon={Lock}
+            type="password"
+            value={formData.password}
+            onChange={(e) => handleFieldChange('password', e.target.value)}
+            placeholder="••••••••"
+            required
+            autoComplete="current-password"
+            testId="login-password-input"
+            error={errors.password}
+          />
+          <AuthButton 
+            loading={loading} 
+            disabled={loading || !!socialLoading}
+            testId="login-submit-button"
+          >
+            Sign In
+            <ArrowRight size={18} />
+          </AuthButton>
+        </form>
+
+        {/* Social Login Section - Google + Anonymous */}
+        <SocialAuthSection
+          onGoogleClick={handleGoogleLogin}
+          onAnonymousClick={handleAnonymousLogin}
+          loadingProvider={socialLoading}
+          disabled={loading}
+        />
 
         <AuthFooterLink 
           text="Don't have an account?"

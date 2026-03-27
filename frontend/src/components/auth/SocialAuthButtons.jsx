@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, User } from 'lucide-react';
 
 /**
  * Social Auth Button Icons
@@ -13,21 +13,9 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const AppleIcon = () => (
+const AnonymousIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-  </svg>
-);
-
-const PhoneIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-  </svg>
-);
-
-const GuestIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
   </svg>
 );
 
@@ -41,32 +29,23 @@ export const SocialAuthButton = ({
   loading = false, 
   disabled = false,
   testId,
-  className = ''
+  className = '',
+  fullWidth = false
 }) => {
   const providerConfig = {
     google: {
       icon: GoogleIcon,
-      label: 'Google',
-      bgClass: 'bg-white/5 hover:bg-white/10',
-      textClass: 'text-white'
+      label: 'Continue with Google',
+      bgClass: 'bg-white hover:bg-gray-100',
+      textClass: 'text-gray-800',
+      borderClass: 'border-gray-300'
     },
-    apple: {
-      icon: AppleIcon,
-      label: 'Apple',
+    anonymous: {
+      icon: AnonymousIcon,
+      label: 'Continue as Guest',
       bgClass: 'bg-white/5 hover:bg-white/10',
-      textClass: 'text-white'
-    },
-    phone: {
-      icon: PhoneIcon,
-      label: 'Phone',
-      bgClass: 'bg-white/5 hover:bg-white/10',
-      textClass: 'text-white'
-    },
-    guest: {
-      icon: GuestIcon,
-      label: 'Guest',
-      bgClass: 'bg-white/5 hover:bg-white/10',
-      textClass: 'text-white'
+      textClass: 'text-white',
+      borderClass: 'border-white/20'
     }
   };
 
@@ -82,12 +61,12 @@ export const SocialAuthButton = ({
       disabled={disabled || loading}
       data-testid={testId}
       className={`
-        flex items-center justify-center gap-2 py-3 px-4 rounded-xl
-        border border-white/10 hover:border-white/20
-        transition-all duration-200 
+        flex items-center justify-center gap-3 py-3 px-4 rounded-xl
+        border transition-all duration-200 
         hover:scale-[1.02] active:scale-[0.98]
         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-        ${config.bgClass} ${config.textClass}
+        ${config.bgClass} ${config.textClass} ${config.borderClass}
+        ${fullWidth ? 'w-full' : ''}
         ${className}
       `}
       style={{ fontFamily: 'Manrope, sans-serif' }}
@@ -103,47 +82,45 @@ export const SocialAuthButton = ({
 };
 
 /**
- * Social Auth Button Grid
- * Pre-configured grid of social auth buttons
+ * Social Auth Section - Google + Anonymous Only
+ * Clean section with "OR continue with" text
  */
-export const SocialAuthButtonGrid = ({
+export const SocialAuthSection = ({
   onGoogleClick,
-  onAppleClick,
-  onPhoneClick,
-  onGuestClick,
+  onAnonymousClick,
   loadingProvider = null,
   disabled = false,
   className = ''
 }) => {
   return (
-    <div className={`grid grid-cols-2 gap-3 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
+      {/* Divider text */}
+      <div className="flex items-center gap-4 my-4">
+        <div className="flex-1 h-px bg-white/10" />
+        <span className="text-xs text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          Or continue with
+        </span>
+        <div className="flex-1 h-px bg-white/10" />
+      </div>
+      
+      {/* Google Button - Full Width */}
       <SocialAuthButton
         provider="google"
         onClick={onGoogleClick}
         loading={loadingProvider === 'google'}
         disabled={disabled || (loadingProvider && loadingProvider !== 'google')}
         testId="social-google-button"
+        fullWidth
       />
+      
+      {/* Anonymous/Guest Button - Full Width */}
       <SocialAuthButton
-        provider="apple"
-        onClick={onAppleClick}
-        loading={loadingProvider === 'apple'}
-        disabled={disabled || (loadingProvider && loadingProvider !== 'apple')}
-        testId="social-apple-button"
-      />
-      <SocialAuthButton
-        provider="phone"
-        onClick={onPhoneClick}
-        loading={loadingProvider === 'phone'}
-        disabled={disabled || (loadingProvider && loadingProvider !== 'phone')}
-        testId="social-phone-button"
-      />
-      <SocialAuthButton
-        provider="guest"
-        onClick={onGuestClick}
-        loading={loadingProvider === 'guest'}
-        disabled={disabled || (loadingProvider && loadingProvider !== 'guest')}
-        testId="social-guest-button"
+        provider="anonymous"
+        onClick={onAnonymousClick}
+        loading={loadingProvider === 'anonymous'}
+        disabled={disabled || (loadingProvider && loadingProvider !== 'anonymous')}
+        testId="social-anonymous-button"
+        fullWidth
       />
     </div>
   );
