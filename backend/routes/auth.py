@@ -23,6 +23,8 @@ class SignupRequest(BaseModel):
     gender: str
     date_of_birth: str
     browser_locale: str | None = None  # Fallback for country detection
+    terms_accepted: bool = False  # User agreed to Terms of Service
+    privacy_accepted: bool = False  # User agreed to Privacy Policy
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -49,6 +51,13 @@ class VerifyOTPRequest(BaseModel):
 async def signup(data: SignupRequest, request: Request):
     """Register new user"""
     users = get_users_collection()
+    
+    # Validate terms acceptance
+    if not data.terms_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must agree to the Terms of Service to register"
+        )
     
     # Validate age
     if not validate_age(data.date_of_birth):
@@ -147,6 +156,13 @@ async def signup(data: SignupRequest, request: Request):
         "last_active": now.isoformat(),
         "last_login": now.isoformat(),
         "failed_login_attempts": 0,
+        # Legal agreement tracking
+        "terms_accepted": data.terms_accepted,
+        "terms_accepted_at": now.isoformat() if data.terms_accepted else None,
+        "terms_version": "2025-12",
+        "privacy_accepted": data.privacy_accepted or data.terms_accepted,
+        "privacy_accepted_at": now.isoformat() if (data.privacy_accepted or data.terms_accepted) else None,
+        "privacy_version": "2025-12",
     }
     
     await users.insert_one(user_dict)

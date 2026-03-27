@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * - Auto-rejoin queue after skip
  * - Block user functionality
  * - Prevents stale state leaking between matches
+ * - Optimized socket listener management
  */
 export const useMatching = (socket) => {
   // Core state
@@ -24,113 +25,145 @@ export const useMatching = (socket) => {
   const skipTimeoutRef = useRef(null);
   const lastFiltersRef = useRef({ gender: 'any', country: 'ANY' });
   const autoRejoinRef = useRef(true);
+  
+  // Track if component is mounted to prevent state updates after unmount
+  const mountedRef = useRef(true);
+  // Track current socket to prevent stale listeners
+  const socketIdRef = useRef(null);
 
   // Clean reset of all match-related state
   const resetMatchState = useCallback(() => {
+    if (!mountedRef.current) return;
     setPartner(null);
     setSessionId(null);
     setIsSkipping(false);
   }, []);
 
-  useEffect(() => {
-    if (!socket) return;
+  // Socket event handlers defined outside useEffect for stable references
+  const handleQueueJoined = useCallback((data) => {
+    if (!mountedRef.current) return;
+    setState('searching');
+    setQueuePosition(data.position);
+    setQueueStats({ totalWaiting: data.total_waiting });
+  }, []);
 
-    // Queue events
-    const onQueueJoined = (data) => {
-      setState('searching');
-      setQueuePosition(data.position);
-      setQueueStats({ totalWaiting: data.total_waiting });
-      console.log('Joined queue:', data);
-    };
-
-    const onQueueLeft = (data) => {
-      if (!isSkipping) {
-        setState('idle');
-        setQueuePosition(null);
+  const handleQueueLeft = useCallback((data) => {
+    if (!mountedRef.current) return;
+    // Only reset to idle if not in skip flow
+    setState(prev => {
+      // Check the ref instead of state to avoid stale closure
+      if (!skipTimeoutRef.current) {
+        return 'idle';
       }
-      console.log('Left queue:', data);
-    };
+      return prev;
+    });
+    setQueuePosition(null);
+  }, []);
 
-    // Match events
-    const onMatchFound = (data) => {
-      setState('matched');
-      setPartner(data.partner);
-      setSessionId(data.session_id);
-      setQueuePosition(null);
-      setIsSkipping(false);
-      console.log('Match found:', data);
-    };
+  const handleMatchFound = useCallback((data) => {
+    if (!mountedRef.current) return;
+    setState('matched');
+    setPartner(data.partner);
+    setSessionId(data.session_id);
+    setQueuePosition(null);
+    setIsSkipping(false);
+    
+    // Clear any pending skip timeout
+    if (skipTimeoutRef.current) {
+      clearTimeout(skipTimeoutRef.current);
+      skipTimeoutRef.current = null;
+    }
+  }, []);
 
-    const onMatchEnded = (data) => {
-      console.log('Match ended:', data.reason);
-      
-      // Clean up state
-      resetMatchState();
-      
-      // Auto-rejoin queue if we were the one who skipped
-      if (data.reason === 'skipped' && autoRejoinRef.current) {
-        // Small delay to ensure clean state transition
-        setTimeout(() => {
-          if (socket?.connected) {
-            setState('searching');
-            socket.emit('join_queue', {
-              gender_filter: lastFiltersRef.current.gender,
-              country_filter: lastFiltersRef.current.country
-            });
-          }
-        }, 100);
-      } else {
-        // Partner skipped or other reason - return to idle
-        setState('idle');
-      }
-    };
-
-    const onPartnerDisconnected = (data) => {
-      console.log('Partner disconnected:', data);
-      resetMatchState();
-      
-      // Auto-rejoin queue
-      if (autoRejoinRef.current && socket?.connected) {
-        setTimeout(() => {
+  const handleMatchEnded = useCallback((data) => {
+    if (!mountedRef.current) return;
+    
+    // Clean up state
+    resetMatchState();
+    
+    // Auto-rejoin queue if we were the one who skipped
+    if (data.reason === 'skipped' && autoRejoinRef.current) {
+      // Small delay to ensure clean state transition
+      setTimeout(() => {
+        if (mountedRef.current && socket?.connected) {
           setState('searching');
           socket.emit('join_queue', {
             gender_filter: lastFiltersRef.current.gender,
             country_filter: lastFiltersRef.current.country
           });
-        }, 100);
-      } else {
-        setState('idle');
-      }
-    };
+        }
+      }, 100);
+    } else {
+      // Partner skipped or other reason - return to idle
+      setState('idle');
+    }
+  }, [socket, resetMatchState]);
 
-    // Error handling
-    const onError = (data) => {
-      console.error('Socket error:', data);
-      setIsSkipping(false);
-    };
+  const handlePartnerDisconnected = useCallback((data) => {
+    if (!mountedRef.current) return;
+    
+    resetMatchState();
+    
+    // Auto-rejoin queue
+    if (autoRejoinRef.current && socket?.connected) {
+      setTimeout(() => {
+        if (mountedRef.current) {
+          setState('searching');
+          socket.emit('join_queue', {
+            gender_filter: lastFiltersRef.current.gender,
+            country_filter: lastFiltersRef.current.country
+          });
+        }
+      }, 100);
+    } else {
+      setState('idle');
+    }
+  }, [socket, resetMatchState]);
 
-    // Register event listeners
-    socket.on('queue_joined', onQueueJoined);
-    socket.on('queue_left', onQueueLeft);
-    socket.on('match_found', onMatchFound);
-    socket.on('match_ended', onMatchEnded);
-    socket.on('partner_disconnected', onPartnerDisconnected);
-    socket.on('error', onError);
+  const handleError = useCallback((data) => {
+    console.error('Socket error:', data);
+    if (!mountedRef.current) return;
+    setIsSkipping(false);
+  }, []);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    
     return () => {
-      socket.off('queue_joined', onQueueJoined);
-      socket.off('queue_left', onQueueLeft);
-      socket.off('match_found', onMatchFound);
-      socket.off('match_ended', onMatchEnded);
-      socket.off('partner_disconnected', onPartnerDisconnected);
-      socket.off('error', onError);
-      
-      // Clear any pending timeouts
+      mountedRef.current = false;
+      // Clear any pending timeouts on unmount
       if (skipTimeoutRef.current) {
         clearTimeout(skipTimeoutRef.current);
+        skipTimeoutRef.current = null;
       }
     };
-  }, [socket, isSkipping, resetMatchState]);
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    // Prevent duplicate listeners if socket hasn't changed
+    if (socketIdRef.current === socket.id) return;
+    socketIdRef.current = socket.id;
+
+    // Register event listeners
+    socket.on('queue_joined', handleQueueJoined);
+    socket.on('queue_left', handleQueueLeft);
+    socket.on('match_found', handleMatchFound);
+    socket.on('match_ended', handleMatchEnded);
+    socket.on('partner_disconnected', handlePartnerDisconnected);
+    socket.on('error', handleError);
+
+    return () => {
+      socket.off('queue_joined', handleQueueJoined);
+      socket.off('queue_left', handleQueueLeft);
+      socket.off('match_found', handleMatchFound);
+      socket.off('match_ended', handleMatchEnded);
+      socket.off('partner_disconnected', handlePartnerDisconnected);
+      socket.off('error', handleError);
+      socketIdRef.current = null;
+    };
+  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handlePartnerDisconnected, handleError]);
 
   // Start matching
   const startMatching = useCallback((genderFilter = 'any', countryFilter = 'ANY') => {
@@ -161,7 +194,6 @@ export const useMatching = (socket) => {
   const skipMatch = useCallback(() => {
     if (!socket || state !== 'matched' || isSkipping) return;
     
-    console.log('Skipping match...');
     setIsSkipping(true);
     
     // Emit skip event
@@ -169,6 +201,7 @@ export const useMatching = (socket) => {
     
     // Safety timeout - if no response in 3 seconds, force reset
     skipTimeoutRef.current = setTimeout(() => {
+      if (!mountedRef.current) return;
       console.warn('Skip timeout - forcing state reset');
       resetMatchState();
       setState('searching');

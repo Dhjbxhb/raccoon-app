@@ -117,6 +117,8 @@ const Landing = () => {
             <Link to="/privacy" className="hover:text-gray-400 transition-colors">Privacy</Link>
             <span>•</span>
             <Link to="/guidelines" className="hover:text-gray-400 transition-colors">Guidelines</Link>
+            <span>•</span>
+            <Link to="/refund" className="hover:text-gray-400 transition-colors">Refund</Link>
           </div>
           <p className="text-xs text-gray-700" style={{ fontFamily: 'Manrope, sans-serif' }}>
             18+ only • Video chat with strangers

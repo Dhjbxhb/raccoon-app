@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, memo } from 'react';
 
 /**
  * SpaceBackground - Cinematic animated starfield background
@@ -7,20 +7,26 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
  * - Subtle animated nebula gradients
  * - Twinkling star animations
  * - Shooting stars
- * - Performant on mobile
+ * - Performant on mobile (reduced animations, memoized)
  */
 
-const SpaceBackground = ({ 
+const SpaceBackground = memo(({ 
   intensity = 'normal', // 'minimal', 'normal', 'intense'
   showNebula = true,
   showShootingStars = true,
   className = ''
 }) => {
   const containerRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  // Use window dimensions for initial render to prevent layout shifts
+  const [dimensions, setDimensions] = useState({ 
+    width: typeof window !== 'undefined' ? window.innerWidth : 1920, 
+    height: typeof window !== 'undefined' ? window.innerHeight : 1080 
+  });
 
-  // Update dimensions on resize
+  // Update dimensions on resize with debounce
   useEffect(() => {
+    let resizeTimeout;
+    
     const updateDimensions = () => {
       if (containerRef.current) {
         setDimensions({
@@ -30,9 +36,17 @@ const SpaceBackground = ({
       }
     };
     
+    const debouncedResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updateDimensions, 150);
+    };
+    
     updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    window.addEventListener('resize', debouncedResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', debouncedResize);
+      clearTimeout(resizeTimeout);
+    };
   }, []);
 
   // Star count based on intensity
@@ -199,7 +213,7 @@ const SpaceBackground = ({
       `}</style>
     </div>
   );
-};
+});
 
 // Generate star data
 function generateStars(count, minOpacity, maxOpacity, minSize, maxSize) {
@@ -223,8 +237,8 @@ function generateStars(count, minOpacity, maxOpacity, minSize, maxSize) {
   return stars;
 }
 
-// Individual Star component
-const Star = ({ x, y, size, opacity, twinkleDuration, twinkleDelay, color }) => (
+// Individual Star component - memoized to prevent re-renders
+const Star = memo(({ x, y, size, opacity, twinkleDuration, twinkleDelay, color }) => (
   <div
     className="absolute rounded-full"
     style={{
@@ -239,18 +253,21 @@ const Star = ({ x, y, size, opacity, twinkleDuration, twinkleDelay, color }) => 
       animationDelay: `${twinkleDelay}s`,
       boxShadow: size > 2 
         ? `0 0 ${size}px ${color === 'white' ? 'rgba(255,255,255,0.5)' : color}` 
-        : 'none'
+        : 'none',
+      willChange: 'opacity, transform'
     }}
   />
-);
+));
+Star.displayName = 'Star';
 
-// Shooting stars component
-const ShootingStars = ({ count = 3 }) => {
+// Shooting stars component - optimized with useCallback
+const ShootingStars = memo(({ count = 3 }) => {
   const [shootingStars, setShootingStars] = useState([]);
+  const timeoutsRef = useRef([]);
 
   useEffect(() => {
     const createShootingStar = () => {
-      const id = Date.now();
+      const id = Date.now() + Math.random();
       const star = {
         id,
         x: 10 + Math.random() * 60,
@@ -262,15 +279,18 @@ const ShootingStars = ({ count = 3 }) => {
       setShootingStars(prev => [...prev.slice(-count + 1), star]);
       
       // Remove after animation
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         setShootingStars(prev => prev.filter(s => s.id !== id));
       }, star.duration * 1000);
+      
+      timeoutsRef.current.push(timeout);
     };
 
     // Initial delay
     const initialTimeout = setTimeout(() => {
       createShootingStar();
     }, 3000);
+    timeoutsRef.current.push(initialTimeout);
 
     // Random interval for shooting stars (8-20 seconds)
     const interval = setInterval(() => {
@@ -280,8 +300,9 @@ const ShootingStars = ({ count = 3 }) => {
     }, 8000 + Math.random() * 12000);
 
     return () => {
-      clearTimeout(initialTimeout);
       clearInterval(interval);
+      timeoutsRef.current.forEach(t => clearTimeout(t));
+      timeoutsRef.current = [];
     };
   }, [count]);
 
@@ -300,12 +321,14 @@ const ShootingStars = ({ count = 3 }) => {
             borderRadius: '2px',
             transform: `rotate(${star.angle}deg)`,
             animation: `shootingStar ${star.duration}s ease-out forwards`,
-            boxShadow: '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(124,58,237,0.5)'
+            boxShadow: '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(124,58,237,0.5)',
+            willChange: 'transform, opacity'
           }}
         />
       ))}
     </>
   );
-};
+});
+ShootingStars.displayName = 'ShootingStars';
 
 export default SpaceBackground;

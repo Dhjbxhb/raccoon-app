@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { X, RotateCcw, Star, Send } from 'lucide-react';
 import '@/styles/games.css';
 
@@ -10,8 +10,9 @@ import '@/styles/games.css';
  * - Mobile (stacked): TOP = stranger, BOTTOM = me
  * 
  * Backend determines the random result, frontend syncs the animation.
+ * Memoized to prevent unnecessary re-renders.
  */
-const TruthOrDare = ({ 
+const TruthOrDare = memo(({ 
   isOpen, 
   onClose, 
   socket,
@@ -27,6 +28,8 @@ const TruthOrDare = ({
   const [roundsCompleted, setRoundsCompleted] = useState(0);
   
   const questionInputRef = useRef(null);
+  const mountedRef = useRef(true);
+  const socketIdRef = useRef(null);
   
   // Determine if I'm the selected player (must answer) or the asker
   const isSelected = gameState?.selected_player === myUserId;
@@ -34,28 +37,45 @@ const TruthOrDare = ({
   const selectedUsername = gameState?.selected_username || 'Player';
   const askerUsername = gameState?.asker_username || 'Player';
   
+  // Track mount state
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  
   // Socket event handlers
   useEffect(() => {
     if (!socket) return;
     
+    // Prevent duplicate listeners
+    if (socketIdRef.current === socket.id) return;
+    socketIdRef.current = socket.id;
+    
     const handleGameStarted = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
       setSpinRotation(data.game_state.spin_rotation || 0);
       setRoundsCompleted(data.game_state.rounds_played || 0);
     };
     
     const handleSpinResult = (data) => {
+      if (!mountedRef.current) return;
       // Animate to the backend-determined rotation
       setSpinRotation(data.spin_rotation);
       
       // After animation completes, update state
       setTimeout(() => {
-        setIsSpinning(false);
-        setGameState(data.game_state);
+        if (mountedRef.current) {
+          setIsSpinning(false);
+          setGameState(data.game_state);
+        }
       }, 2000);
     };
     
     const handleChoiceMade = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
       // If I'm the asker, focus on input
       if (data.asker === myUserId && questionInputRef.current) {
@@ -64,15 +84,18 @@ const TruthOrDare = ({
     };
     
     const handleQuestionSubmitted = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
     };
     
     const handleRoundComplete = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
       setRoundsCompleted(data.rounds_played);
     };
     
     const handleGameEnded = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
     };
     
@@ -96,6 +119,7 @@ const TruthOrDare = ({
       socket.off('tod_round_complete', handleRoundComplete);
       socket.off('tod_game_ended', handleGameEnded);
       socket.off('tod_error', handleError);
+      socketIdRef.current = null;
     };
   }, [socket, myUserId]);
   
@@ -396,6 +420,8 @@ const TruthOrDare = ({
       </div>
     </div>
   );
-};
+});
+
+TruthOrDare.displayName = 'TruthOrDare';
 
 export default TruthOrDare;

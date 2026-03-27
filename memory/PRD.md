@@ -13,7 +13,49 @@ Build a premium real-time social matching platform for text and video chat. The 
 - Social login structure (Google, Apple, Phone OTP) - awaiting Firebase config
 - JWT token-based authentication
 - Age verification (18+) on first entry
-- Terms & Privacy checkbox on signup
+- Terms & Privacy checkbox on signup with acceptance timestamp tracking
+
+### Legal System (TASK 39)
+- **Terms of Service** (`/terms`) - Full production-ready legal page
+- **Privacy Policy** (`/privacy`) - Complete privacy documentation
+- **Refund Policy** (`/refund`) - 7-day satisfaction guarantee
+- **Community Guidelines** (`/guidelines`) - Aligned with moderation system
+- Footer with all legal links
+- Landing page legal links
+- Premium page legal links (Refund, Terms, Privacy)
+- User model tracks `terms_accepted`, `terms_accepted_at`, `privacy_accepted`, `privacy_accepted_at`
+- Backend validation blocks signup without terms acceptance
+
+### Performance Optimization (TASK 40)
+**Frontend:**
+- React.memo() on SpaceBackground, Star, ShootingStars, FeudGame, TruthOrDare
+- Debounced resize handlers
+- Mount tracking refs to prevent state updates after unmount
+- Socket ID tracking to prevent duplicate event listeners
+- willChange CSS hints for animated elements
+- Message history limit (200 max) to prevent memory bloat
+- Debounced typing indicators
+
+**Socket/WebRTC:**
+- Socket reconnection with re-authentication
+- Duplicate connection prevention
+- Proper listener cleanup on unmount
+- Local stream ref tracking for cleanup
+- Peer connection cleanup on unmount
+- Connection timeout handling
+
+**Database:**
+- MongoDB connection pooling (50 max, 10 min)
+- Comprehensive indexes on all collections:
+  - users: user_id, email, username, is_banned, premium_status, last_active, compound(country_code, gender)
+  - guests: guest_id, is_banned, compound(country_code, gender)
+  - sessions: session_id, user1_id+started_at, user2_id+started_at, status
+  - messages: session_id+timestamp, sender_id
+  - reports: report_id, reporter_id, reported_id, status, compound(status, created_at)
+  - subscriptions: user_id+status, stripe_subscription_id, current_period_end
+  - admin_logs: admin_id+timestamp, target_id+timestamp, action
+  - blocked_users: compound(blocker_id, blocked_id)
+  - matches: match_id, user1_id+created_at, user2_id+created_at
 
 ### Match System
 - **Desktop Layout**: Horizontal split (LEFT=Me, RIGHT=Stranger)

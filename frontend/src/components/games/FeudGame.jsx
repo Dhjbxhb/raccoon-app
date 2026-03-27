@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { X, Send, Trophy, CheckCircle, XCircle, Zap, Clock } from 'lucide-react';
 import '@/styles/games.css';
 
@@ -7,8 +7,9 @@ import '@/styles/games.css';
  * 
  * Displays on MY side only, stranger video remains visible.
  * Backend is source of truth for all game state.
+ * Memoized to prevent unnecessary re-renders.
  */
-const FeudGame = ({ 
+const FeudGame = memo(({ 
   isOpen, 
   onClose, 
   socket,
@@ -27,12 +28,28 @@ const FeudGame = ({
   
   const inputRef = useRef(null);
   const feedbackTimer = useRef(null);
+  const mountedRef = useRef(true);
+  const socketIdRef = useRef(null);
+  
+  // Track mount state
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    };
+  }, []);
   
   // Socket event handlers
   useEffect(() => {
     if (!socket) return;
     
+    // Prevent duplicate listeners
+    if (socketIdRef.current === socket.id) return;
+    socketIdRef.current = socket.id;
+    
     const handleGameStarted = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
       setIsMyTurn(data.game_state.current_player === myUserId);
       setGameEnded(false);
@@ -40,13 +57,17 @@ const FeudGame = ({
     };
     
     const handleGuessResult = (data) => {
+      if (!mountedRef.current) return;
+      
       if (data.correct) {
         const idx = data.game_state.current_question.answers.findIndex(
           a => a.revealed && a.answer === data.matched_answer
         );
         if (idx >= 0) {
           setRevealingIdx(idx);
-          setTimeout(() => setRevealingIdx(null), 500);
+          setTimeout(() => {
+            if (mountedRef.current) setRevealingIdx(null);
+          }, 500);
         }
         
         setFeedback({
@@ -70,10 +91,13 @@ const FeudGame = ({
       setIsSubmitting(false);
       
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-      feedbackTimer.current = setTimeout(() => setFeedback(null), 2500);
+      feedbackTimer.current = setTimeout(() => {
+        if (mountedRef.current) setFeedback(null);
+      }, 2500);
     };
     
     const handleGameEnded = (data) => {
+      if (!mountedRef.current) return;
       setGameState(data.game_state);
       setGameEnded(true);
       setWinner({
@@ -85,6 +109,7 @@ const FeudGame = ({
     };
     
     const handleError = (data) => {
+      if (!mountedRef.current) return;
       setFeedback({ type: 'error', message: data.message });
       setIsSubmitting(false);
     };
@@ -99,7 +124,7 @@ const FeudGame = ({
       socket.off('feud_guess_result', handleGuessResult);
       socket.off('feud_game_ended', handleGameEnded);
       socket.off('feud_error', handleError);
-      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+      socketIdRef.current = null;
     };
   }, [socket, myUserId]);
   
@@ -345,6 +370,8 @@ const FeudGame = ({
       </div>
     </div>
   );
-};
+});
+
+FeudGame.displayName = 'FeudGame';
 
 export default FeudGame;

@@ -10,6 +10,7 @@ import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/w
  * - Auto-start on match with proper cleanup
  * - Connection state monitoring and reconnection handling
  * - Camera filter support (CSS-based)
+ * - Optimized cleanup to prevent memory leaks
  */
 export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   // State
@@ -36,6 +37,13 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const autoStarted = useRef(false);
   const currentSessionId = useRef(null);
   const connectionTimeout = useRef(null);
+  
+  // Track mount state for cleanup
+  const mountedRef = useRef(true);
+  // Track socket ID to prevent duplicate listeners
+  const socketIdRef = useRef(null);
+  // Track local stream for cleanup
+  const localStreamRef = useRef(null);
 
   // Determine if this peer is "polite" (receiver) or "impolite" (offerer)
   // Use a stable comparison - the peer with the "smaller" partnerId is the offerer
@@ -154,8 +162,11 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const startLocalStream = useCallback(async (video = true, audio = true) => {
     try {
       // Stop any existing stream first
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          track.stop();
+        });
+        localStreamRef.current = null;
       }
 
       const constraints = getMediaConstraints();
@@ -163,10 +174,15 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       if (!audio) constraints.audio = false;
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Store in ref for cleanup
+      localStreamRef.current = stream;
 
-      setLocalStream(stream);
-      setIsVideoEnabled(video && stream.getVideoTracks().length > 0);
-      setIsAudioEnabled(audio && stream.getAudioTracks().length > 0);
+      if (mountedRef.current) {
+        setLocalStream(stream);
+        setIsVideoEnabled(video && stream.getVideoTracks().length > 0);
+        setIsAudioEnabled(audio && stream.getAudioTracks().length > 0);
+      }
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -175,6 +191,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       return stream;
     } catch (err) {
       console.error('Error accessing media devices:', err);
+      
+      if (!mountedRef.current) return null;
       
       // Provide more specific error messages
       if (err.name === 'NotAllowedError') {
@@ -188,7 +206,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       }
       throw err;
     }
-  }, [localStream]);
+  }, []);
 
   // Start the call (as the offerer)
   const startCall = useCallback(async () => {
@@ -389,9 +407,15 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
   // End call and cleanup
   const endCall = useCallback(() => {
-    // Stop local media tracks
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+    // Stop local media tracks using ref
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+      });
+      localStreamRef.current = null;
+    }
+    
+    if (mountedRef.current) {
       setLocalStream(null);
     }
 
@@ -406,29 +430,34 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     // Cleanup peer connection
     cleanupPeerConnection();
 
-    // Reset state
-    setRemoteStream(null);
-    setConnectionState('disconnected');
-    setIsVideoEnabled(false);
-    setIsAudioEnabled(false);
-    setError(null);
+    // Reset state only if mounted
+    if (mountedRef.current) {
+      setRemoteStream(null);
+      setConnectionState('disconnected');
+      setIsVideoEnabled(false);
+      setIsAudioEnabled(false);
+      setError(null);
+    }
+    
     autoStarted.current = false;
     
     // Notify partner
     socket?.emit('webrtc_end_call', { session_id: sessionId });
-  }, [localStream, socket, sessionId, cleanupPeerConnection]);
+  }, [socket, sessionId, cleanupPeerConnection]);
 
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
+    
+    // Prevent duplicate listeners
+    if (socketIdRef.current === socket.id) return;
+    socketIdRef.current = socket.id;
 
     const onOffer = (data) => {
-      console.log('Received WebRTC offer');
       handleOffer(data.offer);
     };
 
     const onAnswer = (data) => {
-      console.log('Received WebRTC answer');
       handleAnswer(data.answer);
     };
 
@@ -437,7 +466,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     };
 
     const onEndCall = () => {
-      console.log('Partner ended call');
       endCall();
     };
 
@@ -451,6 +479,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       socket.off('webrtc_answer', onAnswer);
       socket.off('webrtc_ice_candidate', onIceCandidate);
       socket.off('webrtc_end_call', onEndCall);
+      socketIdRef.current = null;
     };
   }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
 
@@ -464,17 +493,36 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
   // Cleanup on unmount
   useEffect(() => {
-    // Capture ref values at effect time
-    const animationFrame = animationFrameRef.current;
+    mountedRef.current = true;
     
     return () => {
-      // Use captured values in cleanup
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
+      mountedRef.current = false;
+      
+      // Cleanup animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      // Cleanup local stream
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+        localStreamRef.current = null;
+      }
+      
+      // Cleanup peer connection
+      if (peerConnection.current) {
+        peerConnection.current.close();
+        peerConnection.current = null;
+      }
+      
+      // Clear timeouts
+      if (connectionTimeout.current) {
+        clearTimeout(connectionTimeout.current);
+        connectionTimeout.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Intentionally empty - cleanup only runs on unmount
+  }, []);
 
   // Auto-start camera and initiate call when matched
   useEffect(() => {

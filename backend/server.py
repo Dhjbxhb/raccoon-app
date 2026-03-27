@@ -67,6 +67,11 @@ logger = logging.getLogger(__name__)
 # Register Socket.IO handlers
 @app.on_event("startup")
 async def startup_event():
+    # Create database indexes for optimal performance
+    from services.db_service import DatabaseService
+    await DatabaseService.create_indexes()
+    logger.info("Database indexes created")
+    
     # Initialize database with indexes and seed data
     from services.db_init_service import initialize_database
     await initialize_database()

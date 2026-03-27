@@ -96,7 +96,9 @@ const Signup = () => {
         password: formData.password,
         gender: formData.gender.toLowerCase(),
         date_of_birth: '2000-01-01', // Default date, age verification happens separately
-        browser_locale: browserLocale
+        browser_locale: browserLocale,
+        terms_accepted: agreedToTerms,
+        privacy_accepted: agreedToTerms
       });
       
       // Store token and user data

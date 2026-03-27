@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Crown, Zap, Shield, X, Calendar, RefreshCw,
-  CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp
+  CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
+  FileText, CreditCard
 } from 'lucide-react';
 import PricingCards from '@/components/premium/PricingCards';
 import PremiumFeatureList from '@/components/premium/PremiumFeatureList';
@@ -468,6 +469,36 @@ const Premium = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Legal Links for Premium */}
+              <div className="mt-8 flex items-center justify-center gap-4 flex-wrap">
+                <Link 
+                  to="/refund" 
+                  className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                  data-testid="premium-refund-link"
+                >
+                  <CreditCard size={14} />
+                  Refund Policy
+                </Link>
+                <span className="text-gray-600">•</span>
+                <Link 
+                  to="/terms" 
+                  className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                  data-testid="premium-terms-link"
+                >
+                  <FileText size={14} />
+                  Terms of Service
+                </Link>
+                <span className="text-gray-600">•</span>
+                <Link 
+                  to="/privacy" 
+                  className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                  data-testid="premium-privacy-link"
+                >
+                  <Shield size={14} />
+                  Privacy Policy
+                </Link>
               </div>
 
               {/* Stripe Note */}

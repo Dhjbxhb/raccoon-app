@@ -135,6 +135,14 @@ class User(BaseModel):
     last_failed_login: Optional[datetime] = Field(default=None, description="Last failed attempt")
     password_changed_at: Optional[datetime] = Field(default=None, description="Last password change")
     
+    # === Legal Agreement ===
+    terms_accepted: bool = Field(default=False, description="Accepted Terms of Service")
+    terms_accepted_at: Optional[datetime] = Field(default=None, description="When terms were accepted")
+    terms_version: Optional[str] = Field(default=None, description="Version of terms accepted")
+    privacy_accepted: bool = Field(default=False, description="Accepted Privacy Policy")
+    privacy_accepted_at: Optional[datetime] = Field(default=None, description="When privacy policy accepted")
+    privacy_version: Optional[str] = Field(default=None, description="Version of privacy policy accepted")
+    
     @field_validator('gender')
     @classmethod
     def validate_gender(cls, v):
