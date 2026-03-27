@@ -851,3 +851,234 @@ async def setup_admin_account():
             "message": f"User {admin_email} does not exist. Please sign up first.",
             "action": "none"
         }
+
+
+
+# ============================================
+# CHARTS DATA
+# ============================================
+
+@router.get("/charts/users-growth")
+async def get_users_growth(admin = Depends(get_current_admin), days: int = Query(7, ge=1, le=30)):
+    """Get daily user growth data for charts"""
+    users_collection = get_users_collection()
+    guests_collection = get_guests_collection()
+    
+    now = datetime.now(timezone.utc)
+    data = []
+    
+    for i in range(days - 1, -1, -1):
+        day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        
+        new_users = await users_collection.count_documents({
+            'created_at': {
+                '$gte': day_start.isoformat(),
+                '$lt': day_end.isoformat()
+            }
+        })
+        new_guests = await guests_collection.count_documents({
+            'created_at': {
+                '$gte': day_start.isoformat(),
+                '$lt': day_end.isoformat()
+            }
+        })
+        
+        data.append({
+            'date': day_start.strftime('%Y-%m-%d'),
+            'label': day_start.strftime('%b %d'),
+            'users': new_users,
+            'guests': new_guests,
+            'total': new_users + new_guests
+        })
+    
+    return {'data': data, 'days': days}
+
+
+@router.get("/charts/activity")
+async def get_activity_chart(admin = Depends(get_current_admin), hours: int = Query(24, ge=1, le=48)):
+    """Get hourly activity data for charts"""
+    users_collection = get_users_collection()
+    guests_collection = get_guests_collection()
+    matches_collection = get_matches_collection()
+    messages_collection = get_messages_collection()
+    
+    now = datetime.now(timezone.utc)
+    data = []
+    
+    for i in range(hours - 1, -1, -1):
+        hour_start = (now - timedelta(hours=i)).replace(minute=0, second=0, microsecond=0)
+        hour_end = hour_start + timedelta(hours=1)
+        
+        active_users = await users_collection.count_documents({
+            'last_active': {
+                '$gte': hour_start.isoformat(),
+                '$lt': hour_end.isoformat()
+            }
+        })
+        active_guests = await guests_collection.count_documents({
+            'last_active': {
+                '$gte': hour_start.isoformat(),
+                '$lt': hour_end.isoformat()
+            }
+        })
+        matches = await matches_collection.count_documents({
+            'created_at': {
+                '$gte': hour_start.isoformat(),
+                '$lt': hour_end.isoformat()
+            }
+        })
+        messages = await messages_collection.count_documents({
+            'timestamp': {
+                '$gte': hour_start.isoformat(),
+                '$lt': hour_end.isoformat()
+            }
+        })
+        
+        data.append({
+            'time': hour_start.strftime('%H:%M'),
+            'hour': hour_start.hour,
+            'active_users': active_users,
+            'active_guests': active_guests,
+            'matches': matches,
+            'messages': messages
+        })
+    
+    return {'data': data, 'hours': hours}
+
+
+@router.get("/charts/geo")
+async def get_geo_stats(admin = Depends(get_current_admin)):
+    """Get geographic distribution of users"""
+    users_collection = get_users_collection()
+    guests_collection = get_guests_collection()
+    
+    # Aggregate by country
+    user_countries = await users_collection.aggregate([
+        {'$match': {'country_code': {'$exists': True, '$ne': None}}},
+        {'$group': {'_id': '$country_code', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+        {'$limit': 10}
+    ]).to_list(10)
+    
+    guest_countries = await guests_collection.aggregate([
+        {'$match': {'country_code': {'$exists': True, '$ne': None}}},
+        {'$group': {'_id': '$country_code', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+        {'$limit': 10}
+    ]).to_list(10)
+    
+    # Combine and sort
+    country_map = {}
+    for c in user_countries:
+        country_map[c['_id']] = {'users': c['count'], 'guests': 0}
+    for c in guest_countries:
+        if c['_id'] in country_map:
+            country_map[c['_id']]['guests'] = c['count']
+        else:
+            country_map[c['_id']] = {'users': 0, 'guests': c['count']}
+    
+    # Convert to list
+    countries = [
+        {'country': k, 'users': v['users'], 'guests': v['guests'], 'total': v['users'] + v['guests']}
+        for k, v in country_map.items()
+    ]
+    countries.sort(key=lambda x: x['total'], reverse=True)
+    
+    return {'countries': countries[:10]}
+
+
+# ============================================
+# SYSTEM HEALTH
+# ============================================
+
+@router.get("/system/health")
+async def get_system_health(admin = Depends(get_current_admin)):
+    """Get system health metrics"""
+    from services.db_service import DatabaseService
+    import time
+    
+    # Test database latency
+    start = time.time()
+    try:
+        db = DatabaseService.get_db()
+        await db.command('ping')
+        db_latency = round((time.time() - start) * 1000, 2)
+        db_status = 'healthy'
+    except Exception as e:
+        db_latency = 0
+        db_status = f'error: {str(e)}'
+    
+    # Get active socket connections (from memory - tracked by socket handlers)
+    # This is a placeholder - actual implementation would track connections
+    active_connections = 0  # Would be tracked by socket manager
+    
+    return {
+        'status': 'healthy' if db_status == 'healthy' else 'degraded',
+        'database': {
+            'status': db_status,
+            'latency_ms': db_latency
+        },
+        'sockets': {
+            'active_connections': active_connections
+        },
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
+
+
+# ============================================
+# LIVE SESSIONS
+# ============================================
+
+@router.get("/sessions/live")
+async def get_live_sessions(admin = Depends(get_current_admin), limit: int = Query(20, ge=1, le=100)):
+    """Get currently active sessions"""
+    sessions_collection = get_sessions_collection()
+    
+    # Get recent active sessions
+    sessions = await sessions_collection.find(
+        {'status': {'$in': ['active', 'searching']}},
+        {'_id': 0}
+    ).sort('started_at', -1).limit(limit).to_list(limit)
+    
+    # Calculate duration for each session
+    now = datetime.now(timezone.utc)
+    for session in sessions:
+        if session.get('started_at'):
+            try:
+                started = datetime.fromisoformat(session['started_at'].replace('Z', '+00:00'))
+                duration_seconds = (now - started).total_seconds()
+                session['duration_minutes'] = round(duration_seconds / 60, 1)
+            except (ValueError, TypeError):
+                session['duration_minutes'] = 0
+    
+    return {'sessions': sessions, 'count': len(sessions)}
+
+
+@router.post("/sessions/{session_id}/disconnect")
+async def disconnect_session(session_id: str, admin = Depends(get_current_admin)):
+    """Force disconnect a session"""
+    sessions_collection = get_sessions_collection()
+    
+    result = await sessions_collection.update_one(
+        {'session_id': session_id},
+        {'$set': {
+            'status': 'ended',
+            'ended_at': datetime.now(timezone.utc).isoformat(),
+            'end_reason': 'admin_disconnect'
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Log admin action
+    await admin_log_service.log_action(
+        admin_id=admin['user_id'],
+        admin_username=admin.get('username', 'Admin'),
+        action=AdminActionType.SESSION_TERMINATE,
+        target_id=session_id,
+        details={'reason': 'Admin forced disconnect'}
+    )
+    
+    return {'success': True, 'session_id': session_id}

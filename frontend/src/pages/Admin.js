@@ -35,6 +35,8 @@ const Admin = () => {
   
   // Dashboard state
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [chartsData, setChartsData] = useState({ growth: [], activity: [], geo: [] });
+  const [systemHealth, setSystemHealth] = useState(null);
   
   // Users state
   const [users, setUsers] = useState([]);
@@ -58,6 +60,7 @@ const Admin = () => {
   const [matches, setMatches] = useState([]);
   const [matchesPagination, setMatchesPagination] = useState({ page: 1, total: 0, pages: 1 });
   const [sessionMessages, setSessionMessages] = useState(null);
+  const [liveSessions, setLiveSessions] = useState([]);
   
   // Action modals
   const [banModal, setBanModal] = useState(null);
@@ -92,6 +95,67 @@ const Admin = () => {
       console.error('Error fetching dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Fetch charts data
+  const fetchChartsData = useCallback(async () => {
+    try {
+      const [growthRes, activityRes, geoRes] = await Promise.all([
+        fetch(`${API_URL}/api/admin/charts/users-growth?days=7`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        }),
+        fetch(`${API_URL}/api/admin/charts/activity?hours=24`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        }),
+        fetch(`${API_URL}/api/admin/charts/geo`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        })
+      ]);
+      
+      const [growth, activity, geo] = await Promise.all([
+        growthRes.ok ? growthRes.json() : { data: [] },
+        activityRes.ok ? activityRes.json() : { data: [] },
+        geoRes.ok ? geoRes.json() : { countries: [] }
+      ]);
+      
+      setChartsData({
+        growth: growth.data || [],
+        activity: activity.data || [],
+        geo: geo.countries || []
+      });
+    } catch (error) {
+      console.error('Error fetching charts:', error);
+    }
+  }, []);
+
+  // Fetch system health
+  const fetchSystemHealth = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/system/health`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSystemHealth(data);
+      }
+    } catch (error) {
+      console.error('Error fetching system health:', error);
+    }
+  }, []);
+
+  // Fetch live sessions
+  const fetchLiveSessions = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/sessions/live?limit=10`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLiveSessions(data.sessions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching live sessions:', error);
     }
   }, []);
 
@@ -289,6 +353,9 @@ const Admin = () => {
     switch (activeTab) {
       case 'dashboard':
         fetchDashboard();
+        fetchChartsData();
+        fetchSystemHealth();
+        fetchLiveSessions();
         break;
       case 'users':
         fetchUsers();
@@ -301,11 +368,24 @@ const Admin = () => {
         break;
       case 'matches':
         fetchMatches();
+        fetchLiveSessions();
         break;
       default:
         setLoading(false);
     }
-  }, [activeTab, user, fetchDashboard, fetchUsers, fetchReports, fetchPremiumUsers, fetchMatches]);
+  }, [activeTab, user, fetchDashboard, fetchChartsData, fetchSystemHealth, fetchLiveSessions, fetchUsers, fetchReports, fetchPremiumUsers, fetchMatches]);
+
+  // Auto-refresh dashboard every 30 seconds
+  useEffect(() => {
+    if (activeTab !== 'dashboard' || !user?.is_admin) return;
+    
+    const interval = setInterval(() => {
+      fetchDashboard();
+      fetchLiveSessions();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [activeTab, user, fetchDashboard, fetchLiveSessions]);
 
   // Refetch on filter changes
   useEffect(() => {
@@ -521,7 +601,35 @@ const Admin = () => {
               {/* Dashboard Tab */}
               {activeTab === 'dashboard' && dashboardStats && (
                 <div className="space-y-6">
-                  {/* Overview Stats */}
+                  {/* System Health Banner */}
+                  {systemHealth && (
+                    <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                      systemHealth.status === 'healthy' 
+                        ? 'bg-green-500/5 border-green-500/20' 
+                        : 'bg-yellow-500/5 border-yellow-500/20'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        {systemHealth.status === 'healthy' ? (
+                          <CheckCircle size={20} className="text-green-400" />
+                        ) : (
+                          <AlertTriangle size={20} className="text-yellow-400" />
+                        )}
+                        <div>
+                          <span className={systemHealth.status === 'healthy' ? 'text-green-400' : 'text-yellow-400'}>
+                            System {systemHealth.status === 'healthy' ? 'Healthy' : 'Degraded'}
+                          </span>
+                          <span className="text-gray-500 ml-3 text-sm">
+                            DB: {systemHealth.database?.latency_ms}ms latency
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        Last checked: {new Date(systemHealth.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Overview Stats - BIGGER CARDS */}
                   <div>
                     <h2 className="text-lg font-semibold mb-4 text-gray-300">Platform Overview</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -535,22 +643,74 @@ const Admin = () => {
                     </div>
                   </div>
 
-                  {/* Live Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Live Stats + Charts Row */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Live Stats */}
                     <div className="p-6 bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20 rounded-2xl">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
                         <h3 className="font-semibold text-green-400">Live Now</h3>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-bold">{dashboardStats.live.total_online}</span>
-                        <span className="text-gray-500">users online</span>
+                        <span className="text-5xl font-bold">{dashboardStats.live.total_online}</span>
+                        <span className="text-gray-500">online</span>
                       </div>
                       <p className="text-sm text-gray-500 mt-2">
                         {dashboardStats.live.online_users} registered, {dashboardStats.live.online_guests} guests
                       </p>
+                      <div className="mt-4 pt-4 border-t border-green-500/20">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-400">Active Sessions</span>
+                          <span className="font-semibold text-green-400">{liveSessions.length}</span>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* User Growth Chart */}
+                    <div className="p-6 bg-white/5 border border-white/10 rounded-2xl lg:col-span-2">
+                      <h3 className="font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                        <TrendingUp size={18} className="text-[#7c3aed]" />
+                        User Growth (7 Days)
+                      </h3>
+                      {chartsData.growth.length > 0 ? (
+                        <div className="flex items-end gap-2 h-32">
+                          {chartsData.growth.map((day, idx) => (
+                            <div key={idx} className="flex-1 flex flex-col items-center">
+                              <div className="w-full flex gap-0.5">
+                                <div 
+                                  className="flex-1 bg-[#7c3aed] rounded-t"
+                                  style={{ height: `${Math.max(4, (day.users / Math.max(...chartsData.growth.map(d => d.total || 1))) * 100)}px` }}
+                                  title={`${day.users} users`}
+                                />
+                                <div 
+                                  className="flex-1 bg-blue-500 rounded-t"
+                                  style={{ height: `${Math.max(4, (day.guests / Math.max(...chartsData.growth.map(d => d.total || 1))) * 100)}px` }}
+                                  title={`${day.guests} guests`}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-500 mt-2">{day.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="h-32 flex items-center justify-center text-gray-500">
+                          No data available
+                        </div>
+                      )}
+                      <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-[#7c3aed] rounded" /> Registered
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-blue-500 rounded" /> Guests
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Today Stats + Geo + Live Sessions */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Today vs Yesterday */}
                     <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
                       <h3 className="font-semibold text-gray-300 mb-4">Today vs Yesterday</h3>
                       <div className="space-y-3">
@@ -609,6 +769,27 @@ const Admin = () => {
                       </div>
                     </div>
 
+                    {/* Top Countries */}
+                    <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+                      <h3 className="font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                        <Globe size={18} className="text-blue-400" />
+                        Top Countries
+                      </h3>
+                      {chartsData.geo.length > 0 ? (
+                        <div className="space-y-2">
+                          {chartsData.geo.slice(0, 5).map((country, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <span className="text-gray-400">{country.country}</span>
+                              <span className="font-semibold">{country.total}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 text-sm">No geo data available</div>
+                      )}
+                    </div>
+
+                    {/* Alerts */}
                     <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
                       <h3 className="font-semibold text-gray-300 mb-4">Alerts</h3>
                       <div className="space-y-3">
@@ -639,6 +820,34 @@ const Admin = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Live Sessions Feed */}
+                  {liveSessions.length > 0 && (
+                    <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+                      <h3 className="font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                        <Activity size={18} className="text-green-400" />
+                        Live Sessions
+                      </h3>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {liveSessions.map((session, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white/[0.02] rounded-xl">
+                            <div className="flex items-center gap-3">
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                              <span className="text-sm text-gray-300">{session.session_id?.slice(0, 8)}...</span>
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                session.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                                session.status === 'searching' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {session.status}
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-500">{session.duration_minutes || 0} min</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

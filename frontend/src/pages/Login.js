@@ -122,7 +122,7 @@ const Login = () => {
   // Google login handler
   const handleGoogleLogin = async () => {
     if (!firebaseReady) {
-      toast.info('Google login requires Firebase configuration');
+      toast.error('Google Sign-In requires Firebase configuration. Please use email login or continue as guest.');
       return;
     }
     if (socialLoading) return;
@@ -133,35 +133,29 @@ const Login = () => {
       await syncSocialAuth(userData);
     } catch (error) {
       if (error.code !== 'auth/popup-closed-by-user') {
-        toast.error('Google login failed');
+        toast.error('Google login failed. Please try again or use another method.');
       }
     } finally {
       setSocialLoading(null);
     }
   };
 
-  // Anonymous login handler - creates guest user via backend
+  // Anonymous login handler - ALWAYS works (uses backend directly)
   const handleAnonymousLogin = async () => {
     if (socialLoading) return;
     
     setSocialLoading('anonymous');
     try {
-      // If Firebase is ready, use Firebase anonymous auth
-      if (firebaseReady) {
-        const userData = await signInAnonymousUser();
-        await syncSocialAuth(userData);
-      } else {
-        // Fallback to backend guest creation
-        const browserLocale = getBrowserLocale();
-        const response = await axios.post(`${API_URL}/auth/guest`, { 
-          gender: 'male',
-          browser_locale: browserLocale
-        });
-        
-        login(response.data.token, response.data.user);
-        toast.success(`Welcome, ${response.data.user.username}!`);
-        navigate('/verify-age');
-      }
+      // Always use backend guest creation for reliability
+      const browserLocale = getBrowserLocale();
+      const response = await axios.post(`${API_URL}/auth/guest`, { 
+        gender: 'male',
+        browser_locale: browserLocale
+      });
+      
+      login(response.data.token, response.data.user);
+      toast.success(`Welcome, ${response.data.user.username}!`);
+      navigate('/verify-age');
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
