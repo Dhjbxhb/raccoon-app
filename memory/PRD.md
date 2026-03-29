@@ -29,7 +29,47 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ---
 
-## ✅ LATEST SPRINT COMPLETE (March 2025)
+## ✅ LATEST UPDATES (March 2025)
+
+### Login Persistence Fix (COMPLETE) ✅
+**Problem:** After Google login, user was redirected back to login page. Auth state was not being saved.
+
+**Root Cause:** 
+- Token wasn't being saved to localStorage reliably
+- AuthContext was initializing before token was saved
+- AgeVerification page was redirecting before auth state loaded
+
+**Solution Implemented:**
+1. **Login.js** - Completely rewritten:
+   - Added `onAuthStateChanged` listener for Firebase
+   - `syncFirebaseUserWithBackend()` function handles all Google → backend flow
+   - Saves JWT to localStorage BEFORE updating context
+   - Uses refs to prevent duplicate processing
+
+2. **AuthContext.js** - Rewritten to use localStorage as source of truth:
+   - Initializes token from localStorage on load
+   - `fetchCurrentUser()` validates token and fetches user from `/api/auth/me`
+   - No dependency on Firebase state
+
+3. **firebase.service.js** - Enhanced:
+   - Exports `auth` for `onAuthStateChanged` access
+   - Better logging for debugging
+   - Error handling for unauthorized domain
+
+4. **AgeVerification.js** - Fixed:
+   - Waits for `loading` state before redirect check
+   - Only redirects to login if NO token exists
+
+**Test Results:**
+- ✅ Guest login → token saved → redirected to verify-age
+- ✅ Age verification → redirected to dashboard
+- ✅ **Page refresh → stays on dashboard (token persists)**
+- ✅ Backend `/api/auth/google` endpoint returns valid JWT
+
+**For Google Login to Work:**
+You must add `realtime-raccoon.preview.emergentagent.com` to Firebase Console:
+1. Go to Firebase Console → Authentication → Settings → Authorized domains
+2. Add the domain
 
 ### Google Login Fix ✅
 **Problem:** Google login opened but user was NOT logged into the app and got redirected back to login page. Firebase Auth was working but backend login + session handling was broken.

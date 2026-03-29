@@ -36,6 +36,8 @@ if (isFirebaseConfigured()) {
       prompt: 'select_account'
     });
     
+    console.log('Firebase auth ready');
+    
   } catch (error) {
     console.error('Firebase initialization error:', error);
   }
@@ -48,10 +50,10 @@ export const signInWithGoogle = async () => {
   }
   
   try {
+    console.log('Starting Google sign-in redirect...');
     // Use redirect instead of popup to avoid COOP issues
     await signInWithRedirect(auth, googleProvider);
     // This function won't return anything as the page redirects
-    // The result will be handled by getGoogleRedirectResult() on page load
     return null;
   } catch (error) {
     console.error('Google sign-in redirect error:', error);
@@ -70,10 +72,18 @@ export const getGoogleRedirectResult = async () => {
     console.log('Checking for Google redirect result...');
     const result = await getRedirectResult(auth);
     
+    console.log('Redirect result:', result ? 'FOUND' : 'NULL');
+    
     if (result && result.user) {
-      console.log('Google redirect result found!');
+      console.log('=== GOOGLE REDIRECT RESULT ===');
+      console.log('User UID:', result.user.uid);
+      console.log('User email:', result.user.email);
+      console.log('User display name:', result.user.displayName);
+      
       const user = result.user;
-      const idToken = await user.getIdToken();
+      const idToken = await user.getIdToken(true);
+      
+      console.log('Got ID token:', idToken ? 'YES' : 'NO');
       
       return {
         uid: user.uid,
@@ -85,19 +95,16 @@ export const getGoogleRedirectResult = async () => {
       };
     }
     
-    console.log('No Google redirect result');
+    console.log('No redirect result found');
     return null;
   } catch (error) {
-    console.error('Google redirect result error:', error);
+    console.error('=== GOOGLE REDIRECT ERROR ===');
     console.error('Error code:', error.code);
     console.error('Error message:', error.message);
     
-    // Handle unauthorized domain error specifically
     if (error.code === 'auth/unauthorized-domain') {
-      console.error('=== UNAUTHORIZED DOMAIN ERROR ===');
-      console.error('The current domain needs to be added to Firebase Console:');
-      console.error('1. Go to Firebase Console > Authentication > Settings');
-      console.error('2. Add this domain to Authorized domains:', window.location.hostname);
+      console.error('DOMAIN NOT AUTHORIZED!');
+      console.error('Add this domain to Firebase Console:', window.location.hostname);
     }
     
     throw error;
@@ -142,4 +149,5 @@ export const isFirebaseReady = () => {
   return !!auth && !!googleProvider;
 };
 
+// Export auth for direct access (needed for onAuthStateChanged)
 export { auth };

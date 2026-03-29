@@ -7,43 +7,50 @@ const AuthContext = createContext();
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  // Initialize state from localStorage immediately
   const [token, setToken] = useState(() => {
-    // Initialize token from localStorage
     const storedToken = localStorage.getItem(TOKEN_KEY);
     console.log('=== AUTH CONTEXT INIT ===');
-    console.log('Stored token:', storedToken ? 'EXISTS' : 'NULL');
+    console.log('Stored token:', storedToken ? 'EXISTS (' + storedToken.substring(0, 20) + '...)' : 'NULL');
+    
+    if (storedToken && isTokenValid(storedToken)) {
+      console.log('Token is valid');
+      return storedToken;
+    }
     
     if (storedToken) {
-      const valid = isTokenValid(storedToken);
-      console.log('Token valid:', valid);
-      
-      if (valid) {
-        return storedToken;
-      }
-      // Clear invalid token
-      console.log('Clearing invalid token');
+      console.log('Token is invalid/expired, removing');
       localStorage.removeItem(TOKEN_KEY);
     }
+    
     return null;
   });
+  
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Fetch user data from backend using JWT token
   const fetchCurrentUser = useCallback(async () => {
     console.log('=== FETCH CURRENT USER ===');
-    console.log('Token:', token ? 'EXISTS' : 'NULL');
     
-    if (!token) {
-      console.log('No token, skipping user fetch');
+    // Get token from localStorage (source of truth)
+    const currentToken = localStorage.getItem(TOKEN_KEY);
+    console.log('Token from localStorage:', currentToken ? 'EXISTS' : 'NULL');
+    
+    if (!currentToken) {
+      console.log('No token, user is not logged in');
+      setUser(null);
       setLoading(false);
       return;
     }
 
-    // Validate token before making request
-    if (!isTokenValid(token)) {
-      console.log('Token expired, logging out');
-      logout();
+    // Validate token expiration
+    if (!isTokenValid(currentToken)) {
+      console.log('Token expired, clearing auth state');
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
       setLoading(false);
       return;
     }
@@ -51,58 +58,73 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Fetching user from /api/auth/me...');
       const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
       
-      console.log('User fetched:', response.data?.username || response.data?.email);
+      console.log('User fetched successfully:', response.data?.username || response.data?.email);
       setUser(response.data);
+      setToken(currentToken);
       setError(null);
     } catch (error) {
-      console.error('Failed to fetch user:', error);
-      // Only logout if it's an auth error
+      console.error('Failed to fetch user:', error.response?.status, error.response?.data);
+      
+      // Only clear auth if it's an auth error (401/403)
       if (error.response?.status === 401 || error.response?.status === 403) {
-        console.log('Auth error, logging out');
-        logout();
+        console.log('Auth error, clearing token');
+        localStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+        setUser(null);
       } else {
+        // Network or other error - keep token, just note the error
         setError('Failed to load user data');
       }
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
-  // Fetch user on mount and when token changes
+  // Fetch user on mount
   useEffect(() => {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
 
+  // Refresh user data
   const refreshUser = useCallback(async () => {
-    if (token) {
+    const currentToken = localStorage.getItem(TOKEN_KEY);
+    if (currentToken) {
       setLoading(true);
       await fetchCurrentUser();
     }
-  }, [token, fetchCurrentUser]);
+  }, [fetchCurrentUser]);
 
+  // Login - save token and user data
   const login = useCallback((newToken, userData) => {
     console.log('=== AUTH CONTEXT LOGIN ===');
     console.log('New token:', newToken ? 'PROVIDED' : 'MISSING');
     console.log('User data:', userData?.username || userData?.email);
     
-    // Save to localStorage
+    if (!newToken) {
+      console.error('Cannot login without token!');
+      return;
+    }
+    
+    // Save to localStorage FIRST (source of truth)
     localStorage.setItem(TOKEN_KEY, newToken);
     
     // Verify it was saved
-    const saved = localStorage.getItem(TOKEN_KEY);
-    console.log('Token saved to localStorage:', saved ? 'SUCCESS' : 'FAILED');
+    const savedToken = localStorage.getItem(TOKEN_KEY);
+    console.log('Token saved to localStorage:', savedToken ? 'SUCCESS' : 'FAILED');
     
-    // Update state
+    // Update React state
     setToken(newToken);
     setUser(userData);
     setError(null);
+    setLoading(false);
     
-    console.log('Auth state updated');
+    console.log('Login complete');
   }, []);
 
+  // Guest login via backend
   const loginAsGuest = useCallback(async (gender = 'male') => {
     try {
       console.log('=== GUEST LOGIN ===');
@@ -114,8 +136,9 @@ export const AuthProvider = ({ children }) => {
       });
       
       const { token: newToken, user: userData } = response.data;
-      console.log('Guest token received:', newToken ? 'YES' : 'NO');
+      console.log('Guest token received');
       
+      // Save token
       localStorage.setItem(TOKEN_KEY, newToken);
       setToken(newToken);
       setUser(userData);
@@ -128,6 +151,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Logout - clear everything
   const logout = useCallback(() => {
     console.log('=== LOGOUT ===');
     localStorage.removeItem(TOKEN_KEY);
@@ -136,14 +160,15 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  // Helper functions
   const isGuest = useCallback(() => {
-    return user && user.guest_id;
+    return user && (user.guest_id || user.is_guest);
   }, [user]);
 
   const isAuthenticated = useCallback(() => {
-    const authenticated = !!user && !!token && isTokenValid(token);
-    return authenticated;
-  }, [user, token]);
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    return !!storedToken && !!user && isTokenValid(storedToken);
+  }, [user]);
 
   const value = {
     user,
