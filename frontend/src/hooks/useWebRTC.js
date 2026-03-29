@@ -1,16 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
+import { getFilter, VideoFilterProcessor } from '@/utils/videoFilters';
 
 /**
- * Production-ready WebRTC Hook for Raccoon App
+ * Production-ready WebRTC Hook with Canvas-Based Filter Processing
+ * 
+ * CRITICAL: Filters are applied via canvas processing, so the filtered
+ * video is sent to the remote peer (both users see the filter).
  * 
  * Features:
- * - Polite peer pattern to prevent race conditions
- * - ICE candidate queuing for reliable connections
- * - Auto-start on match with proper cleanup
- * - Connection state monitoring and reconnection handling
- * - Camera filter support (CSS-based)
- * - Optimized cleanup to prevent memory leaks
+ * - Canvas-based video filter processing
+ * - Filtered stream sent to remote peer
+ * - Polite peer pattern for connection
+ * - ICE candidate queuing
+ * - Auto-start on match
+ * - Connection state monitoring
  */
 export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   // State
@@ -26,8 +30,9 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const peerConnection = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const animationFrameRef = useRef(null);
+  const filterCanvasRef = useRef(null);
+  const filterProcessor = useRef(null);
+  const filteredStream = useRef(null);
   
   // WebRTC negotiation state
   const makingOffer = useRef(false);
@@ -40,16 +45,12 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   
   // Track mount state for cleanup
   const mountedRef = useRef(true);
-  // Track socket ID to prevent duplicate listeners
   const socketIdRef = useRef(null);
-  // Track local stream for cleanup
   const localStreamRef = useRef(null);
 
   // Determine if this peer is "polite" (receiver) or "impolite" (offerer)
-  // Use a stable comparison - the peer with the "smaller" partnerId is the offerer
   const isPolite = useCallback(() => {
     if (!partnerId || !socket?.id) return true;
-    // If we receive an offer, we're the polite peer (we yield)
     return partnerId < (socket.id || '');
   }, [partnerId, socket?.id]);
 
@@ -70,6 +71,52 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     isSettingRemoteAnswerPending.current = false;
     pendingCandidates.current = [];
   }, []);
+
+  // Clean up filter processor
+  const cleanupFilterProcessor = useCallback(() => {
+    if (filterProcessor.current) {
+      filterProcessor.current.destroy();
+      filterProcessor.current = null;
+    }
+    if (filteredStream.current) {
+      filteredStream.current.getTracks().forEach(track => track.stop());
+      filteredStream.current = null;
+    }
+  }, []);
+
+  // Initialize filter processor
+  const initFilterProcessor = useCallback((video, originalStream) => {
+    // Create canvas if not exists
+    if (!filterCanvasRef.current) {
+      filterCanvasRef.current = document.createElement('canvas');
+    }
+    
+    // Initialize processor
+    if (!filterProcessor.current) {
+      filterProcessor.current = new VideoFilterProcessor();
+    }
+    
+    filterProcessor.current.init(filterCanvasRef.current);
+    filterProcessor.current.setFilter(currentFilter);
+    
+    // Start processing
+    filterProcessor.current.startProcessing(video, () => {
+      // Frame processed callback - could add metrics here
+    });
+    
+    // Get the canvas stream (filtered video)
+    const canvasStream = filterProcessor.current.getCanvasStream(30);
+    
+    // Combine canvas video with original audio
+    const audioTracks = originalStream.getAudioTracks();
+    const newStream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...audioTracks
+    ]);
+    
+    filteredStream.current = newStream;
+    return newStream;
+  }, [currentFilter]);
 
   // Initialize peer connection with proper event handlers
   const createPeerConnection = useCallback(() => {
@@ -103,7 +150,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       setConnectionState(pc.connectionState);
       
       if (pc.connectionState === 'connected') {
-        // Clear connection timeout on success
         if (connectionTimeout.current) {
           clearTimeout(connectionTimeout.current);
           connectionTimeout.current = null;
@@ -112,7 +158,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       } else if (pc.connectionState === 'failed') {
         setError('Connection failed. Please try again.');
       } else if (pc.connectionState === 'disconnected') {
-        // Give some time for reconnection before showing error
         setTimeout(() => {
           if (peerConnection.current?.connectionState === 'disconnected') {
             setError('Connection lost. Reconnecting...');
@@ -127,13 +172,12 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       if (pc.iceConnectionState === 'disconnected') {
         setConnectionState('disconnected');
       } else if (pc.iceConnectionState === 'failed') {
-        // Attempt ICE restart
         console.log('ICE failed, attempting restart...');
         pc.restartIce();
       }
     };
 
-    // Handle negotiation needed (for renegotiation)
+    // Handle negotiation needed
     pc.onnegotiationneeded = async () => {
       try {
         makingOffer.current = true;
@@ -149,11 +193,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       }
     };
 
-    // Handle ICE gathering state
-    pc.onicegatheringstatechange = () => {
-      console.log('ICE gathering state:', pc.iceGatheringState);
-    };
-
     peerConnection.current = pc;
     return pc;
   }, [socket, sessionId, cleanupPeerConnection]);
@@ -163,19 +202,16 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     try {
       // Stop any existing stream first
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => {
-          track.stop();
-        });
+        localStreamRef.current.getTracks().forEach(track => track.stop());
         localStreamRef.current = null;
       }
+      cleanupFilterProcessor();
 
       const constraints = getMediaConstraints();
       if (!video) constraints.video = false;
       if (!audio) constraints.audio = false;
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Store in ref for cleanup
       localStreamRef.current = stream;
 
       if (mountedRef.current) {
@@ -184,6 +220,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         setIsAudioEnabled(audio && stream.getAudioTracks().length > 0);
       }
 
+      // Display unfiltered stream locally for preview
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
@@ -194,7 +231,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       
       if (!mountedRef.current) return null;
       
-      // Provide more specific error messages
       if (err.name === 'NotAllowedError') {
         setError('Camera/microphone access denied. Please grant permissions and try again.');
       } else if (err.name === 'NotFoundError') {
@@ -206,60 +242,72 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       }
       throw err;
     }
-  }, []);
+  }, [cleanupFilterProcessor]);
 
-  // Start the call (as the offerer)
+  // Start the call with filtered video
   const startCall = useCallback(async () => {
     try {
       setError(null);
       setConnectionState('connecting');
       
       const stream = await startLocalStream(true, true);
-      const pc = createPeerConnection();
+      
+      // Wait for video to be ready
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        const videoEl = document.createElement('video');
+        videoEl.srcObject = stream;
+        videoEl.muted = true;
+        await videoEl.play();
+        
+        // Initialize filter processor with the video element
+        const processedStream = initFilterProcessor(videoEl, stream);
+        
+        const pc = createPeerConnection();
 
-      // Add all tracks to the peer connection
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
+        // Add filtered tracks to peer connection
+        processedStream.getTracks().forEach(track => {
+          pc.addTrack(track, processedStream);
+        });
 
-      // Create and send offer
-      makingOffer.current = true;
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true
-      });
-      await pc.setLocalDescription(offer);
+        // Create and send offer
+        makingOffer.current = true;
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true
+        });
+        await pc.setLocalDescription(offer);
 
-      socket?.emit('webrtc_offer', {
-        offer: pc.localDescription.toJSON(),
-        session_id: sessionId
-      });
+        socket?.emit('webrtc_offer', {
+          offer: pc.localDescription.toJSON(),
+          session_id: sessionId
+        });
 
-      // Set connection timeout
-      connectionTimeout.current = setTimeout(() => {
-        if (peerConnection.current?.connectionState !== 'connected') {
-          setError('Connection timeout. Please try again.');
-          setConnectionState('failed');
-        }
-      }, CONNECTION_TIMEOUT);
+        // Set connection timeout
+        connectionTimeout.current = setTimeout(() => {
+          if (peerConnection.current?.connectionState !== 'connected') {
+            setError('Connection timeout. Please try again.');
+            setConnectionState('failed');
+          }
+        }, CONNECTION_TIMEOUT);
+      }
 
     } catch (err) {
       console.error('Error starting call:', err);
-      if (!error) { // Don't override more specific errors
+      if (!error) {
         setError('Failed to start video call');
       }
       setConnectionState('failed');
     } finally {
       makingOffer.current = false;
     }
-  }, [socket, sessionId, startLocalStream, createPeerConnection, error]);
+  }, [socket, sessionId, startLocalStream, createPeerConnection, initFilterProcessor, error]);
 
-  // Handle incoming offer (with polite peer pattern)
+  // Handle incoming offer
   const handleOffer = useCallback(async (offer) => {
     try {
       const pc = peerConnection.current;
       
-      // Check for collision
       const offerCollision = makingOffer.current || 
         (pc?.signalingState !== 'stable' && pc?.signalingState !== 'have-local-offer');
       
@@ -280,12 +328,20 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         stream = await startLocalStream(true, true);
       }
 
+      // Process video with filter
+      const videoEl = document.createElement('video');
+      videoEl.srcObject = stream;
+      videoEl.muted = true;
+      await videoEl.play();
+      
+      const processedStream = initFilterProcessor(videoEl, stream);
+
       // Create or get peer connection
       let connection = pc;
       if (!connection) {
         connection = createPeerConnection();
-        stream.getTracks().forEach(track => {
-          connection.addTrack(track, stream);
+        processedStream.getTracks().forEach(track => {
+          connection.addTrack(track, processedStream);
         });
       }
 
@@ -323,7 +379,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       setError('Failed to answer video call');
       setConnectionState('failed');
     }
-  }, [socket, sessionId, localStream, startLocalStream, createPeerConnection, isPolite]);
+  }, [socket, sessionId, localStream, startLocalStream, createPeerConnection, initFilterProcessor, isPolite]);
 
   // Handle incoming answer
   const handleAnswer = useCallback(async (answer) => {
@@ -358,16 +414,13 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, []);
 
-  // Handle ICE candidate with queuing
+  // Handle ICE candidate
   const handleIceCandidate = useCallback(async (candidate) => {
     try {
       const pc = peerConnection.current;
       
-      if (!pc || !candidate) {
-        return;
-      }
+      if (!pc || !candidate) return;
 
-      // Queue candidates if remote description not set yet
       if (!pc.remoteDescription || isSettingRemoteAnswerPending.current) {
         console.log('Queuing ICE candidate');
         pendingCandidates.current.push(candidate);
@@ -376,7 +429,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (err) {
-      // Ignore errors for candidates that arrive after connection is established
       if (err.name !== 'InvalidStateError') {
         console.warn('Error adding ICE candidate:', err);
       }
@@ -407,11 +459,12 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
   // End call and cleanup
   const endCall = useCallback(() => {
-    // Stop local media tracks using ref
+    // Stop filter processor
+    cleanupFilterProcessor();
+    
+    // Stop local media tracks
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        track.stop();
-      });
+      localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
     
@@ -427,10 +480,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       remoteVideoRef.current.srcObject = null;
     }
 
-    // Cleanup peer connection
     cleanupPeerConnection();
 
-    // Reset state only if mounted
     if (mountedRef.current) {
       setRemoteStream(null);
       setConnectionState('disconnected');
@@ -441,33 +492,42 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     
     autoStarted.current = false;
     
-    // Notify partner
     socket?.emit('webrtc_end_call', { session_id: sessionId });
-  }, [socket, sessionId, cleanupPeerConnection]);
+  }, [socket, sessionId, cleanupPeerConnection, cleanupFilterProcessor]);
+
+  // Change filter - update processor and notify partner
+  const changeFilter = useCallback((filterId) => {
+    setCurrentFilter(filterId);
+    
+    // Update the filter processor
+    if (filterProcessor.current) {
+      filterProcessor.current.setFilter(filterId);
+    }
+    
+    // Notify partner of filter change (optional - for UI indicator)
+    socket?.emit('filter_changed', { 
+      filter: filterId,
+      session_id: sessionId 
+    });
+  }, [socket, sessionId]);
+
+  // Get CSS filter style for local preview overlay
+  const getFilterStyle = useCallback((filter) => {
+    const f = getFilter(filter);
+    return f.css;
+  }, []);
 
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
     
-    // Prevent duplicate listeners
     if (socketIdRef.current === socket.id) return;
     socketIdRef.current = socket.id;
 
-    const onOffer = (data) => {
-      handleOffer(data.offer);
-    };
-
-    const onAnswer = (data) => {
-      handleAnswer(data.answer);
-    };
-
-    const onIceCandidate = (data) => {
-      handleIceCandidate(data.candidate);
-    };
-
-    const onEndCall = () => {
-      endCall();
-    };
+    const onOffer = (data) => handleOffer(data.offer);
+    const onAnswer = (data) => handleAnswer(data.answer);
+    const onIceCandidate = (data) => handleIceCandidate(data.candidate);
+    const onEndCall = () => endCall();
 
     socket.on('webrtc_offer', onOffer);
     socket.on('webrtc_answer', onAnswer);
@@ -483,7 +543,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     };
   }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
 
-  // Reset autoStarted when sessionId changes (new match)
+  // Reset autoStarted when sessionId changes
   useEffect(() => {
     if (sessionId !== currentSessionId.current) {
       autoStarted.current = false;
@@ -497,87 +557,39 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     
     return () => {
       mountedRef.current = false;
+      cleanupFilterProcessor();
       
-      // Cleanup animation frame
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      
-      // Cleanup local stream
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
         localStreamRef.current = null;
       }
       
-      // Cleanup peer connection
       if (peerConnection.current) {
         peerConnection.current.close();
         peerConnection.current = null;
       }
       
-      // Clear timeouts
       if (connectionTimeout.current) {
         clearTimeout(connectionTimeout.current);
         connectionTimeout.current = null;
       }
     };
-  }, []);
+  }, [cleanupFilterProcessor]);
 
   // Auto-start camera and initiate call when matched
   useEffect(() => {
     if (autoStart && sessionId && partnerId && !autoStarted.current && !localStream) {
       autoStarted.current = true;
       
-      // Small delay to ensure socket is ready and both peers are synchronized
       const timer = setTimeout(() => {
         startCall().catch(err => {
           console.log('Auto-start video failed:', err.message);
-          // Don't reset autoStarted here - user can manually retry
         });
-      }, 800); // Slightly longer delay for better synchronization
+      }, 800);
       
       return () => clearTimeout(timer);
     }
   }, [autoStart, sessionId, partnerId, localStream, startCall]);
-
-  // Get CSS filter style for video
-  const getFilterStyle = useCallback((filter) => {
-    const filterStyles = {
-      // Beauty filters
-      beauty: 'brightness(1.08) contrast(1.05) saturate(1.15)',
-      smooth: 'brightness(1.1) contrast(0.92) saturate(1.08) blur(0.4px)',
-      glow: 'brightness(1.15) contrast(1.02) saturate(1.1)',
-      
-      // Mask filters (color overlay effect)
-      raccoon: 'contrast(1.15) brightness(1.02) saturate(0.9)',
-      cat: 'brightness(1.05) contrast(1.1) saturate(1.2)',
-      dog: 'brightness(1.08) contrast(1.05) sepia(0.1)',
-      
-      // Color tone filters
-      warm: 'brightness(1.08) sepia(0.25) saturate(1.4) contrast(1.02)',
-      cool: 'brightness(1.05) saturate(0.85) hue-rotate(15deg) contrast(1.08)',
-      vintage: 'sepia(0.45) contrast(1.15) brightness(0.92) saturate(0.75)',
-      bw: 'grayscale(1) contrast(1.2) brightness(1.05)',
-      
-      // Fun effect filters
-      neon: 'brightness(1.2) contrast(1.35) saturate(1.6)',
-      sparkle: 'brightness(1.18) contrast(1.08) saturate(1.25)',
-      vhs: 'brightness(1.05) contrast(1.25) saturate(1.3) hue-rotate(-5deg)',
-      comic: 'contrast(1.5) brightness(1.1) saturate(1.4)',
-      dreamy: 'brightness(1.12) contrast(0.9) saturate(1.15) blur(0.5px)',
-      
-      // Default
-      none: 'none'
-    };
-    
-    return filterStyles[filter] || 'none';
-  }, []);
-
-  // Change filter
-  const changeFilter = useCallback((filter) => {
-    setCurrentFilter(filter);
-  }, []);
 
   return {
     // Stream refs
@@ -585,7 +597,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     remoteStream,
     localVideoRef,
     remoteVideoRef,
-    canvasRef,
     
     // State
     isVideoEnabled,

@@ -1,198 +1,200 @@
 /**
- * Video Filters Engine - Real-time camera filter processing
+ * Video Filters Engine - Premium Face-Focused Filters
  * 
- * Features:
- * - CSS filter-based for performance
- * - Canvas overlay effects for advanced filters
- * - 60fps processing target
- * - Mobile-optimized
+ * RULES:
+ * - First 3 filters are FREE (None, Beauty, Warm Cinematic)
+ * - Raccoon Identity is premium but as a special identity filter
+ * - All other filters are PREMIUM
+ * - Filters are applied to the video track via canvas processing
+ * - Both local and remote users see the filtered video
  */
 
-// Filter definitions with CSS values and canvas overlays
+// ============================================================
+// FILTER DEFINITIONS
+// ============================================================
+
 export const VIDEO_FILTERS = {
-  // === NO FILTER ===
+  // === FREE FILTERS (First 3) ===
+  
+  // 1. No filter
   none: {
     id: 'none',
     name: 'None',
     icon: '⭕',
-    category: 'basic',
+    category: 'free',
     premium: false,
+    order: 0,
     css: 'none',
-    overlay: null
+    description: 'Original camera view'
   },
 
-  // === BEAUTY FILTERS ===
+  // 2. Beauty / Smooth Face Enhancement (FREE)
   beauty: {
     id: 'beauty',
     name: 'Beauty',
     icon: '✨',
-    category: 'beauty',
+    category: 'free',
     premium: false,
-    css: 'brightness(1.08) contrast(1.02) saturate(1.12)',
-    overlay: null
-  },
-  smooth: {
-    id: 'smooth',
-    name: 'Smooth',
-    icon: '🌸',
-    category: 'beauty',
-    premium: false,
-    css: 'brightness(1.1) contrast(0.95) saturate(1.08) blur(0.3px)',
-    overlay: null
-  },
-  glow: {
-    id: 'glow',
-    name: 'Glow',
-    icon: '💫',
-    category: 'beauty',
-    premium: false,
-    css: 'brightness(1.15) contrast(1.0) saturate(1.1)',
-    overlay: {
-      type: 'radialGradient',
-      color: 'rgba(255, 255, 255, 0.08)',
-      blend: 'screen'
-    }
+    order: 1,
+    css: 'brightness(1.08) contrast(0.98) saturate(1.1) blur(0.2px)',
+    description: 'Soft skin enhancement'
   },
 
-  // === COLOR TONE / CINEMATIC FILTERS ===
+  // 3. Warm Cinematic Face Tone (FREE)
   warm: {
     id: 'warm',
-    name: 'Warm',
+    name: 'Warm Glow',
     icon: '🌅',
-    category: 'cinematic',
+    category: 'free',
     premium: false,
-    css: 'brightness(1.05) sepia(0.2) saturate(1.3) contrast(1.02)',
-    overlay: null
+    order: 2,
+    css: 'brightness(1.06) sepia(0.15) saturate(1.25) contrast(1.03)',
+    description: 'Warm cinematic face tone'
   },
+
+  // === PREMIUM FILTERS ===
+
+  // Raccoon Identity Effect (PREMIUM - Special)
+  raccoon: {
+    id: 'raccoon',
+    name: 'Raccoon',
+    icon: '🦝',
+    category: 'identity',
+    premium: true,
+    order: 3,
+    css: 'contrast(1.12) brightness(1.0) saturate(0.92)',
+    hasOverlay: true,
+    overlayType: 'raccoonMask',
+    description: 'Raccoon eye mask effect'
+  },
+
+  // Cool Tone (PREMIUM)
   cool: {
     id: 'cool',
     name: 'Cool',
     icon: '❄️',
     category: 'cinematic',
-    premium: false,
-    css: 'brightness(1.05) saturate(0.9) hue-rotate(12deg) contrast(1.05)',
-    overlay: null
+    premium: true,
+    order: 4,
+    css: 'brightness(1.04) saturate(0.88) hue-rotate(10deg) contrast(1.06)',
+    description: 'Cool blue face tone'
   },
+
+  // Glow / Soft Light (PREMIUM)
+  glow: {
+    id: 'glow',
+    name: 'Soft Glow',
+    icon: '💫',
+    category: 'beauty',
+    premium: true,
+    order: 5,
+    css: 'brightness(1.12) contrast(0.95) saturate(1.08) blur(0.3px)',
+    description: 'Dreamy soft glow effect'
+  },
+
+  // Vintage Film (PREMIUM)
   vintage: {
     id: 'vintage',
     name: 'Vintage',
     icon: '📷',
     category: 'cinematic',
-    premium: false,
-    css: 'sepia(0.35) contrast(1.1) brightness(0.95) saturate(0.8)',
-    overlay: {
-      type: 'vignette',
-      color: 'rgba(0, 0, 0, 0.2)',
-      blend: 'multiply'
-    }
+    premium: true,
+    order: 6,
+    css: 'sepia(0.25) contrast(1.1) brightness(0.96) saturate(0.85)',
+    hasOverlay: true,
+    overlayType: 'vignette',
+    description: 'Classic film look'
   },
+
+  // Black & White (PREMIUM)
   noir: {
     id: 'noir',
     name: 'B&W',
     icon: '🖤',
     category: 'cinematic',
-    premium: false,
-    css: 'grayscale(1) contrast(1.15) brightness(1.05)',
-    overlay: null
+    premium: true,
+    order: 7,
+    css: 'grayscale(1) contrast(1.15) brightness(1.02)',
+    description: 'Dramatic black & white'
   },
-  cinematic: {
-    id: 'cinematic',
+
+  // Cinematic Widescreen (PREMIUM)
+  cinema: {
+    id: 'cinema',
     name: 'Cinema',
     icon: '🎬',
     category: 'cinematic',
     premium: true,
-    css: 'contrast(1.2) saturate(1.25) brightness(0.98)',
-    overlay: {
-      type: 'letterbox',
-      color: 'rgba(0, 0, 0, 0.9)',
-      size: 0.08
-    }
+    order: 8,
+    css: 'contrast(1.18) saturate(1.2) brightness(0.98)',
+    hasOverlay: true,
+    overlayType: 'letterbox',
+    description: 'Cinematic movie look'
   },
 
-  // === FUN / RACCOON-INSPIRED EFFECTS ===
-  raccoon: {
-    id: 'raccoon',
-    name: 'Raccoon',
-    icon: '🦝',
-    category: 'fun',
-    premium: true,
-    css: 'contrast(1.1) brightness(1.02) saturate(0.95)',
-    overlay: {
-      type: 'raccoonMask',
-      color: 'rgba(30, 30, 30, 0.4)',
-      blend: 'multiply'
-    }
-  },
+  // Neon Glow (PREMIUM)
   neon: {
     id: 'neon',
     name: 'Neon',
     icon: '🌈',
     category: 'fun',
     premium: true,
-    css: 'brightness(1.15) contrast(1.3) saturate(1.5)',
-    overlay: {
-      type: 'gradient',
-      colors: ['rgba(124, 58, 237, 0.1)', 'rgba(236, 72, 153, 0.1)', 'rgba(59, 130, 246, 0.1)'],
-      blend: 'screen'
-    }
+    order: 9,
+    css: 'brightness(1.1) contrast(1.25) saturate(1.45)',
+    hasOverlay: true,
+    overlayType: 'neonGlow',
+    description: 'Vibrant neon colors'
   },
-  sparkle: {
-    id: 'sparkle',
-    name: 'Sparkle',
-    icon: '✨',
-    category: 'fun',
-    premium: true,
-    css: 'brightness(1.12) contrast(1.05) saturate(1.2)',
-    overlay: {
-      type: 'sparkle',
-      color: 'rgba(255, 255, 255, 0.1)',
-      blend: 'screen',
-      animated: true
-    }
-  },
+
+  // VHS Retro (PREMIUM)
   vhs: {
     id: 'vhs',
     name: 'VHS',
     icon: '📼',
     category: 'fun',
     premium: true,
-    css: 'brightness(1.05) contrast(1.2) saturate(1.2) hue-rotate(-3deg)',
-    overlay: {
-      type: 'scanlines',
-      color: 'rgba(255, 255, 255, 0.03)',
-      blend: 'overlay'
-    }
+    order: 10,
+    css: 'brightness(1.04) contrast(1.2) saturate(1.15) hue-rotate(-3deg)',
+    hasOverlay: true,
+    overlayType: 'scanlines',
+    description: 'Retro VHS effect'
   },
+
+  // Dreamy Soft (PREMIUM)
   dreamy: {
     id: 'dreamy',
     name: 'Dreamy',
     icon: '☁️',
-    category: 'fun',
+    category: 'beauty',
     premium: true,
-    css: 'brightness(1.1) contrast(0.9) saturate(1.1) blur(0.4px)',
-    overlay: {
-      type: 'radialGradient',
-      color: 'rgba(255, 255, 255, 0.12)',
-      blend: 'screen'
-    }
+    order: 11,
+    css: 'brightness(1.1) contrast(0.88) saturate(1.05) blur(0.4px)',
+    description: 'Soft dreamy atmosphere'
   }
 };
 
 // Filter categories for organized display
 export const FILTER_CATEGORIES = {
-  basic: { name: 'Basic', order: 0 },
-  beauty: { name: 'Beauty', order: 1 },
-  cinematic: { name: 'Cinematic', order: 2 },
-  fun: { name: 'Fun', order: 3 }
+  free: { name: 'Free', order: 0 },
+  identity: { name: 'Identity', order: 1 },
+  beauty: { name: 'Beauty', order: 2 },
+  cinematic: { name: 'Cinematic', order: 3 },
+  fun: { name: 'Fun', order: 4 }
 };
 
 // Get ordered filter list
 export const getOrderedFilters = () => {
-  return Object.values(VIDEO_FILTERS).sort((a, b) => {
-    const catOrderA = FILTER_CATEGORIES[a.category]?.order || 99;
-    const catOrderB = FILTER_CATEGORIES[b.category]?.order || 99;
-    return catOrderA - catOrderB;
-  });
+  return Object.values(VIDEO_FILTERS).sort((a, b) => a.order - b.order);
+};
+
+// Get free filters only
+export const getFreeFilters = () => {
+  return getOrderedFilters().filter(f => !f.premium);
+};
+
+// Get premium filters only
+export const getPremiumFilters = () => {
+  return getOrderedFilters().filter(f => f.premium);
 };
 
 // Get filter by ID
@@ -206,104 +208,90 @@ export const getCSSFilter = (filterId) => {
   return filter.css;
 };
 
+// Check if filter is free
+export const isFilterFree = (filterId) => {
+  const filter = getFilter(filterId);
+  return !filter.premium;
+};
+
 /**
- * Canvas overlay renderer for advanced effects
- * Called by the video filter component when overlay is needed
+ * Render overlay effects on canvas
+ * Used for filters that need more than CSS (raccoon mask, vignette, etc.)
  */
-export const renderOverlay = (ctx, filter, width, height, time = 0) => {
-  if (!filter?.overlay) return;
-  
-  const { type, color, blend, colors, size, animated } = filter.overlay;
+export const renderOverlay = (ctx, filter, width, height) => {
+  if (!filter?.hasOverlay || !filter.overlayType) return;
   
   ctx.save();
-  if (blend) ctx.globalCompositeOperation = blend;
   
-  switch (type) {
-    case 'radialGradient': {
-      const gradient = ctx.createRadialGradient(
-        width / 2, height / 2, 0,
-        width / 2, height / 2, Math.max(width, height) * 0.7
-      );
-      gradient.addColorStop(0, color);
-      gradient.addColorStop(1, 'transparent');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
+  switch (filter.overlayType) {
+    case 'raccoonMask': {
+      // Premium raccoon eye mask effect
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = 'rgba(30, 30, 30, 0.35)';
+      
+      const eyeY = height * 0.36;
+      const eyeWidth = width * 0.22;
+      const eyeHeight = height * 0.09;
+      
+      // Left eye mask
+      ctx.beginPath();
+      ctx.ellipse(width * 0.33, eyeY, eyeWidth, eyeHeight, -0.12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Right eye mask  
+      ctx.beginPath();
+      ctx.ellipse(width * 0.67, eyeY, eyeWidth, eyeHeight, 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Nose stripe
+      ctx.beginPath();
+      ctx.moveTo(width * 0.46, height * 0.44);
+      ctx.lineTo(width * 0.54, height * 0.44);
+      ctx.lineTo(width * 0.52, height * 0.54);
+      ctx.lineTo(width * 0.48, height * 0.54);
+      ctx.closePath();
+      ctx.fill();
       break;
     }
     
     case 'vignette': {
+      ctx.globalCompositeOperation = 'multiply';
       const vGradient = ctx.createRadialGradient(
-        width / 2, height / 2, Math.min(width, height) * 0.3,
-        width / 2, height / 2, Math.max(width, height) * 0.8
+        width / 2, height / 2, Math.min(width, height) * 0.25,
+        width / 2, height / 2, Math.max(width, height) * 0.75
       );
       vGradient.addColorStop(0, 'transparent');
-      vGradient.addColorStop(1, color);
+      vGradient.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
       ctx.fillStyle = vGradient;
       ctx.fillRect(0, 0, width, height);
       break;
     }
     
-    case 'gradient': {
-      if (colors && colors.length >= 2) {
-        const lGradient = ctx.createLinearGradient(0, 0, width, height);
-        colors.forEach((c, i) => lGradient.addColorStop(i / (colors.length - 1), c));
-        ctx.fillStyle = lGradient;
-        ctx.fillRect(0, 0, width, height);
-      }
-      break;
-    }
-    
     case 'letterbox': {
-      const barHeight = height * (size || 0.1);
-      ctx.fillStyle = color;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.92)';
+      const barHeight = height * 0.08;
       ctx.fillRect(0, 0, width, barHeight);
       ctx.fillRect(0, height - barHeight, width, barHeight);
       break;
     }
     
-    case 'scanlines': {
-      ctx.fillStyle = color;
-      for (let y = 0; y < height; y += 3) {
-        ctx.fillRect(0, y, width, 1);
-      }
-      break;
-    }
-    
-    case 'sparkle': {
-      // Animated sparkle effect
-      const sparkleOpacity = animated 
-        ? 0.05 + Math.sin(time * 3) * 0.03
-        : 0.08;
-      ctx.fillStyle = color.replace('0.1', sparkleOpacity.toString());
+    case 'neonGlow': {
+      ctx.globalCompositeOperation = 'screen';
+      const neonGradient = ctx.createLinearGradient(0, 0, width, height);
+      neonGradient.addColorStop(0, 'rgba(124, 58, 237, 0.08)');
+      neonGradient.addColorStop(0.5, 'rgba(236, 72, 153, 0.06)');
+      neonGradient.addColorStop(1, 'rgba(59, 130, 246, 0.08)');
+      ctx.fillStyle = neonGradient;
       ctx.fillRect(0, 0, width, height);
       break;
     }
     
-    case 'raccoonMask': {
-      // Simple raccoon eye mask effect
-      ctx.fillStyle = color;
-      const eyeY = height * 0.35;
-      const eyeWidth = width * 0.25;
-      const eyeHeight = height * 0.1;
-      
-      // Left eye mask
-      ctx.beginPath();
-      ctx.ellipse(width * 0.32, eyeY, eyeWidth, eyeHeight, -0.15, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Right eye mask  
-      ctx.beginPath();
-      ctx.ellipse(width * 0.68, eyeY, eyeWidth, eyeHeight, 0.15, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Nose stripe
-      ctx.beginPath();
-      ctx.moveTo(width * 0.45, height * 0.42);
-      ctx.lineTo(width * 0.55, height * 0.42);
-      ctx.lineTo(width * 0.52, height * 0.55);
-      ctx.lineTo(width * 0.48, height * 0.55);
-      ctx.closePath();
-      ctx.fill();
+    case 'scanlines': {
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+      for (let y = 0; y < height; y += 3) {
+        ctx.fillRect(0, y, width, 1);
+      }
       break;
     }
     
@@ -315,24 +303,27 @@ export const renderOverlay = (ctx, filter, width, height, time = 0) => {
 };
 
 /**
- * Performance-optimized filter application
- * Uses CSS filters for speed, canvas overlays only when needed
+ * VideoFilterProcessor - Canvas-based filter processing
+ * Processes video frames and outputs to canvas for WebRTC capture
  */
-export class VideoFilterEngine {
+export class VideoFilterProcessor {
   constructor() {
     this.canvas = null;
     this.ctx = null;
-    this.animationFrame = null;
     this.currentFilter = 'none';
     this.isProcessing = false;
-    this.startTime = Date.now();
+    this.animationFrame = null;
+    this.targetFPS = 30; // Target 30fps for performance
+    this.lastFrameTime = 0;
+    this.frameInterval = 1000 / this.targetFPS;
   }
   
   init(canvas) {
     this.canvas = canvas;
     this.ctx = canvas?.getContext('2d', { 
       alpha: false,
-      desynchronized: true // Better performance
+      desynchronized: true,
+      willReadFrequently: false
     });
   }
   
@@ -340,12 +331,14 @@ export class VideoFilterEngine {
     this.currentFilter = filterId;
   }
   
-  // Process a single frame with overlay (for filters that need canvas)
-  processFrame(video) {
+  // Process a video frame with the current filter
+  processFrame(video, timestamp = 0) {
     if (!this.canvas || !this.ctx || !video) return;
     
-    const filter = getFilter(this.currentFilter);
-    if (!filter.overlay) return; // No canvas processing needed
+    // FPS limiting
+    const elapsed = timestamp - this.lastFrameTime;
+    if (elapsed < this.frameInterval) return;
+    this.lastFrameTime = timestamp;
     
     const { videoWidth, videoHeight } = video;
     if (!videoWidth || !videoHeight) return;
@@ -356,22 +349,56 @@ export class VideoFilterEngine {
       this.canvas.height = videoHeight;
     }
     
+    const filter = getFilter(this.currentFilter);
+    
     // Apply CSS filter
     this.ctx.filter = filter.css;
     this.ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
     
-    // Apply overlay
-    const time = (Date.now() - this.startTime) / 1000;
-    renderOverlay(this.ctx, filter, videoWidth, videoHeight, time);
+    // Reset filter before overlay
+    this.ctx.filter = 'none';
+    
+    // Apply overlay effect if needed
+    if (filter.hasOverlay) {
+      renderOverlay(this.ctx, filter, videoWidth, videoHeight);
+    }
+  }
+  
+  // Start continuous processing loop
+  startProcessing(video, onFrame) {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+    
+    const loop = (timestamp) => {
+      if (!this.isProcessing) return;
+      
+      this.processFrame(video, timestamp);
+      onFrame?.();
+      
+      this.animationFrame = requestAnimationFrame(loop);
+    };
+    
+    this.animationFrame = requestAnimationFrame(loop);
+  }
+  
+  stopProcessing() {
+    this.isProcessing = false;
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+  }
+  
+  // Get the canvas stream for WebRTC
+  getCanvasStream(frameRate = 30) {
+    if (!this.canvas) return null;
+    return this.canvas.captureStream(frameRate);
   }
   
   destroy() {
-    if (this.animationFrame) {
-      cancelAnimationFrame(this.animationFrame);
-    }
+    this.stopProcessing();
     this.canvas = null;
     this.ctx = null;
-    this.isProcessing = false;
   }
 }
 
@@ -379,8 +406,11 @@ export default {
   VIDEO_FILTERS,
   FILTER_CATEGORIES,
   getOrderedFilters,
+  getFreeFilters,
+  getPremiumFilters,
   getFilter,
   getCSSFilter,
+  isFilterFree,
   renderOverlay,
-  VideoFilterEngine
+  VideoFilterProcessor
 };

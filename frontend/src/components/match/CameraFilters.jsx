@@ -1,20 +1,18 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { VIDEO_FILTERS, getOrderedFilters, getCSSFilter } from '@/utils/videoFilters';
+import { Crown, X, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { VIDEO_FILTERS, getOrderedFilters, isFilterFree } from '@/utils/videoFilters';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/filters.css';
 
 /**
- * CameraFilters - Premium swipe-based camera filter selector
+ * CameraFilters - Premium Face-Focused Camera Filter Selector
  * 
- * Features:
- * - Horizontal swipe interaction (touch + mouse)
- * - Circular filter icons with center selection
- * - Real-time filter preview
- * - Premium lock indicators
- * - Smooth 60fps animations
- * - Mobile-optimized performance
+ * RULES:
+ * - First 3 filters (None, Beauty, Warm) are FREE
+ * - All other filters require Premium
+ * - Filters are visible to both users (processed via canvas)
+ * - Swipe/drag to navigate, tap to select
  */
 const CameraFilters = ({
   currentFilter = 'none',
@@ -41,7 +39,11 @@ const CameraFilters = ({
   const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
   const [premiumFilterName, setPremiumFilterName] = useState('');
   
-  // Haptic feedback (if available)
+  // Count free vs premium filters for UI
+  const freeCount = filters.filter(f => !f.premium).length;
+  const premiumCount = filters.filter(f => f.premium).length;
+  
+  // Haptic feedback
   const vibrate = useCallback(() => {
     if ('vibrate' in navigator) {
       navigator.vibrate(5);
@@ -92,7 +94,7 @@ const CameraFilters = ({
     
     // Premium check
     if (filter.premium && !isPremium) {
-      showPremiumModal(`${filter.name} Camera Filter`);
+      showPremiumModal(`${filter.name} Filter`);
       vibrate();
       return;
     }
@@ -101,7 +103,6 @@ const CameraFilters = ({
     vibrate();
     onFilterChange(filter.id);
     
-    // Reset animation state
     requestAnimationFrame(() => {
       setTimeout(() => setIsAnimating(false), 150);
     });
@@ -127,7 +128,7 @@ const CameraFilters = ({
   const handleTouchEnd = useCallback(() => {
     if (!isDragging) return;
     
-    const threshold = 40; // Swipe sensitivity
+    const threshold = 40;
     
     if (Math.abs(touchDelta) > threshold) {
       if (touchDelta > 0) {
@@ -142,7 +143,7 @@ const CameraFilters = ({
     setIsDragging(false);
   }, [isDragging, touchDelta, goToPrevious, goToNext]);
   
-  // Mouse handlers (desktop swipe)
+  // Mouse handlers
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     setTouchStart(e.clientX);
@@ -204,7 +205,7 @@ const CameraFilters = ({
       className={`camera-filters ${compact ? 'camera-filters--compact' : ''}`}
       data-testid="camera-filters"
     >
-      {/* Close button (if provided) */}
+      {/* Close button */}
       {onClose && !compact && (
         <button 
           className="camera-filters__close"
@@ -215,13 +216,16 @@ const CameraFilters = ({
         </button>
       )}
       
-      {/* Filter name + category badge */}
+      {/* Filter name + status */}
       <div 
         className={`camera-filters__label ${isAnimating ? 'camera-filters__label--animating' : ''}`}
       >
         <span className="camera-filters__label-icon">{currentFilterData.icon}</span>
         <span className="camera-filters__label-name">{currentFilterData.name}</span>
         {isLocked && <Crown size={12} className="camera-filters__label-crown" />}
+        {!currentFilterData.premium && currentFilterData.id !== 'none' && (
+          <span className="camera-filters__label-free">FREE</span>
+        )}
       </div>
       
       {/* Swipeable carousel */}
@@ -237,7 +241,7 @@ const CameraFilters = ({
         onMouseLeave={() => isDragging && handleMouseUp()}
         data-testid="camera-filters-carousel"
       >
-        {/* Left arrow hint */}
+        {/* Left arrow */}
         <button 
           className="camera-filters__arrow camera-filters__arrow--left"
           onClick={goToPrevious}
@@ -259,7 +263,6 @@ const CameraFilters = ({
             const isCenter = offset === 0;
             const filterLocked = filter.premium && !isPremium;
             
-            // Scale and opacity based on distance from center
             const distance = Math.abs(offset);
             const scale = isCenter ? 1 : Math.max(0.55, 0.75 - distance * 0.1);
             const opacity = isCenter ? 1 : Math.max(0.3, 0.6 - distance * 0.15);
@@ -271,6 +274,7 @@ const CameraFilters = ({
                   camera-filters__icon
                   ${isCenter ? 'camera-filters__icon--active' : ''}
                   ${filterLocked ? 'camera-filters__icon--locked' : ''}
+                  ${!filter.premium && filter.id !== 'none' ? 'camera-filters__icon--free' : ''}
                 `}
                 onClick={() => !isDragging && changeToIndex(index)}
                 style={{
@@ -289,15 +293,20 @@ const CameraFilters = ({
                 {/* Premium lock badge */}
                 {filterLocked && (
                   <div className="camera-filters__icon-lock">
-                    <Crown size={8} />
+                    <Lock size={8} />
                   </div>
+                )}
+                
+                {/* Free badge (for non-active free filters) */}
+                {!filter.premium && filter.id !== 'none' && !isCenter && (
+                  <div className="camera-filters__icon-free-badge" />
                 )}
               </button>
             );
           })}
         </div>
         
-        {/* Right arrow hint */}
+        {/* Right arrow */}
         <button 
           className="camera-filters__arrow camera-filters__arrow--right"
           onClick={goToNext}
@@ -307,12 +316,25 @@ const CameraFilters = ({
         </button>
       </div>
       
+      {/* Filter type indicator */}
+      {!compact && (
+        <div className="camera-filters__info">
+          <span className="camera-filters__info-free">{freeCount} Free</span>
+          <span className="camera-filters__info-divider">|</span>
+          <span className="camera-filters__info-premium">
+            <Crown size={10} className="inline mr-1" />
+            {premiumCount} Premium
+          </span>
+        </div>
+      )}
+      
       {/* Dot indicators */}
       {!compact && (
         <div className="camera-filters__dots">
           {filterIds.map((id, idx) => {
             const filter = VIDEO_FILTERS[id];
             const dotLocked = filter?.premium && !isPremium;
+            const dotFree = !filter?.premium && id !== 'none';
             return (
               <button
                 key={id}
@@ -320,6 +342,7 @@ const CameraFilters = ({
                   camera-filters__dot
                   ${idx === currentIndex ? 'camera-filters__dot--active' : ''}
                   ${dotLocked ? 'camera-filters__dot--locked' : ''}
+                  ${dotFree ? 'camera-filters__dot--free' : ''}
                 `}
                 onClick={() => changeToIndex(idx)}
                 aria-label={`Select ${filter?.name || 'filter'}`}
@@ -329,7 +352,7 @@ const CameraFilters = ({
         </div>
       )}
       
-      {/* Swipe hint text (mobile only) */}
+      {/* Swipe hint */}
       {!compact && (
         <div className="camera-filters__hint">
           Swipe to change filter
