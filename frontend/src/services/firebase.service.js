@@ -5,7 +5,9 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signInAnonymously as firebaseSignInAnonymously,
-  signOut as firebaseSignOut
+  signOut as firebaseSignOut,
+  browserLocalPersistence,
+  setPersistence
 } from 'firebase/auth';
 import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
 
@@ -13,20 +15,33 @@ import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
 let app = null;
 let auth = null;
 let googleProvider = null;
+let initPromise = null;
+
+console.log('=== FIREBASE SERVICE LOADING ===');
+console.log('Firebase configured:', isFirebaseConfigured());
 
 // Initialize on module load if configured
-if (isFirebaseConfigured()) {
+const initFirebase = async () => {
+  if (!isFirebaseConfigured()) {
+    console.log('Firebase not configured');
+    return false;
+  }
+  
   try {
     // Check if already initialized
     if (getApps().length === 0) {
+      console.log('Initializing Firebase app...');
       app = initializeApp(firebaseConfig);
-      console.log('Firebase initialized successfully');
     } else {
       app = getApps()[0];
-      console.log('Firebase already initialized');
+      console.log('Firebase app already exists');
     }
     
     auth = getAuth(app);
+    
+    // CRITICAL: Set persistence to LOCAL so auth state survives page reload
+    await setPersistence(auth, browserLocalPersistence);
+    console.log('Auth persistence set to LOCAL');
     
     // Configure Google Provider
     googleProvider = new GoogleAuthProvider();
@@ -36,21 +51,32 @@ if (isFirebaseConfigured()) {
       prompt: 'select_account'
     });
     
-    console.log('Firebase auth ready');
+    console.log('=== FIREBASE INITIALIZED ===');
+    console.log('Auth:', !!auth);
+    console.log('Google Provider:', !!googleProvider);
     
+    return true;
   } catch (error) {
-    console.error('Firebase initialization error:', error);
+    console.error('=== FIREBASE INIT ERROR ===', error);
+    return false;
   }
-}
+};
+
+// Start initialization immediately
+initPromise = initFirebase();
 
 // Google Sign In - Uses redirect for better cross-origin compatibility
 export const signInWithGoogle = async () => {
+  // Ensure Firebase is initialized
+  await initPromise;
+  
   if (!auth || !googleProvider) {
     throw new Error('Firebase not initialized');
   }
   
   try {
-    console.log('Starting Google sign-in redirect...');
+    console.log('=== STARTING GOOGLE SIGN-IN ===');
+    console.log('Using redirect flow...');
     // Use redirect instead of popup to avoid COOP issues
     await signInWithRedirect(auth, googleProvider);
     // This function won't return anything as the page redirects
@@ -63,27 +89,32 @@ export const signInWithGoogle = async () => {
 
 // Handle redirect result after returning from Google
 export const getGoogleRedirectResult = async () => {
+  // Ensure Firebase is initialized
+  await initPromise;
+  
   if (!auth) {
     console.log('Firebase auth not initialized');
     return null;
   }
   
   try {
-    console.log('Checking for Google redirect result...');
+    console.log('=== GETTING REDIRECT RESULT ===');
+    console.log('Current user before getRedirectResult:', auth.currentUser?.email || 'null');
+    
     const result = await getRedirectResult(auth);
     
     console.log('Redirect result:', result ? 'FOUND' : 'NULL');
     
     if (result && result.user) {
-      console.log('=== GOOGLE REDIRECT RESULT ===');
-      console.log('User UID:', result.user.uid);
-      console.log('User email:', result.user.email);
-      console.log('User display name:', result.user.displayName);
+      console.log('=== GOOGLE USER FROM REDIRECT ===');
+      console.log('UID:', result.user.uid);
+      console.log('Email:', result.user.email);
+      console.log('Name:', result.user.displayName);
       
       const user = result.user;
       const idToken = await user.getIdToken(true);
       
-      console.log('Got ID token:', idToken ? 'YES' : 'NO');
+      console.log('ID Token obtained:', idToken ? 'YES' : 'NO');
       
       return {
         uid: user.uid,
@@ -95,16 +126,34 @@ export const getGoogleRedirectResult = async () => {
       };
     }
     
-    console.log('No redirect result found');
+    // Check if there's a current user (might be from persistence)
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+      console.log('=== FOUND PERSISTENT USER ===');
+      console.log('Email:', auth.currentUser.email);
+      
+      const user = auth.currentUser;
+      const idToken = await user.getIdToken(true);
+      
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        provider: 'google',
+        idToken: idToken,
+      };
+    }
+    
+    console.log('No redirect result and no current user');
     return null;
   } catch (error) {
-    console.error('=== GOOGLE REDIRECT ERROR ===');
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
+    console.error('=== REDIRECT RESULT ERROR ===');
+    console.error('Code:', error.code);
+    console.error('Message:', error.message);
     
     if (error.code === 'auth/unauthorized-domain') {
       console.error('DOMAIN NOT AUTHORIZED!');
-      console.error('Add this domain to Firebase Console:', window.location.hostname);
+      console.error('Add domain to Firebase Console:', window.location.hostname);
     }
     
     throw error;
@@ -113,6 +162,8 @@ export const getGoogleRedirectResult = async () => {
 
 // Anonymous Sign In
 export const signInAnonymousUser = async () => {
+  await initPromise;
+  
   if (!auth) {
     throw new Error('Firebase not initialized');
   }
@@ -147,6 +198,12 @@ export const signOut = async () => {
 // Check if Firebase is ready
 export const isFirebaseReady = () => {
   return !!auth && !!googleProvider;
+};
+
+// Wait for Firebase to be ready
+export const waitForFirebase = async () => {
+  await initPromise;
+  return isFirebaseReady();
 };
 
 // Export auth for direct access (needed for onAuthStateChanged)

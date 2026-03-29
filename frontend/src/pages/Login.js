@@ -12,8 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, getGoogleRedirectResult, auth } from '@/services/firebase.service';
-import { onAuthStateChanged } from 'firebase/auth';
+import { isFirebaseReady, signInWithGoogle, getGoogleRedirectResult, auth, waitForFirebase } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
   getErrorMessage,
@@ -35,9 +34,8 @@ const Login = () => {
   const [checkingRedirect, setCheckingRedirect] = useState(true);
   
   // Refs to prevent double-processing
-  const redirectProcessed = useRef(false);
+  const backendSyncDone = useRef(false);
   const navigationDone = useRef(false);
-  const backendSyncInProgress = useRef(false);
 
   const firebaseReady = isFirebaseReady();
 
@@ -46,21 +44,20 @@ const Login = () => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     console.log('=== LOGIN PAGE STATE ===');
     console.log('localStorage token:', storedToken ? 'EXISTS' : 'NULL');
-    console.log('Context token:', token ? 'EXISTS' : 'NULL');
     console.log('Context user:', user ? user.username || user.email : 'NULL');
     console.log('Auth loading:', authLoading);
     console.log('Checking redirect:', checkingRedirect);
-  }, [token, user, authLoading, checkingRedirect]);
+  }, [user, authLoading, checkingRedirect]);
 
   // Sync Firebase user with backend - THE CRITICAL FUNCTION
   const syncFirebaseUserWithBackend = useCallback(async (firebaseUser) => {
     // Prevent duplicate calls
-    if (backendSyncInProgress.current) {
-      console.log('Backend sync already in progress, skipping');
+    if (backendSyncDone.current) {
+      console.log('Backend sync already done, skipping');
       return false;
     }
     
-    backendSyncInProgress.current = true;
+    backendSyncDone.current = true;
     
     try {
       console.log('=== SYNCING FIREBASE USER WITH BACKEND ===');
@@ -70,11 +67,12 @@ const Login = () => {
       
       // Get Firebase ID token
       const idToken = await firebaseUser.getIdToken(true);
-      console.log('Got Firebase ID token:', idToken ? 'YES' : 'NO');
+      console.log('Got Firebase ID token:', idToken ? 'YES (length: ' + idToken.length + ')' : 'NO');
       
       if (!idToken) {
         console.error('Failed to get Firebase ID token');
         toast.error('Authentication failed. Please try again.');
+        backendSyncDone.current = false;
         return false;
       }
       
@@ -98,6 +96,7 @@ const Login = () => {
       if (!response.data.token) {
         console.error('No JWT token in backend response!');
         toast.error('Login failed. Please try again.');
+        backendSyncDone.current = false;
         return false;
       }
       
@@ -117,6 +116,8 @@ const Login = () => {
       
       // Navigate
       navigationDone.current = true;
+      setCheckingRedirect(false);
+      
       if (response.data.user.age_verified) {
         console.log('Navigating to dashboard');
         navigate('/dashboard', { replace: true });
@@ -130,22 +131,21 @@ const Login = () => {
       console.error('=== BACKEND SYNC ERROR ===', error);
       console.error('Response:', error.response?.data);
       toast.error(getErrorMessage(error));
+      backendSyncDone.current = false;
       return false;
-    } finally {
-      backendSyncInProgress.current = false;
     }
   }, [login, navigate]);
 
-  // Redirect if already logged in (via our JWT token, not Firebase)
+  // Redirect if already logged in (via our JWT token)
   useEffect(() => {
     if (authLoading) return;
     
-    // Check OUR token, not Firebase
     const storedToken = localStorage.getItem(TOKEN_KEY);
     
     if (user && storedToken && !navigationDone.current) {
       console.log('=== ALREADY LOGGED IN (JWT exists) ===');
       navigationDone.current = true;
+      setCheckingRedirect(false);
       
       if (!user.age_verified) {
         navigate('/verify-age', { replace: true });
@@ -155,100 +155,106 @@ const Login = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Handle Google redirect result AND Firebase auth state
+  // Handle Google redirect - Listen for Firebase auth state changes
   useEffect(() => {
-    if (!firebaseReady || !auth) {
-      console.log('Firebase not ready');
-      setCheckingRedirect(false);
-      return;
-    }
+    let unsubscribe = () => {};
+    let authCheckTimeout;
+    let cancelled = false;
     
-    // Skip if already have a valid JWT token
-    const existingToken = localStorage.getItem(TOKEN_KEY);
-    if (existingToken) {
-      console.log('JWT token exists, skipping Firebase check');
-      setCheckingRedirect(false);
-      return;
-    }
-    
-    if (redirectProcessed.current) {
-      setCheckingRedirect(false);
-      return;
-    }
-    
-    redirectProcessed.current = true;
-    
-    const checkGoogleRedirect = async () => {
-      console.log('=== CHECKING GOOGLE REDIRECT ===');
-      setSocialLoading('google');
+    const setupFirebaseListener = async () => {
+      // Wait for Firebase to be fully initialized
+      console.log('=== WAITING FOR FIREBASE ===');
+      const ready = await waitForFirebase();
+      console.log('Firebase ready:', ready);
       
-      try {
-        // First, try to get redirect result
-        const userData = await getGoogleRedirectResult();
-        
-        if (userData) {
-          console.log('=== GOOGLE REDIRECT RESULT FOUND ===');
-          // userData already has the user info from getGoogleRedirectResult
-          // We need to get the actual Firebase user to call getIdToken
-          const currentUser = auth.currentUser;
-          if (currentUser) {
-            await syncFirebaseUserWithBackend(currentUser);
-          } else {
-            console.log('No current user after redirect result');
-          }
-          return;
-        }
-        
-        console.log('No redirect result, checking current Firebase user...');
-        
-        // Check if there's a current Firebase user (from previous session)
-        const currentUser = auth.currentUser;
-        if (currentUser && !currentUser.isAnonymous) {
-          console.log('Found existing Firebase user:', currentUser.email);
-          // User is signed into Firebase but we don't have JWT
-          // This might be after a redirect
-          await syncFirebaseUserWithBackend(currentUser);
-          return;
-        }
-        
-        console.log('No Firebase user found');
-        
-      } catch (error) {
-        console.error('=== GOOGLE REDIRECT CHECK ERROR ===', error);
-        
-        if (error.code === 'auth/unauthorized-domain') {
-          toast.error('This domain is not authorized for Google Sign-In. Please contact support.');
-        }
-      } finally {
-        setSocialLoading(null);
+      if (cancelled) return;
+      
+      if (!ready || !auth) {
+        console.log('Firebase not ready');
         setCheckingRedirect(false);
-      }
-    };
-    
-    // Also listen for auth state changes (catches cases where redirect result is missed)
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('=== FIREBASE AUTH STATE CHANGED ===');
-      console.log('Firebase user:', firebaseUser ? firebaseUser.email : 'NULL');
-      
-      // Skip if already have JWT or sync in progress
-      const existingJWT = localStorage.getItem(TOKEN_KEY);
-      if (existingJWT || backendSyncInProgress.current || navigationDone.current) {
         return;
       }
       
-      // If there's a Firebase user and they're not anonymous, sync with backend
-      if (firebaseUser && !firebaseUser.isAnonymous) {
-        console.log('Firebase user detected, syncing with backend...');
-        setSocialLoading('google');
-        await syncFirebaseUserWithBackend(firebaseUser);
-        setSocialLoading(null);
+      // Skip if already have a valid JWT token
+      const existingToken = localStorage.getItem(TOKEN_KEY);
+      if (existingToken) {
+        console.log('JWT token already exists, skipping Firebase check');
+        setCheckingRedirect(false);
+        return;
       }
-    });
+      
+      console.log('=== CHECKING FOR GOOGLE REDIRECT ===');
+      setSocialLoading('google');
+      
+      // FIRST - Check for redirect result (most important)
+      try {
+        console.log('Calling getGoogleRedirectResult...');
+        const userData = await getGoogleRedirectResult();
+        
+        if (cancelled) return;
+        
+        if (userData) {
+          console.log('=== REDIRECT RESULT FOUND ===');
+          console.log('User:', userData.email);
+          
+          // Create a mock firebaseUser object with getIdToken
+          const mockUser = {
+            uid: userData.uid,
+            email: userData.email,
+            displayName: userData.displayName,
+            photoURL: userData.photoURL,
+            getIdToken: async () => userData.idToken
+          };
+          
+          // Sync with backend
+          await syncFirebaseUserWithBackend(mockUser);
+          return; // Exit early, we're done
+        }
+        
+        console.log('No redirect result found');
+      } catch (error) {
+        console.error('Redirect result error:', error);
+        if (error.code === 'auth/unauthorized-domain') {
+          toast.error('Domain not authorized for Google Sign-In');
+          setSocialLoading(null);
+          setCheckingRedirect(false);
+          return;
+        }
+      }
+      
+      if (cancelled) return;
+      
+      // THEN - Check for current user (in case they're already signed into Firebase)
+      if (auth.currentUser && !auth.currentUser.isAnonymous) {
+        console.log('=== FOUND CURRENT USER ===');
+        console.log('User:', auth.currentUser.email);
+        
+        const jwt = localStorage.getItem(TOKEN_KEY);
+        if (!jwt && !backendSyncDone.current) {
+          await syncFirebaseUserWithBackend(auth.currentUser);
+          return;
+        }
+      }
+      
+      // No user found - wait a bit for auth state to settle
+      console.log('No user found, setting timeout...');
+      authCheckTimeout = setTimeout(() => {
+        if (!cancelled) {
+          console.log('Auth check complete - no user');
+          setSocialLoading(null);
+          setCheckingRedirect(false);
+        }
+      }, 1500);
+    };
     
-    checkGoogleRedirect();
+    setupFirebaseListener();
     
-    return () => unsubscribe();
-  }, [firebaseReady, syncFirebaseUserWithBackend]);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      clearTimeout(authCheckTimeout);
+    };
+  }, [syncFirebaseUserWithBackend]);
 
   // Clear field error when user types
   const handleFieldChange = useCallback((field, value) => {
@@ -315,9 +321,8 @@ const Login = () => {
     
     try {
       // Reset flags for the new login attempt
-      redirectProcessed.current = false;
+      backendSyncDone.current = false;
       navigationDone.current = false;
-      backendSyncInProgress.current = false;
       
       // Clear any stale tokens
       localStorage.removeItem(TOKEN_KEY);
