@@ -62,12 +62,16 @@ export const signInWithGoogle = async () => {
 // Handle redirect result after returning from Google
 export const getGoogleRedirectResult = async () => {
   if (!auth) {
+    console.log('Firebase auth not initialized');
     return null;
   }
   
   try {
+    console.log('Checking for Google redirect result...');
     const result = await getRedirectResult(auth);
+    
     if (result && result.user) {
+      console.log('Google redirect result found!');
       const user = result.user;
       const idToken = await user.getIdToken();
       
@@ -80,9 +84,22 @@ export const getGoogleRedirectResult = async () => {
         idToken: idToken,
       };
     }
+    
+    console.log('No Google redirect result');
     return null;
   } catch (error) {
     console.error('Google redirect result error:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    
+    // Handle unauthorized domain error specifically
+    if (error.code === 'auth/unauthorized-domain') {
+      console.error('=== UNAUTHORIZED DOMAIN ERROR ===');
+      console.error('The current domain needs to be added to Firebase Console:');
+      console.error('1. Go to Firebase Console > Authentication > Settings');
+      console.error('2. Add this domain to Authorized domains:', window.location.hostname);
+    }
+    
     throw error;
   }
 };
