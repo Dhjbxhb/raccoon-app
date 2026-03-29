@@ -10,6 +10,9 @@ from middleware.auth_middleware import verify_token
 import uuid
 from datetime import datetime, timedelta, timezone
 import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -443,6 +446,176 @@ class SocialAuthRequest(BaseModel):
     browser_locale: str | None = None
     isAnonymous: bool = False
 
+class GoogleAuthRequest(BaseModel):
+    uid: str
+    email: str | None = None
+    displayName: str | None = None
+    photoURL: str | None = None
+    idToken: str
+    browser_locale: str | None = None
+
+@router.post("/google", response_model=AuthResponse)
+async def google_auth(data: GoogleAuthRequest, request: Request):
+    """Handle Google authentication specifically"""
+    logger.info(f"=== GOOGLE AUTH REQUEST ===")
+    logger.info(f"Firebase UID: {data.uid}")
+    logger.info(f"Email: {data.email}")
+    logger.info(f"Display Name: {data.displayName}")
+    
+    users = get_users_collection()
+    
+    # Auto-detect country from IP
+    client_ip = request.client.host
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        client_ip = forwarded_for.split(',')[0].strip()
+    
+    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
+    
+    # Check if user exists by Firebase UID or email
+    existing_user = None
+    if data.email:
+        existing_user = await users.find_one({"email": data.email}, {"_id": 0})
+        if existing_user:
+            logger.info(f"Found existing user by email: {existing_user['user_id']}")
+    
+    if not existing_user:
+        existing_user = await users.find_one({"firebase_uid": data.uid}, {"_id": 0})
+        if existing_user:
+            logger.info(f"Found existing user by Firebase UID: {existing_user['user_id']}")
+    
+    if existing_user:
+        # Update existing user with Firebase UID if not set
+        if not existing_user.get('firebase_uid'):
+            await users.update_one(
+                {"user_id": existing_user['user_id']},
+                {"$set": {
+                    "firebase_uid": data.uid,
+                    "last_active": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            logger.info("Updated existing user with Firebase UID")
+        
+        # Check if banned
+        if existing_user.get('is_banned', False):
+            logger.warning(f"Banned user attempted login: {existing_user['user_id']}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been banned"
+            )
+        
+        token = AuthService.create_token(
+            existing_user['user_id'],
+            is_admin=existing_user.get('is_admin', False)
+        )
+        
+        logger.info(f"Token generated for existing user: {existing_user['username']}")
+        
+        user_response = UserResponse(
+            user_id=existing_user['user_id'],
+            email=existing_user.get('email', ''),
+            username=existing_user['username'],
+            country=existing_user.get('country', country_info['country']),
+            country_code=existing_user.get('country_code', country_info['countryCode']),
+            country_flag=existing_user.get('country_flag', country_info['flag']),
+            gender=existing_user.get('gender', 'any'),
+            age_verified=existing_user.get('age_verified', False),
+            premium_status=existing_user.get('premium_status', False),
+            premium_tier=existing_user.get('premium_tier', 'free'),
+            is_admin=existing_user.get('is_admin', False),
+            is_moderator=existing_user.get('is_moderator', False),
+            total_sessions=existing_user.get('total_sessions', 0),
+            total_time_spent=existing_user.get('total_time_spent', 0),
+            games_played=existing_user.get('games_played', 0),
+            games_won=existing_user.get('games_won', 0),
+            photo_url=existing_user.get('photo_url'),
+            bio=existing_user.get('bio'),
+            created_at=existing_user.get('created_at')
+        )
+        
+        return AuthResponse(token=token, user=user_response)
+    
+    # Create new user (Google sign-in)
+    user_id = str(uuid.uuid4())
+    username = data.displayName or f"User{random.randint(1000, 9999)}"
+    
+    existing_username = await users.find_one({"username": username}, {"_id": 0})
+    if existing_username:
+        username = f"{username}{random.randint(100, 999)}"
+    
+    now = datetime.now(timezone.utc)
+    
+    logger.info(f"Creating new Google user: {username} ({user_id})")
+    
+    new_user = {
+        "user_id": user_id,
+        "firebase_uid": data.uid,
+        "email": data.email or "",
+        "username": username,
+        "password_hash": "",
+        "country": country_info['country'],
+        "country_code": country_info['countryCode'],
+        "country_flag": country_info['flag'],
+        "gender": "any",
+        "date_of_birth": None,
+        "age_verified": False,
+        "account_status": "active",
+        "is_banned": False,
+        "premium_status": False,
+        "premium_tier": "free",
+        "is_admin": False,
+        "is_moderator": False,
+        "total_sessions": 0,
+        "total_time_spent": 0,
+        "total_matches": 0,
+        "total_messages_sent": 0,
+        "total_reports_received": 0,
+        "total_reports_made": 0,
+        "total_blocks_received": 0,
+        "games_played": 0,
+        "games_won": 0,
+        "auth_provider": "google",
+        "photo_url": data.photoURL,
+        "terms_accepted": True,
+        "terms_accepted_at": now.isoformat(),
+        "terms_version": "2025-12",
+        "privacy_accepted": True,
+        "privacy_accepted_at": now.isoformat(),
+        "privacy_version": "2025-12",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+        "last_active": now.isoformat()
+    }
+    
+    await users.insert_one(new_user)
+    
+    logger.info(f"New Google user created successfully: {username} ({user_id})")
+    
+    token = AuthService.create_token(user_id)
+    
+    user_response = UserResponse(
+        user_id=user_id,
+        email=data.email or "",
+        username=username,
+        country=country_info['country'],
+        country_code=country_info['countryCode'],
+        country_flag=country_info['flag'],
+        gender="any",
+        age_verified=False,
+        premium_status=False,
+        premium_tier="free",
+        is_admin=False,
+        is_moderator=False,
+        total_sessions=0,
+        total_time_spent=0,
+        games_played=0,
+        games_won=0,
+        photo_url=data.photoURL,
+        created_at=now.isoformat()
+    )
+    
+    return AuthResponse(token=token, user=user_response)
+
 @router.post("/social", response_model=AuthResponse)
 async def social_auth(data: SocialAuthRequest, request: Request):
     """Handle social authentication (Google, Anonymous)"""
@@ -488,6 +661,8 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             "total_matches": 0,
             "total_messages_sent": 0,
             "total_reports_received": 0,
+            "games_played": 0,
+            "games_won": 0,
             "auth_provider": "anonymous",
             "created_at": now.isoformat(),
             "last_active": now.isoformat(),
@@ -506,8 +681,13 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             country_code=country_info['countryCode'],
             country_flag=country_info['flag'],
             total_sessions=0,
-            total_time_spent=0
+            total_time_spent=0,
+            games_played=0,
+            games_won=0,
+            created_at=now.isoformat()
         )
+        
+        logger.info(f"Anonymous user created: {username} ({guest_id})")
         
         return AuthResponse(token=token, user=guest_response)
     
@@ -552,10 +732,19 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             gender=existing_user.get('gender', 'any'),
             age_verified=existing_user.get('age_verified', False),
             premium_status=existing_user.get('premium_status', False),
+            premium_tier=existing_user.get('premium_tier', 'free'),
             is_admin=existing_user.get('is_admin', False),
+            is_moderator=existing_user.get('is_moderator', False),
             total_sessions=existing_user.get('total_sessions', 0),
-            total_time_spent=existing_user.get('total_time_spent', 0)
+            total_time_spent=existing_user.get('total_time_spent', 0),
+            games_played=existing_user.get('games_played', 0),
+            games_won=existing_user.get('games_won', 0),
+            photo_url=existing_user.get('photo_url'),
+            bio=existing_user.get('bio'),
+            created_at=existing_user.get('created_at')
         )
+        
+        logger.info(f"Google user logged in: {existing_user['username']} ({existing_user['user_id']})")
         
         return AuthResponse(token=token, user=user_response)
     
@@ -592,6 +781,10 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         "total_matches": 0,
         "total_messages_sent": 0,
         "total_reports_received": 0,
+        "total_reports_made": 0,
+        "total_blocks_received": 0,
+        "games_played": 0,
+        "games_won": 0,
         "auth_provider": data.provider,
         "photo_url": data.photoURL,
         "terms_accepted": True,
@@ -607,6 +800,8 @@ async def social_auth(data: SocialAuthRequest, request: Request):
     
     await users.insert_one(new_user)
     
+    logger.info(f"New Google user created: {username} ({user_id}) - Provider: {data.provider}")
+    
     token = AuthService.create_token(user_id)
     
     user_response = UserResponse(
@@ -619,9 +814,15 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         gender="any",
         age_verified=False,
         premium_status=False,
+        premium_tier="free",
         is_admin=False,
+        is_moderator=False,
         total_sessions=0,
-        total_time_spent=0
+        total_time_spent=0,
+        games_played=0,
+        games_won=0,
+        photo_url=data.photoURL,
+        created_at=now.isoformat()
     )
     
     return AuthResponse(token=token, user=user_response)
