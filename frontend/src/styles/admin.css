@@ -6,34 +6,78 @@
 /* Admin Container */
 .admin-container {
   min-height: 100vh;
-  background: #050508;
+  background: #020205;
   color: white;
+  position: relative;
 }
 
-/* Admin Background */
+/* Admin Background - Enhanced Space Theme */
 .admin-background {
   position: fixed;
   inset: 0;
   z-index: 0;
+  pointer-events: none;
 }
 
 .admin-background::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #050508 0%, #0a0515 50%, #050508 100%);
+  background: 
+    linear-gradient(180deg, 
+      #020205 0%, 
+      #050510 20%,
+      #0a0818 50%, 
+      #0d0a20 70%,
+      #050510 100%
+    );
 }
 
+/* Purple nebula glow - top left */
 .admin-background::after {
   content: '';
   position: absolute;
-  top: 0;
+  top: -10%;
+  left: -10%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(ellipse, rgba(88, 28, 135, 0.15) 0%, transparent 60%);
+  filter: blur(100px);
+  animation: nebulaFloat 40s ease-in-out infinite;
+}
+
+/* Additional glow layer */
+.admin-background-glow {
+  position: absolute;
+  bottom: 0;
   right: 0;
-  width: 600px;
-  height: 600px;
-  background: rgba(124, 58, 237, 0.05);
-  border-radius: 50%;
-  filter: blur(150px);
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(ellipse, rgba(124, 58, 237, 0.1) 0%, transparent 55%);
+  filter: blur(120px);
+  animation: nebulaFloat 45s ease-in-out infinite reverse;
+}
+
+/* Red accent glow */
+.admin-background-red {
+  position: absolute;
+  top: 40%;
+  right: 10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(ellipse, rgba(220, 38, 38, 0.06) 0%, transparent 50%);
+  filter: blur(80px);
+  animation: redPulse 10s ease-in-out infinite;
+}
+
+@keyframes nebulaFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, 2%) scale(1.05); }
+}
+
+@keyframes redPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 /* Admin Header */

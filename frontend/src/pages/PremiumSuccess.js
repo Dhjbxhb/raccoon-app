@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Check, Star, AlertCircle } from 'lucide-react';
+import SpaceBackground from '@/components/background/SpaceBackground';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -62,8 +63,9 @@ const PremiumSuccess = () => {
 
   if (status === 'checking') {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
-        <div className="text-center">
+      <div className="min-h-screen text-white flex flex-col items-center justify-center p-6 relative">
+        <SpaceBackground intensity="minimal" showNebula={true} showRedGlow={false} showShootingStars={false} />
+        <div className="text-center relative z-10">
           <Loader2 size={64} className="text-[#7c3aed] animate-spin mx-auto mb-6" />
           <h1 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
             Processing Payment...
@@ -78,8 +80,9 @@ const PremiumSuccess = () => {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
-        <div className="text-center">
+      <div className="min-h-screen text-white flex flex-col items-center justify-center p-6 relative">
+        <SpaceBackground intensity="minimal" showNebula={true} showRedGlow={true} showShootingStars={false} />
+        <div className="text-center relative z-10">
           <div className="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle size={48} className="text-red-500" />
           </div>
@@ -109,8 +112,9 @@ const PremiumSuccess = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
-      <div className="text-center">
+    <div className="min-h-screen text-white flex flex-col items-center justify-center p-6 relative">
+      <SpaceBackground intensity="normal" showNebula={true} showRedGlow={false} showShootingStars={true} />
+      <div className="text-center relative z-10">
         <div className="relative mb-8">
           <div className="w-32 h-32 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center mx-auto animate-pulse">
             <Star size={64} className="text-yellow-400 fill-yellow-400" />

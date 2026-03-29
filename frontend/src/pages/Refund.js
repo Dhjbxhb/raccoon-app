@@ -1,16 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CreditCard, RefreshCcw, Clock, AlertCircle, CheckCircle, Mail } from 'lucide-react';
+import SpaceBackground from '@/components/background/SpaceBackground';
 
 const Refund = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#030305] text-white">
-      {/* Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
-      </div>
+    <div className="min-h-screen text-white relative">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showRedGlow={false} showShootingStars={false} />
 
       {/* Content */}
       <div className="relative z-10 min-h-screen">

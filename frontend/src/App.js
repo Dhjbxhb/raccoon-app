@@ -50,8 +50,30 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-white text-xl" style={{ fontFamily: 'Manrope, sans-serif' }}>Loading...</div>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #020205 0%, #050510 30%, #0a0818 60%, #050510 100%)' }}>
+        {/* Space glow effects */}
+        <div 
+          className="absolute w-[600px] h-[600px] opacity-30"
+          style={{
+            top: '10%',
+            left: '20%',
+            background: 'radial-gradient(ellipse, rgba(88, 28, 135, 0.3) 0%, transparent 60%)',
+            filter: 'blur(100px)'
+          }}
+        />
+        <div 
+          className="absolute w-[400px] h-[400px] opacity-20"
+          style={{
+            bottom: '20%',
+            right: '15%',
+            background: 'radial-gradient(ellipse, rgba(124, 58, 237, 0.25) 0%, transparent 55%)',
+            filter: 'blur(80px)'
+          }}
+        />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+          <p className="text-white/70 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Loading...</p>
+        </div>
       </div>
     );
   }
@@ -75,8 +97,21 @@ const AuthOnlyRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-white text-xl" style={{ fontFamily: 'Manrope, sans-serif' }}>Loading...</div>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #020205 0%, #050510 30%, #0a0818 60%, #050510 100%)' }}>
+        {/* Space glow effects */}
+        <div 
+          className="absolute w-[600px] h-[600px] opacity-30"
+          style={{
+            top: '10%',
+            left: '20%',
+            background: 'radial-gradient(ellipse, rgba(88, 28, 135, 0.3) 0%, transparent 60%)',
+            filter: 'blur(100px)'
+          }}
+        />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+          <p className="text-white/70 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Loading...</p>
+        </div>
       </div>
     );
   }

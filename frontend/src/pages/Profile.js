@@ -6,6 +6,7 @@ import {
   ArrowLeft, User, Mail, Globe, Calendar, Star, Shield,
   TrendingUp, Clock, Gamepad2, Trophy, Settings, LogOut
 } from 'lucide-react';
+import SpaceBackground from '@/components/background/SpaceBackground';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -42,17 +43,9 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Background */}
-      <div 
-        className="fixed inset-0 z-0 opacity-15"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1635931225069-4968458f04f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBjaXR5JTIwbmlnaHQlMjBibHVycmVkJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzQxNzU5Mjd8MA&ixlib=rb-4.1.0&q=85)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(3px)'
-        }}
-      />
+    <div className="min-h-screen text-white relative">
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showRedGlow={true} showShootingStars={false} />
 
       {/* Content */}
       <div className="relative z-10">

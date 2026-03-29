@@ -1,187 +1,221 @@
-import React, { useRef, useEffect, useState, useMemo, memo } from 'react';
+import React, { memo, useMemo, useEffect, useState } from 'react';
 
 /**
- * SpaceBackground - Cinematic animated starfield background
+ * SpaceBackground - Premium Cinematic Space Theme
+ * 
  * Features:
- * - Multi-layer starfield with depth
- * - Subtle animated nebula gradients
- * - Twinkling star animations
- * - Shooting stars
- * - Performant on mobile (reduced animations, memoized)
+ * - Deep space layered gradient
+ * - Purple nebula glow
+ * - Red energy accent pulses
+ * - Twinkling star particles
+ * - Subtle cosmic flash effects
+ * - Optimized for performance
  */
 
 const SpaceBackground = memo(({ 
   intensity = 'normal', // 'minimal', 'normal', 'intense'
   showNebula = true,
+  showRedGlow = true,
   showShootingStars = true,
   className = ''
 }) => {
-  const containerRef = useRef(null);
-  // Use window dimensions for initial render to prevent layout shifts
-  const [dimensions, setDimensions] = useState({ 
-    width: typeof window !== 'undefined' ? window.innerWidth : 1920, 
-    height: typeof window !== 'undefined' ? window.innerHeight : 1080 
-  });
-
-  // Update dimensions on resize with debounce
-  useEffect(() => {
-    let resizeTimeout;
-    
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight
-        });
-      }
-    };
-    
-    const debouncedResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(updateDimensions, 150);
-    };
-    
-    updateDimensions();
-    window.addEventListener('resize', debouncedResize, { passive: true });
-    return () => {
-      window.removeEventListener('resize', debouncedResize);
-      clearTimeout(resizeTimeout);
-    };
-  }, []);
-
   // Star count based on intensity
   const starCounts = {
-    minimal: { far: 40, mid: 25, near: 10 },
-    normal: { far: 80, mid: 50, near: 20 },
-    intense: { far: 120, mid: 80, near: 35 }
+    minimal: { far: 30, mid: 15, near: 8 },
+    normal: { far: 60, mid: 35, near: 15 },
+    intense: { far: 100, mid: 60, near: 25 }
   };
 
   const counts = starCounts[intensity] || starCounts.normal;
 
-  // Generate stars with stable positions using useMemo
-  const farStars = useMemo(() => 
-    generateStars(counts.far, 0.3, 0.6, 1, 1.5), [counts.far]);
-  const midStars = useMemo(() => 
-    generateStars(counts.mid, 0.5, 0.8, 1.5, 2), [counts.mid]);
-  const nearStars = useMemo(() => 
-    generateStars(counts.near, 0.7, 1, 2, 3), [counts.near]);
+  // Generate stable star positions
+  const farStars = useMemo(() => generateStars(counts.far, 0.2, 0.5, 0.5, 1.5), [counts.far]);
+  const midStars = useMemo(() => generateStars(counts.mid, 0.4, 0.7, 1, 2), [counts.mid]);
+  const nearStars = useMemo(() => generateStars(counts.near, 0.6, 1, 1.5, 2.5), [counts.near]);
 
   return (
     <div 
-      ref={containerRef}
       className={`fixed inset-0 overflow-hidden pointer-events-none ${className}`}
-      style={{ 
-        background: 'linear-gradient(180deg, #030306 0%, #0a0612 30%, #0d0820 60%, #08040f 100%)',
-        zIndex: 0 
-      }}
+      style={{ zIndex: 0 }}
     >
-      {/* Deep space base layer */}
+      {/* === BASE GRADIENT === */}
       <div 
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(ellipse 80% 50% at 50% 20%, rgba(20, 10, 40, 0.4) 0%, transparent 60%)'
+          background: `
+            linear-gradient(180deg, 
+              #020205 0%, 
+              #050510 15%,
+              #0a0818 35%, 
+              #0d0a20 55%,
+              #080612 75%,
+              #030305 100%
+            )
+          `
         }}
       />
 
-      {/* Nebula layers */}
+      {/* === NEBULA LAYERS === */}
       {showNebula && (
         <>
-          {/* Primary nebula - deep purple */}
+          {/* Primary Purple Nebula - Top Left */}
           <div 
-            className="absolute w-full h-full opacity-30"
+            className="absolute w-full h-full"
             style={{
-              background: 'radial-gradient(ellipse 60% 40% at 30% 30%, rgba(88, 28, 135, 0.35) 0%, transparent 50%)',
-              animation: 'nebulaFloat 30s ease-in-out infinite'
+              background: 'radial-gradient(ellipse 70% 50% at 20% 20%, rgba(88, 28, 135, 0.25) 0%, transparent 60%)',
+              animation: 'nebulaFloat 40s ease-in-out infinite',
+              willChange: 'transform'
             }}
           />
           
-          {/* Secondary nebula - blue accent */}
+          {/* Secondary Magenta Nebula - Center Right */}
           <div 
-            className="absolute w-full h-full opacity-20"
+            className="absolute w-full h-full"
             style={{
-              background: 'radial-gradient(ellipse 50% 35% at 70% 60%, rgba(79, 70, 229, 0.3) 0%, transparent 50%)',
-              animation: 'nebulaFloat 35s ease-in-out infinite reverse'
-            }}
-          />
-          
-          {/* Tertiary nebula - subtle pink */}
-          <div 
-            className="absolute w-full h-full opacity-15"
-            style={{
-              background: 'radial-gradient(ellipse 45% 30% at 60% 40%, rgba(167, 139, 250, 0.25) 0%, transparent 45%)',
-              animation: 'nebulaFloat 40s ease-in-out infinite'
+              background: 'radial-gradient(ellipse 60% 45% at 80% 50%, rgba(124, 58, 237, 0.18) 0%, transparent 55%)',
+              animation: 'nebulaFloat 45s ease-in-out infinite reverse',
+              willChange: 'transform'
             }}
           />
 
-          {/* Deep space dust */}
+          {/* Deep Purple Dust - Bottom */}
           <div 
-            className="absolute w-full h-full opacity-10"
+            className="absolute w-full h-full"
             style={{
-              background: 'radial-gradient(ellipse 70% 50% at 40% 70%, rgba(124, 58, 237, 0.2) 0%, transparent 55%)',
-              animation: 'nebulaFloat 45s ease-in-out infinite reverse'
+              background: 'radial-gradient(ellipse 80% 40% at 50% 90%, rgba(76, 29, 149, 0.2) 0%, transparent 50%)',
+              animation: 'nebulaFloat 50s ease-in-out infinite',
+              willChange: 'transform'
+            }}
+          />
+
+          {/* Violet Accent - Center */}
+          <div 
+            className="absolute w-full h-full"
+            style={{
+              background: 'radial-gradient(ellipse 40% 35% at 50% 40%, rgba(139, 92, 246, 0.12) 0%, transparent 50%)',
+              animation: 'nebulaFloat 35s ease-in-out infinite reverse',
+              willChange: 'transform'
             }}
           />
         </>
       )}
 
-      {/* Star layers */}
+      {/* === RED ENERGY ACCENTS === */}
+      {showRedGlow && (
+        <>
+          {/* Red Glow Pulse - Subtle energy effect */}
+          <div 
+            className="absolute w-full h-full"
+            style={{
+              background: 'radial-gradient(ellipse 30% 25% at 75% 25%, rgba(220, 38, 38, 0.08) 0%, transparent 50%)',
+              animation: 'redPulse 8s ease-in-out infinite',
+              willChange: 'opacity'
+            }}
+          />
+          
+          {/* Secondary Red Accent */}
+          <div 
+            className="absolute w-full h-full"
+            style={{
+              background: 'radial-gradient(ellipse 25% 20% at 15% 70%, rgba(185, 28, 28, 0.06) 0%, transparent 45%)',
+              animation: 'redPulse 12s ease-in-out infinite 4s',
+              willChange: 'opacity'
+            }}
+          />
+
+          {/* Cinematic Red Flash - Very subtle */}
+          <div 
+            className="absolute w-full h-full"
+            style={{
+              background: 'radial-gradient(ellipse 100% 100% at 50% 50%, rgba(239, 68, 68, 0.03) 0%, transparent 70%)',
+              animation: 'cosmicFlash 20s ease-in-out infinite',
+              willChange: 'opacity'
+            }}
+          />
+        </>
+      )}
+
+      {/* === STAR LAYERS === */}
       <div className="absolute inset-0">
-        {/* Far stars - smallest, slowest twinkle */}
         {farStars.map((star, i) => (
           <Star key={`far-${i}`} {...star} />
         ))}
-        
-        {/* Mid stars - medium size */}
         {midStars.map((star, i) => (
           <Star key={`mid-${i}`} {...star} />
         ))}
-        
-        {/* Near stars - largest, brightest */}
         {nearStars.map((star, i) => (
           <Star key={`near-${i}`} {...star} />
         ))}
       </div>
 
-      {/* Shooting stars */}
-      {showShootingStars && (
-        <ShootingStars count={3} />
-      )}
+      {/* === SHOOTING STARS === */}
+      {showShootingStars && <ShootingStars count={3} />}
 
-      {/* Subtle vignette overlay */}
+      {/* === VIGNETTE OVERLAY === */}
       <div 
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse 70% 70% at 50% 50%, transparent 30%, rgba(0,0,0,0.4) 100%)'
+          background: 'radial-gradient(ellipse 65% 65% at 50% 50%, transparent 20%, rgba(0,0,0,0.5) 100%)'
         }}
       />
 
-      {/* CSS Animations */}
+      {/* === CSS KEYFRAMES === */}
       <style>{`
         @keyframes nebulaFloat {
           0%, 100% { 
             transform: translate(0, 0) scale(1); 
-            opacity: inherit;
           }
           25% { 
-            transform: translate(2%, 1%) scale(1.02); 
+            transform: translate(1.5%, 0.5%) scale(1.01); 
           }
           50% { 
-            transform: translate(-1%, 2%) scale(1.01); 
-            opacity: calc(inherit * 1.1);
+            transform: translate(-0.5%, 1%) scale(1.02); 
           }
           75% { 
-            transform: translate(-2%, -1%) scale(1.03); 
+            transform: translate(-1%, -0.5%) scale(1.01); 
+          }
+        }
+
+        @keyframes redPulse {
+          0%, 100% { 
+            opacity: 0.5;
+            transform: scale(1);
+          }
+          50% { 
+            opacity: 1;
+            transform: scale(1.1);
+          }
+        }
+
+        @keyframes cosmicFlash {
+          0%, 85%, 100% { 
+            opacity: 0;
+          }
+          90% { 
+            opacity: 0.3;
+          }
+          95% {
+            opacity: 0.1;
           }
         }
 
         @keyframes twinkleStar {
           0%, 100% { 
-            opacity: var(--base-opacity); 
+            opacity: var(--star-opacity, 0.5);
             transform: scale(1);
           }
           50% { 
-            opacity: calc(var(--base-opacity) * 1.8); 
-            transform: scale(1.2);
+            opacity: calc(var(--star-opacity, 0.5) * 2);
+            transform: scale(1.3);
+          }
+        }
+
+        @keyframes twinkleStarSlow {
+          0%, 100% { 
+            opacity: var(--star-opacity, 0.5);
+          }
+          50% { 
+            opacity: calc(var(--star-opacity, 0.5) * 1.5);
           }
         }
 
@@ -190,24 +224,15 @@ const SpaceBackground = memo(({
             transform: translateX(0) translateY(0);
             opacity: 0;
           }
-          10% {
+          5% {
             opacity: 1;
           }
           70% {
-            opacity: 1;
+            opacity: 0.8;
           }
           100% {
-            transform: translateX(300px) translateY(200px);
+            transform: translateX(350px) translateY(250px);
             opacity: 0;
-          }
-        }
-
-        @keyframes gentlePulse {
-          0%, 100% { 
-            box-shadow: 0 0 2px currentColor, 0 0 4px currentColor; 
-          }
-          50% { 
-            box-shadow: 0 0 4px currentColor, 0 0 8px currentColor, 0 0 12px currentColor; 
           }
         }
       `}</style>
@@ -215,113 +240,116 @@ const SpaceBackground = memo(({
   );
 });
 
-// Generate star data
+SpaceBackground.displayName = 'SpaceBackground';
+
+// Generate star data with color variations
 function generateStars(count, minOpacity, maxOpacity, minSize, maxSize) {
   const stars = [];
   for (let i = 0; i < count; i++) {
+    const rand = Math.random();
+    let color = '#ffffff';
+    
+    // Add color variations: 10% purple, 5% blue, 3% red-pink
+    if (rand > 0.97) {
+      color = '#fca5a5'; // Red-pink tint
+    } else if (rand > 0.92) {
+      color = '#c4b5fd'; // Purple tint
+    } else if (rand > 0.87) {
+      color = '#93c5fd'; // Blue tint
+    }
+    
     stars.push({
       x: Math.random() * 100,
       y: Math.random() * 100,
       size: minSize + Math.random() * (maxSize - minSize),
       opacity: minOpacity + Math.random() * (maxOpacity - minOpacity),
-      twinkleDuration: 2 + Math.random() * 4,
-      twinkleDelay: Math.random() * 5,
-      // Some stars have a subtle color tint
-      color: Math.random() > 0.85 
-        ? `rgba(167, 139, 250, ${minOpacity + Math.random() * 0.3})` // Purple tint
-        : Math.random() > 0.9 
-          ? `rgba(147, 197, 253, ${minOpacity + Math.random() * 0.3})` // Blue tint
-          : 'white'
+      twinkleDuration: 2 + Math.random() * 5,
+      twinkleDelay: Math.random() * 6,
+      color
     });
   }
   return stars;
 }
 
-// Individual Star component - memoized to prevent re-renders
-const Star = memo(({ x, y, size, opacity, twinkleDuration, twinkleDelay, color }) => (
-  <div
-    className="absolute rounded-full"
-    style={{
-      left: `${x}%`,
-      top: `${y}%`,
-      width: `${size}px`,
-      height: `${size}px`,
-      backgroundColor: color,
-      '--base-opacity': opacity,
-      opacity: opacity,
-      animation: `twinkleStar ${twinkleDuration}s ease-in-out infinite`,
-      animationDelay: `${twinkleDelay}s`,
-      boxShadow: size > 2 
-        ? `0 0 ${size}px ${color === 'white' ? 'rgba(255,255,255,0.5)' : color}` 
-        : 'none',
-      willChange: 'opacity, transform'
-    }}
-  />
-));
+// Individual Star component
+const Star = memo(({ x, y, size, opacity, twinkleDuration, twinkleDelay, color }) => {
+  const isLarge = size > 1.8;
+  
+  return (
+    <div
+      className="absolute rounded-full"
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        width: `${size}px`,
+        height: `${size}px`,
+        backgroundColor: color,
+        '--star-opacity': opacity,
+        opacity: opacity,
+        animation: `${isLarge ? 'twinkleStar' : 'twinkleStarSlow'} ${twinkleDuration}s ease-in-out infinite`,
+        animationDelay: `${twinkleDelay}s`,
+        boxShadow: isLarge 
+          ? `0 0 ${size * 2}px ${color}, 0 0 ${size * 4}px ${color}` 
+          : `0 0 ${size}px ${color}`,
+        willChange: 'opacity, transform'
+      }}
+    />
+  );
+});
 Star.displayName = 'Star';
 
-// Shooting stars component - optimized with useCallback
+// Shooting Stars component
 const ShootingStars = memo(({ count = 3 }) => {
-  const [shootingStars, setShootingStars] = useState([]);
-  const timeoutsRef = useRef([]);
+  const [stars, setStars] = useState([]);
 
   useEffect(() => {
-    const createShootingStar = () => {
+    const createStar = () => {
       const id = Date.now() + Math.random();
       const star = {
         id,
-        x: 10 + Math.random() * 60,
-        y: Math.random() * 40,
-        angle: 30 + Math.random() * 30,
-        duration: 1 + Math.random() * 1.5
+        x: 5 + Math.random() * 50,
+        y: Math.random() * 30,
+        angle: 25 + Math.random() * 35,
+        duration: 0.8 + Math.random() * 1.2
       };
       
-      setShootingStars(prev => [...prev.slice(-count + 1), star]);
+      setStars(prev => [...prev.slice(-(count - 1)), star]);
       
-      // Remove after animation
-      const timeout = setTimeout(() => {
-        setShootingStars(prev => prev.filter(s => s.id !== id));
+      setTimeout(() => {
+        setStars(prev => prev.filter(s => s.id !== id));
       }, star.duration * 1000);
-      
-      timeoutsRef.current.push(timeout);
     };
 
     // Initial delay
-    const initialTimeout = setTimeout(() => {
-      createShootingStar();
-    }, 3000);
-    timeoutsRef.current.push(initialTimeout);
-
-    // Random interval for shooting stars (8-20 seconds)
+    const initialTimeout = setTimeout(createStar, 5000);
+    
+    // Random interval (10-25 seconds)
     const interval = setInterval(() => {
-      if (Math.random() > 0.4) { // 60% chance to create
-        createShootingStar();
-      }
-    }, 8000 + Math.random() * 12000);
+      if (Math.random() > 0.5) createStar();
+    }, 10000 + Math.random() * 15000);
 
     return () => {
+      clearTimeout(initialTimeout);
       clearInterval(interval);
-      timeoutsRef.current.forEach(t => clearTimeout(t));
-      timeoutsRef.current = [];
     };
   }, [count]);
 
   return (
     <>
-      {shootingStars.map(star => (
+      {stars.map(star => (
         <div
           key={star.id}
           className="absolute"
           style={{
             left: `${star.x}%`,
             top: `${star.y}%`,
-            width: '100px',
+            width: '120px',
             height: '2px',
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.8), white)',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), white)',
             borderRadius: '2px',
             transform: `rotate(${star.angle}deg)`,
             animation: `shootingStar ${star.duration}s ease-out forwards`,
-            boxShadow: '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(124,58,237,0.5)',
+            boxShadow: '0 0 6px rgba(255,255,255,0.8), 0 0 15px rgba(124,58,237,0.4), 0 0 25px rgba(239,68,68,0.2)',
             willChange: 'transform, opacity'
           }}
         />

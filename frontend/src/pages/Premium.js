@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import PricingCards from '@/components/premium/PricingCards';
 import PremiumFeatureList from '@/components/premium/PremiumFeatureList';
+import SpaceBackground from '@/components/background/SpaceBackground';
 import '@/styles/premium.css';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -265,17 +266,8 @@ const Premium = () => {
 
   return (
     <div className="premium-page">
-      {/* Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#030305] via-[#0a0515] to-[#030305]" />
-        <div 
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] rounded-full opacity-30"
-          style={{
-            background: 'radial-gradient(ellipse, rgba(251,191,36,0.15) 0%, rgba(124,58,237,0.1) 50%, transparent 70%)',
-            filter: 'blur(80px)'
-          }}
-        />
-      </div>
+      {/* Cinematic space background */}
+      <SpaceBackground intensity="minimal" showNebula={true} showRedGlow={true} showShootingStars={true} />
 
       {/* Content */}
       <div className="relative z-10">
