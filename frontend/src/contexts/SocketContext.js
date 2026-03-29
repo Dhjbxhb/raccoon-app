@@ -88,11 +88,6 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
-    newSocket.on('authenticated', (data) => {
-      console.log('Socket authenticated:', data);
-      authPendingRef.current = false;
-    });
-
     newSocket.on('connect_error', (error) => {
       console.error('Socket connection error:', error.message);
       connectingRef.current = false;
@@ -110,6 +105,15 @@ export const SocketProvider = ({ children }) => {
         authPendingRef.current = true;
         newSocket.emit('authenticate', { token });
       }
+    });
+
+    // After successful authentication, attempt to rejoin any active session
+    newSocket.on('authenticated', (data) => {
+      console.log('Socket authenticated:', data);
+      authPendingRef.current = false;
+      
+      // Attempt to rejoin session (in case of page refresh while in match)
+      newSocket.emit('rejoin_session', {});
     });
 
     setSocket(newSocket);

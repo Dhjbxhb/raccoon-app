@@ -427,21 +427,51 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             logger.error(f"Error blocking user: {e}")
     
     # ============================================
-    # CHAT MESSAGING
+    # CHAT MESSAGING - Room-based, persistent, real-time
     # ============================================
     
     @sio.event
     async def send_message(sid, data):
-        """Send message to partner with content moderation"""
+        """
+        Send message to partner with content moderation.
+        
+        FLOW:
+        1. Validate sender and session
+        2. Apply moderation
+        3. Store in MongoDB FIRST
+        4. Emit confirmed message to BOTH users in room
+        5. Return message_confirmed event with final message data
+        """
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
                 if not user_id:
+                    await sio.emit('message_failed', {
+                        'temp_id': data.get('temp_id'),
+                        'error': 'Not authenticated'
+                    }, room=sid)
                     return
             
             content = data.get('content', '').strip()
+            temp_id = data.get('temp_id')  # Client-side temporary ID for optimistic UI
+            
             if not content:
+                await sio.emit('message_failed', {
+                    'temp_id': temp_id,
+                    'error': 'Empty message'
+                }, room=sid)
                 return
+            
+            # Get session FIRST to validate user is in active match
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('message_failed', {
+                    'temp_id': temp_id,
+                    'error': 'No active session'
+                }, room=sid)
+                return
+            
+            room_id = session_data['session_id']
             
             # Apply chat moderation filter
             is_allowed, block_reason = is_message_allowed(content)
@@ -457,9 +487,10 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             if moderation_result.is_flagged:
                 if moderation_result.action == "block":
-                    await sio.emit('message_blocked', {
-                        'reason': moderation_result.reason,
-                        'message': 'Your message was blocked due to policy violation.'
+                    await sio.emit('message_failed', {
+                        'temp_id': temp_id,
+                        'error': 'Message blocked due to policy violation',
+                        'reason': moderation_result.reason
                     }, room=sid)
                     logger.warning(f"Message blocked from {user_id}: {moderation_result.reason}")
                     return
@@ -469,52 +500,185 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                         'message': 'Please be mindful of our community guidelines.'
                     }, room=sid)
             
-            # Get session
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
-                await sio.emit('error', {'message': 'No active session'}, room=sid)
-                return
-            
             # Get sender info
             if session_data['user1']['user_id'] == user_id:
                 sender = session_data['user1']
+                receiver_id = session_data['user2']['user_id']
             else:
                 sender = session_data['user2']
+                receiver_id = session_data['user1']['user_id']
             
-            # Create message
+            # Create message with server-generated ID
             message_id = str(uuid.uuid4())
-            message = {
+            timestamp = datetime.now(timezone.utc).isoformat()
+            
+            # Build the confirmed message object
+            confirmed_message = {
                 'message_id': message_id,
+                'temp_id': temp_id,  # Include temp_id for client reconciliation
+                'room_id': room_id,
+                'session_id': room_id,
                 'sender_id': user_id,
-                'sender_username': sender['username'],
+                'sender_username': sender.get('username', 'User'),
+                'receiver_id': receiver_id,
                 'content': content,
-                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'timestamp': timestamp,
                 'premium': sender.get('premium', False),
-                'moderated': moderation_result.is_flagged
+                'moderated': moderation_result.is_flagged,
+                'status': 'delivered'
             }
             
-            # Add to session
-            matching_queue.add_message(user_id, message)
+            # Store in MongoDB FIRST (before emitting)
+            messages_collection = get_messages_collection()
+            try:
+                await messages_collection.insert_one({
+                    'message_id': message_id,
+                    'session_id': room_id,
+                    'sender_id': user_id,
+                    'sender_username': sender.get('username', 'User'),
+                    'receiver_id': receiver_id,
+                    'content': content,
+                    'timestamp': timestamp,
+                    'moderated': moderation_result.is_flagged,
+                    'moderation_data': moderation_result.to_dict() if moderation_result.is_flagged else None,
+                    'status': 'delivered'
+                })
+            except Exception as db_error:
+                logger.error(f"Failed to store message in DB: {db_error}")
+                await sio.emit('message_failed', {
+                    'temp_id': temp_id,
+                    'error': 'Failed to save message'
+                }, room=sid)
+                return
             
-            # Store in DB
-            messages = get_messages_collection()
-            await messages.insert_one({
-                'message_id': message_id,
-                'session_id': session_data['session_id'],
-                'sender_id': user_id,
-                'content': content,
-                'timestamp': message['timestamp'],
-                'moderation': moderation_result.to_dict() if moderation_result.is_flagged else None
-            })
+            # Add to in-memory session (for quick access)
+            matching_queue.add_message(user_id, confirmed_message)
             
-            # Send to both users
+            # Get partner socket
             partner_socket = matching_queue.get_partner_socket(user_id)
+            
+            # Emit to SENDER - message confirmed
+            await sio.emit('message_confirmed', confirmed_message, room=sid)
+            
+            # Emit to RECEIVER - new message
             if partner_socket:
-                await sio.emit('receive_message', message, room=partner_socket)
-            await sio.emit('receive_message', message, room=sid)
+                await sio.emit('receive_message', confirmed_message, room=partner_socket)
+            
+            logger.debug(f"Message {message_id} sent in room {room_id}: {user_id} -> {receiver_id}")
             
         except Exception as e:
             logger.error(f"Error sending message: {e}")
+            await sio.emit('message_failed', {
+                'temp_id': data.get('temp_id') if data else None,
+                'error': 'Server error'
+            }, room=sid)
+    
+    @sio.event
+    async def fetch_chat_history(sid, data):
+        """
+        Fetch chat history for current session (reconnection support).
+        Called when user reconnects or refreshes while in active match.
+        """
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
+                    return
+            
+            # Get active session
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('chat_history', {'messages': [], 'session_id': None}, room=sid)
+                return
+            
+            room_id = session_data['session_id']
+            
+            # Fetch messages from MongoDB
+            messages_collection = get_messages_collection()
+            cursor = messages_collection.find(
+                {'session_id': room_id},
+                {'_id': 0}  # Exclude MongoDB _id
+            ).sort('timestamp', 1)  # Oldest first
+            
+            messages = await cursor.to_list(length=500)  # Max 500 messages
+            
+            await sio.emit('chat_history', {
+                'session_id': room_id,
+                'messages': messages
+            }, room=sid)
+            
+            logger.info(f"Sent {len(messages)} messages for session {room_id} to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error fetching chat history: {e}")
+            await sio.emit('chat_history', {'messages': [], 'error': str(e)}, room=sid)
+    
+    @sio.event
+    async def rejoin_session(sid, data):
+        """
+        Rejoin an active session after reconnection.
+        Updates socket ID and fetches chat history.
+        """
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
+                    return
+            
+            # Check if user has active session
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('session_not_found', {'message': 'No active session'}, room=sid)
+                return
+            
+            # Update socket ID in session
+            matching_queue.update_socket_id(user_id, sid)
+            
+            room_id = session_data['session_id']
+            
+            # Determine partner
+            if session_data['user1']['user_id'] == user_id:
+                partner_data = session_data['user2']
+            else:
+                partner_data = session_data['user1']
+            
+            # Fetch chat history
+            messages_collection = get_messages_collection()
+            cursor = messages_collection.find(
+                {'session_id': room_id},
+                {'_id': 0}
+            ).sort('timestamp', 1)
+            messages = await cursor.to_list(length=500)
+            
+            # Send session restored event with all data
+            await sio.emit('session_restored', {
+                'session_id': room_id,
+                'partner': {
+                    'user_id': partner_data.get('user_id'),
+                    'username': partner_data.get('username'),
+                    'gender': partner_data.get('gender'),
+                    'country': partner_data.get('country'),
+                    'country_code': partner_data.get('country_code'),
+                    'is_premium': partner_data.get('premium', False)
+                },
+                'messages': messages,
+                'created_at': session_data.get('created_at')
+            }, room=sid)
+            
+            # Notify partner of reconnection
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            if partner_socket:
+                await sio.emit('partner_reconnected', {
+                    'user_id': user_id
+                }, room=partner_socket)
+            
+            logger.info(f"User {user_id} rejoined session {room_id}")
+            
+        except Exception as e:
+            logger.error(f"Error rejoining session: {e}")
+            await sio.emit('error', {'message': 'Failed to rejoin session'}, room=sid)
     
     @sio.event
     async def typing_start(sid):

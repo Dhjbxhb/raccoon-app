@@ -120,6 +120,26 @@ export const useMatching = (socket) => {
     }
   }, [socket, resetMatchState]);
 
+  // Handle session restored (for reconnection)
+  const handleSessionRestored = useCallback((data) => {
+    if (!mountedRef.current) return;
+    
+    setState('matched');
+    setPartner(data.partner);
+    setSessionId(data.session_id);
+    setQueuePosition(null);
+    setIsSkipping(false);
+    
+    console.log('Session restored:', data.session_id);
+  }, []);
+
+  // Handle partner reconnected
+  const handlePartnerReconnected = useCallback((data) => {
+    if (!mountedRef.current) return;
+    console.log('Partner reconnected:', data.user_id);
+    // Could show a toast or indicator here
+  }, []);
+
   const handleError = useCallback((data) => {
     console.error('Socket error:', data);
     if (!mountedRef.current) return;
@@ -152,6 +172,8 @@ export const useMatching = (socket) => {
     socket.on('match_found', handleMatchFound);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
+    socket.on('session_restored', handleSessionRestored);
+    socket.on('partner_reconnected', handlePartnerReconnected);
     socket.on('error', handleError);
 
     return () => {
@@ -160,10 +182,12 @@ export const useMatching = (socket) => {
       socket.off('match_found', handleMatchFound);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
+      socket.off('session_restored', handleSessionRestored);
+      socket.off('partner_reconnected', handlePartnerReconnected);
       socket.off('error', handleError);
       socketIdRef.current = null;
     };
-  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handlePartnerDisconnected, handleError]);
+  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handlePartnerDisconnected, handleSessionRestored, handlePartnerReconnected, handleError]);
 
   // Start matching
   const startMatching = useCallback((genderFilter = 'any', countryFilter = 'ANY') => {
@@ -250,6 +274,13 @@ export const useMatching = (socket) => {
     autoRejoinRef.current = value;
   }, []);
 
+  // Attempt to rejoin existing session (for page refresh)
+  const rejoinSession = useCallback(() => {
+    if (!socket?.connected) return;
+    
+    socket.emit('rejoin_session', {});
+  }, [socket]);
+
   return {
     // State
     state,
@@ -266,6 +297,7 @@ export const useMatching = (socket) => {
     blockUser,
     endSession,
     setAutoRejoin,
+    rejoinSession,
     
     // Helpers
     isMatched: state === 'matched',

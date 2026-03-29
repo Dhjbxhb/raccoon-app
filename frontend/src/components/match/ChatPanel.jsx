@@ -1,12 +1,30 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, MessageCircle, X, ChevronDown } from 'lucide-react';
+import { Send, MessageCircle, X, ChevronDown, AlertCircle, RefreshCw, Check, Clock } from 'lucide-react';
 import '@/styles/chat.css';
+
+/**
+ * Message Status Icons
+ */
+const MessageStatusIcon = ({ status }) => {
+  switch (status) {
+    case 'sending':
+      return <Clock size={12} className="text-gray-400 animate-pulse" />;
+    case 'delivered':
+      return <Check size={12} className="text-green-400" />;
+    case 'failed':
+      return <AlertCircle size={12} className="text-red-400" />;
+    default:
+      return null;
+  }
+};
 
 /**
  * ChatPanel - Premium real-time chat for match sessions
  * 
  * Features:
  * - Real-time messages via WebSocket
+ * - Optimistic UI with status indicators
+ * - Message retry on failure
  * - Typing indicators
  * - Auto-scroll with "new message" button
  * - Mobile keyboard handling
@@ -17,12 +35,14 @@ const ChatPanel = ({
   partnerTyping = false,
   partnerUsername = 'Stranger',
   onSendMessage,
+  onRetryMessage,
   onTypingStart,
   onTypingStop,
   currentUserId,
   isExpanded = true,
   onToggle,
-  isMobile = false
+  isMobile = false,
+  MessageStatus = {}
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -34,6 +54,7 @@ const ChatPanel = ({
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const lastScrollTopRef = useRef(0);
+  const prevMessagesLengthRef = useRef(0);
 
   // Auto-scroll to bottom when new messages arrive (if already at bottom)
   useEffect(() => {
@@ -41,11 +62,15 @@ const ChatPanel = ({
     if (!container) return;
     
     const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    const hasNewMessage = messages.length > prevMessagesLengthRef.current;
     
-    if (isAtBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isAtBottom || hasNewMessage) {
+      // Small delay to ensure DOM is updated
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      });
       setUnreadCount(0);
-    } else if (messages.length > 0) {
+    } else if (messages.length > 0 && hasNewMessage) {
       // New message arrived while scrolled up
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.sender_id !== currentUserId) {
@@ -53,6 +78,8 @@ const ChatPanel = ({
         setShowScrollButton(true);
       }
     }
+    
+    prevMessagesLengthRef.current = messages.length;
   }, [messages, currentUserId]);
 
   // Handle scroll position changes
@@ -120,9 +147,9 @@ const ChatPanel = ({
     }
     
     // Scroll to bottom after sending
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+    });
   }, [inputValue, onSendMessage, onTypingStop]);
 
   // Handle Enter key
@@ -132,6 +159,11 @@ const ChatPanel = ({
       handleSend();
     }
   }, [handleSend]);
+
+  // Handle retry
+  const handleRetry = useCallback((tempId) => {
+    onRetryMessage?.(tempId);
+  }, [onRetryMessage]);
 
   // Format timestamp
   const formatTime = useCallback((timestamp) => {
@@ -206,21 +238,52 @@ const ChatPanel = ({
               const isOwn = msg.sender_id === currentUserId;
               const showTime = index === 0 || 
                 (index > 0 && new Date(msg.timestamp) - new Date(messages[index - 1].timestamp) > 300000);
+              const isFailed = msg.status === 'failed';
+              const isSending = msg.status === 'sending';
               
               return (
-                <div key={msg.message_id || index}>
+                <div key={msg.message_id || msg.temp_id || index}>
                   {showTime && (
                     <div className="chat-panel__timestamp">
                       {formatTime(msg.timestamp)}
                     </div>
                   )}
                   <div 
-                    className={`chat-panel__message ${isOwn ? 'chat-panel__message--own' : 'chat-panel__message--partner'}`}
+                    className={`chat-panel__message ${isOwn ? 'chat-panel__message--own' : 'chat-panel__message--partner'} ${isFailed ? 'chat-panel__message--failed' : ''} ${isSending ? 'chat-panel__message--sending' : ''}`}
                     data-testid={`message-${index}`}
+                    data-status={msg.status}
                   >
-                    <div className="chat-panel__bubble">
-                      {msg.content}
+                    <div className="chat-panel__bubble-wrapper">
+                      <div className={`chat-panel__bubble ${isFailed ? 'chat-panel__bubble--failed' : ''}`}>
+                        {msg.content}
+                      </div>
+                      
+                      {/* Status indicator for own messages */}
+                      {isOwn && (
+                        <div className="chat-panel__status">
+                          <MessageStatusIcon status={msg.status} />
+                        </div>
+                      )}
+                      
+                      {/* Retry button for failed messages */}
+                      {isFailed && isOwn && (
+                        <button
+                          onClick={() => handleRetry(msg.temp_id)}
+                          className="chat-panel__retry"
+                          title="Retry sending"
+                          data-testid={`retry-${index}`}
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                      )}
                     </div>
+                    
+                    {/* Error message */}
+                    {isFailed && msg.error && (
+                      <div className="chat-panel__error">
+                        {msg.error}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

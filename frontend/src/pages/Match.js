@@ -56,7 +56,7 @@ const Match = () => {
     endSession,
     setAutoRejoin
   } = useMatching(socket);
-  const { messages, partnerTyping, sendMessage, startTyping, stopTyping, clearMessages } = useChat(socket, sessionId);
+  const { messages, partnerTyping, sendMessage, retryMessage, startTyping, stopTyping, clearMessages, fetchHistory, MessageStatus } = useChat(socket, sessionId, user?.user_id || user?.guest_id);
   
   // Form states
   const [messageInput, setMessageInput] = useState('');
@@ -747,12 +747,14 @@ const Match = () => {
           partnerTyping={partnerTyping}
           partnerUsername={partner?.username || 'Stranger'}
           onSendMessage={sendMessage}
+          onRetryMessage={retryMessage}
           onTypingStart={startTyping}
           onTypingStop={stopTyping}
           currentUserId={user?.user_id || user?.guest_id}
           isExpanded={showChat}
           onToggle={() => setShowChat(!showChat)}
           isMobile={window.innerWidth < 1024}
+          MessageStatus={MessageStatus}
         />
       )}
 
