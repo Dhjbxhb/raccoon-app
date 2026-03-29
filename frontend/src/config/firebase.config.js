@@ -1,24 +1,19 @@
-// Firebase Configuration
-// Replace these values with your Firebase project config from:
-// Firebase Console → Project Settings → General → Your apps → Web app
+// Firebase configuration for Raccoon App
+// Production credentials - DO NOT MODIFY
 
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "",
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || "",
+  apiKey: "AIzaSyB0NbVk6zTflym3YzV7iwx1Np13HXV5aIA",
+  authDomain: "raccoon-app-28508.firebaseapp.com",
+  projectId: "raccoon-app-28508",
+  storageBucket: "raccoon-app-28508.firebasestorage.app",
+  messagingSenderId: "468381925496",
+  appId: "1:468381925496:web:d1bc7e628edfef0780ad8d",
+  measurementId: "G-10KKXXFC0Q"
 };
 
-// Check if Firebase is configured
+// Firebase is configured with production credentials
 export const isFirebaseConfigured = () => {
-  return !!(
-    firebaseConfig.apiKey &&
-    firebaseConfig.authDomain &&
-    firebaseConfig.projectId &&
-    firebaseConfig.appId
-  );
+  return true;
 };
 
 export default firebaseConfig;

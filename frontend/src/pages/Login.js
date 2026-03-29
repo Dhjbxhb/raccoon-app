@@ -122,7 +122,7 @@ const Login = () => {
   // Google login handler
   const handleGoogleLogin = async () => {
     if (!firebaseReady) {
-      toast.error('Google Sign-In requires Firebase configuration. Please use email login or continue as guest.');
+      toast.error('Firebase is initializing. Please try again.');
       return;
     }
     if (socialLoading) return;
@@ -132,21 +132,29 @@ const Login = () => {
       const userData = await signInWithGoogle();
       await syncSocialAuth(userData);
     } catch (error) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast.error('Google login failed. Please try again or use another method.');
+      console.error('Google login error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        // User closed popup - no error needed
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('Popup was blocked. Please allow popups for this site.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        // Multiple popups - ignore
+      } else if (error.code === 'auth/unauthorized-domain') {
+        toast.error('This domain is not authorized for Google Sign-In. Please add it to Firebase Console > Authentication > Settings > Authorized domains.');
+      } else {
+        toast.error('Google login failed. Please try again.');
       }
     } finally {
       setSocialLoading(null);
     }
   };
 
-  // Anonymous login handler - ALWAYS works (uses backend directly)
+  // Anonymous login handler - uses backend directly for reliability
   const handleAnonymousLogin = async () => {
     if (socialLoading) return;
     
     setSocialLoading('anonymous');
     try {
-      // Always use backend guest creation for reliability
       const browserLocale = getBrowserLocale();
       const response = await axios.post(`${API_URL}/auth/guest`, { 
         gender: 'male',

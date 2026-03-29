@@ -3,25 +3,38 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup,
-  signInAnonymously,
+  signInAnonymously as firebaseSignInAnonymously,
   signOut as firebaseSignOut
 } from 'firebase/auth';
 import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
 
-// Initialize Firebase only if configured
+// Initialize Firebase
 let app = null;
 let auth = null;
 let googleProvider = null;
 
-if (isFirebaseConfigured() && getApps().length === 0) {
+// Initialize on module load if configured
+if (isFirebaseConfigured()) {
   try {
-    app = initializeApp(firebaseConfig);
+    // Check if already initialized
+    if (getApps().length === 0) {
+      app = initializeApp(firebaseConfig);
+      console.log('Firebase initialized successfully');
+    } else {
+      app = getApps()[0];
+      console.log('Firebase already initialized');
+    }
+    
     auth = getAuth(app);
     
-    // Google Provider
+    // Configure Google Provider
     googleProvider = new GoogleAuthProvider();
     googleProvider.addScope('email');
     googleProvider.addScope('profile');
+    googleProvider.setCustomParameters({
+      prompt: 'select_account'
+    });
+    
   } catch (error) {
     console.error('Firebase initialization error:', error);
   }
@@ -30,12 +43,13 @@ if (isFirebaseConfigured() && getApps().length === 0) {
 // Google Sign In
 export const signInWithGoogle = async () => {
   if (!auth || !googleProvider) {
-    throw new Error('Firebase not configured. Please add Firebase credentials.');
+    throw new Error('Firebase not initialized');
   }
   
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
+    const idToken = await user.getIdToken();
     
     return {
       uid: user.uid,
@@ -43,7 +57,7 @@ export const signInWithGoogle = async () => {
       displayName: user.displayName,
       photoURL: user.photoURL,
       provider: 'google',
-      idToken: await user.getIdToken(),
+      idToken: idToken,
     };
   } catch (error) {
     console.error('Google sign-in error:', error);
@@ -54,12 +68,13 @@ export const signInWithGoogle = async () => {
 // Anonymous Sign In
 export const signInAnonymousUser = async () => {
   if (!auth) {
-    throw new Error('Firebase not configured. Please add Firebase credentials.');
+    throw new Error('Firebase not initialized');
   }
   
   try {
-    const result = await signInAnonymously(auth);
+    const result = await firebaseSignInAnonymously(auth);
     const user = result.user;
+    const idToken = await user.getIdToken();
     
     return {
       uid: user.uid,
@@ -67,7 +82,7 @@ export const signInAnonymousUser = async () => {
       displayName: null,
       photoURL: null,
       provider: 'anonymous',
-      idToken: await user.getIdToken(),
+      idToken: idToken,
       isAnonymous: true
     };
   } catch (error) {
@@ -85,7 +100,7 @@ export const signOut = async () => {
 
 // Check if Firebase is ready
 export const isFirebaseReady = () => {
-  return !!auth;
+  return !!auth && !!googleProvider;
 };
 
 export { auth };
