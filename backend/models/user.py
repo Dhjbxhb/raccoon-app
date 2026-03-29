@@ -117,6 +117,8 @@ class User(BaseModel):
     total_reports_received: int = Field(default=0, description="Reports against user")
     total_reports_made: int = Field(default=0, description="Reports made by user")
     total_blocks_received: int = Field(default=0, description="Times blocked by others")
+    games_played: int = Field(default=0, description="Total games played")
+    games_won: int = Field(default=0, description="Total games won")
     
     # === Preferences ===
     preferred_gender: str = Field(default="any", description="Match preference")
@@ -197,12 +199,16 @@ class UserResponse(BaseModel):
     age_verified: bool = False
     premium_status: bool = False
     premium_tier: str = "free"
+    premium_expires_at: Optional[str] = None
     is_admin: bool = False
     is_moderator: bool = False
     total_sessions: int = 0
     total_time_spent: int = 0
+    games_played: int = 0
+    games_won: int = 0
     photo_url: Optional[str] = None
     bio: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 class UserPublic(BaseModel):

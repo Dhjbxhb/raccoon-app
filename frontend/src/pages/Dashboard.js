@@ -1,17 +1,69 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown, Lock } from 'lucide-react';
+import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown, Lock, Gamepad2 } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/Button';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, logout, isGuest } = useAuth();
+  const { user, logout, isGuest, token } = useAuth();
+  const [stats, setStats] = useState(null);
+  const heartbeatRef = useRef(null);
 
   const isPremium = user?.premium_status;
+
+  // Fetch real stats and start heartbeat for time tracking
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/stats/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch stats:', error);
+      }
+    };
+
+    fetchStats();
+
+    // Send heartbeat for time tracking
+    const sendHeartbeat = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/stats/heartbeat`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Update stats with new time
+          setStats(prev => prev ? { ...prev, total_time_spent: data.total_time_spent } : prev);
+        }
+      } catch (error) {
+        console.error('Heartbeat error:', error);
+      }
+    };
+
+    // Send heartbeat every 30 seconds
+    heartbeatRef.current = setInterval(sendHeartbeat, 30000);
+    sendHeartbeat(); // Send immediately
+
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+      }
+    };
+  }, [user, token]);
 
   const handleLogout = () => {
     logout();
@@ -39,10 +91,33 @@ const Dashboard = () => {
     }
   };
 
+  // Format time spent helper
+  const formatTimeSpent = (seconds) => {
+    if (!seconds || seconds === 0) return '0m';
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) {
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  };
+
   if (!user) {
     navigate('/login');
     return null;
   }
+
+  // Use real stats if available, otherwise fall back to user data
+  const displayStats = {
+    total_sessions: stats?.total_sessions ?? user?.total_sessions ?? 0,
+    total_time_spent: stats?.total_time_spent ?? user?.total_time_spent ?? 0,
+    games_played: stats?.games_played ?? user?.games_played ?? 0,
+    games_won: stats?.games_won ?? user?.games_won ?? 0
+  };
 
   return (
     <div className="min-h-screen text-white relative">
@@ -120,40 +195,48 @@ const Dashboard = () => {
             </Button>
           </div>
 
-          {/* Stats Grid */}
-          {!isGuest() && (
-            <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-              <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-[#7c3aed]/20 rounded-lg flex items-center justify-center">
-                    <TrendingUp size={20} className="text-[#7c3aed]" />
-                  </div>
-                  <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{user.total_sessions || 0}</span>
+          {/* Stats Grid - Shows real stats for all users (including guests) */}
+          <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mb-12" data-testid="dashboard-stats-grid">
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all" data-testid="dashboard-sessions-stat">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-[#7c3aed]/20 rounded-lg flex items-center justify-center">
+                  <TrendingUp size={20} className="text-[#7c3aed]" />
                 </div>
-                <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Total Sessions</p>
+                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{displayStats.total_sessions}</span>
               </div>
-
-              <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-[#10b981]/20 rounded-lg flex items-center justify-center">
-                    <Clock size={20} className="text-[#10b981]" />
-                  </div>
-                  <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{Math.floor((user.total_time_spent || 0) / 60)}m</span>
-                </div>
-                <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Time Spent</p>
-              </div>
-
-              <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f43f5e]/50 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-[#f43f5e]/20 rounded-lg flex items-center justify-center">
-                    <Star size={20} className="text-[#f43f5e]" />
-                  </div>
-                  <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{user.premium_status ? 'Premium' : 'Free'}</span>
-                </div>
-                <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Account Status</p>
-              </div>
+              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Sessions</p>
             </div>
-          )}
+
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all" data-testid="dashboard-time-stat">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-[#10b981]/20 rounded-lg flex items-center justify-center">
+                  <Clock size={20} className="text-[#10b981]" />
+                </div>
+                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{formatTimeSpent(displayStats.total_time_spent)}</span>
+              </div>
+              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Time Spent</p>
+            </div>
+
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f59e0b]/50 transition-all" data-testid="dashboard-games-stat">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-[#f59e0b]/20 rounded-lg flex items-center justify-center">
+                  <Gamepad2 size={20} className="text-[#f59e0b]" />
+                </div>
+                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{displayStats.games_played}</span>
+              </div>
+              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Games Played</p>
+            </div>
+
+            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#ec4899]/50 transition-all" data-testid="dashboard-wins-stat">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-[#ec4899]/20 rounded-lg flex items-center justify-center">
+                  <Trophy size={20} className="text-[#ec4899]" />
+                </div>
+                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{displayStats.games_won}</span>
+              </div>
+              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Games Won</p>
+            </div>
+          </div>
 
           {/* Games Section */}
           <div className="max-w-5xl mx-auto">

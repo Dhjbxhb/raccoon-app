@@ -134,6 +134,8 @@ async def signup(data: SignupRequest, request: Request):
         "total_reports_received": 0,
         "total_reports_made": 0,
         "total_blocks_received": 0,
+        "games_played": 0,
+        "games_won": 0,
         "preferred_gender": "any",
         "preferred_country": "any",
         "notifications_enabled": True,
@@ -169,7 +171,10 @@ async def signup(data: SignupRequest, request: Request):
         is_admin=False,
         is_moderator=False,
         total_sessions=0,
-        total_time_spent=0
+        total_time_spent=0,
+        games_played=0,
+        games_won=0,
+        created_at=now.isoformat()
     )
     
     return AuthResponse(token=token, user=user_response)
@@ -231,6 +236,11 @@ async def login(data: LoginRequest):
         is_admin=user_dict.get('is_admin', False)
     )
     
+    # Format premium_expires_at
+    premium_expires_at = user_dict.get('premium_expires_at')
+    if premium_expires_at and hasattr(premium_expires_at, 'isoformat'):
+        premium_expires_at = premium_expires_at.isoformat()
+    
     user_response = UserResponse(
         user_id=user_dict['user_id'],
         email=user_dict['email'],
@@ -242,12 +252,16 @@ async def login(data: LoginRequest):
         age_verified=user_dict.get('age_verified', False),
         premium_status=is_premium,
         premium_tier=premium_tier,
+        premium_expires_at=premium_expires_at,
         is_admin=user_dict.get('is_admin', False),
         is_moderator=user_dict.get('is_moderator', False),
         total_sessions=user_dict.get('total_sessions', 0),
         total_time_spent=user_dict.get('total_time_spent', 0),
+        games_played=user_dict.get('games_played', 0),
+        games_won=user_dict.get('games_won', 0),
         photo_url=user_dict.get('photo_url'),
-        bio=user_dict.get('bio')
+        bio=user_dict.get('bio'),
+        created_at=user_dict.get('created_at')
     )
     
     return AuthResponse(token=token, user=user_response)
@@ -298,6 +312,8 @@ async def guest_login(data: GuestRequest, request: Request):
         "total_matches": 0,
         "total_messages_sent": 0,
         "total_reports_received": 0,
+        "games_played": 0,
+        "games_won": 0,
         "created_at": now.isoformat(),
         "last_active": now.isoformat(),
     }
@@ -315,7 +331,10 @@ async def guest_login(data: GuestRequest, request: Request):
         country_code=country_info['countryCode'],
         country_flag=country_info['flag'],
         total_sessions=0,
-        total_time_spent=0
+        total_time_spent=0,
+        games_played=0,
+        games_won=0,
+        created_at=now.isoformat()
     )
     
     return AuthResponse(token=token, user=guest_response)
@@ -337,13 +356,25 @@ async def get_current_user(request: Request):
             age_verified=guest_dict.get('age_verified', False),
             country=guest_dict.get('country'),
             country_code=guest_dict.get('country_code'),
-            country_flag=guest_dict.get('country_flag')
+            country_flag=guest_dict.get('country_flag'),
+            total_sessions=guest_dict.get('total_sessions', 0),
+            total_time_spent=guest_dict.get('total_time_spent', 0),
+            games_played=guest_dict.get('games_played', 0),
+            games_won=guest_dict.get('games_won', 0),
+            created_at=guest_dict.get('created_at')
         )
     else:
         users = get_users_collection()
         user_dict = await users.find_one({"user_id": payload['user_id']}, {"_id": 0})
         if not user_dict:
             raise HTTPException(status_code=404, detail="User not found")
+        
+        # Format premium_expires_at if present
+        premium_expires_at = user_dict.get('premium_expires_at')
+        if premium_expires_at:
+            if hasattr(premium_expires_at, 'isoformat'):
+                premium_expires_at = premium_expires_at.isoformat()
+        
         return UserResponse(
             user_id=user_dict['user_id'],
             email=user_dict['email'],
@@ -355,12 +386,16 @@ async def get_current_user(request: Request):
             age_verified=user_dict.get('age_verified', False),
             premium_status=user_dict.get('premium_status', False),
             premium_tier=user_dict.get('premium_tier', 'free'),
+            premium_expires_at=premium_expires_at,
             is_admin=user_dict.get('is_admin', False),
             is_moderator=user_dict.get('is_moderator', False),
             total_sessions=user_dict.get('total_sessions', 0),
             total_time_spent=user_dict.get('total_time_spent', 0),
+            games_played=user_dict.get('games_played', 0),
+            games_won=user_dict.get('games_won', 0),
             photo_url=user_dict.get('photo_url'),
-            bio=user_dict.get('bio')
+            bio=user_dict.get('bio'),
+            created_at=user_dict.get('created_at')
         )
 
 

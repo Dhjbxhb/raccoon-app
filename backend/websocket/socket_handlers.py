@@ -18,6 +18,7 @@ from services.matching_service import matching_queue
 from services.auth_service import AuthService
 from services.ban_service import ban_service
 from services.premium_service import premium_service
+from services.stats_service import stats_service
 from middleware.premium_guard import premium_guard, PremiumFeature
 from services.db_service import (
     get_users_collection, 
@@ -76,8 +77,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         # Get user_id from session
         async with sio.session(sid) as session:
             user_id = session.get('user_id')
+            is_guest = session.get('is_guest', False)
             if not user_id:
                 return
+        
+        # End platform time tracking and persist time
+        await stats_service.end_platform_session(user_id, is_guest)
         
         # Remove from queue if waiting
         matching_queue.remove_from_queue(user_id)
@@ -91,6 +96,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             result = matching_queue.end_session(user_id, reason='disconnected')
             
             if result:
+                # End match session and update stats
+                await stats_service.end_match_session(user_id, is_guest)
+                
                 # Notify partner
                 if partner_socket:
                     await sio.emit('partner_disconnected', {
@@ -163,6 +171,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     user_data['premium_status'] = is_premium
                     user_data['premium_tier'] = tier
             
+            # Start platform time tracking
+            stats_service.start_platform_session(user_id)
+            
             await sio.emit('authenticated', {
                 'user_id': user_id,
                 'username': user_data.get('username') if user_data else 'User',
@@ -175,6 +186,40 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         except Exception as e:
             logger.error(f"Authentication error: {e}")
             await sio.emit('error', {'message': 'Authentication failed'}, room=sid)
+    
+    # ============================================
+    # TIME TRACKING (Heartbeat)
+    # ============================================
+    
+    @sio.event
+    async def heartbeat(sid, data=None):
+        """
+        Process heartbeat from client for time tracking.
+        Should be called every 30 seconds by the frontend.
+        """
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
+                
+                if not user_id:
+                    return
+            
+            # Process heartbeat and update time
+            seconds_added = await stats_service.process_heartbeat(user_id, is_guest)
+            
+            # Get updated stats
+            stats = await stats_service.get_user_stats(user_id, is_guest)
+            
+            # Send back current stats
+            await sio.emit('heartbeat_ack', {
+                'success': True,
+                'seconds_added': seconds_added,
+                'total_time_spent': stats['total_time_spent']
+            }, room=sid)
+            
+        except Exception as e:
+            logger.error(f"Heartbeat error: {e}")
     
     # ============================================
     # MATCHING QUEUE
@@ -277,12 +322,18 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 # Match found immediately!
                 session_id = match['session_id']
                 
+                # Start match session tracking for both users
+                user1_id = match['user1']['user_id']
+                user2_id = match['user2']['user_id']
+                stats_service.start_match_session(user1_id)
+                stats_service.start_match_session(user2_id)
+                
                 # Store session in DB
                 sessions = get_sessions_collection()
                 await sessions.insert_one({
                     'session_id': session_id,
-                    'user1_id': match['user1']['user_id'],
-                    'user2_id': match['user2']['user_id'],
+                    'user1_id': user1_id,
+                    'user2_id': user2_id,
                     'user1_username': match['user1'].get('username', ''),
                     'user2_username': match['user2'].get('username', ''),
                     'user1_is_guest': match['user1'].get('is_guest', False),
@@ -325,7 +376,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     }
                 }, room=user2_socket)
                 
-                logger.info(f"Match created: {match['user1']['user_id']} <-> {match['user2']['user_id']}")
+                logger.info(f"Match created: {user1_id} <-> {user2_id}")
             else:
                 # Added to queue, waiting
                 position = matching_queue.get_queue_position(user_id)
@@ -366,13 +417,30 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
                 if not user_id:
                     return
             
+            # Get partner info before ending
             partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_id = matching_queue.get_partner_id(user_id)
+            partner_is_guest = False
+            if partner_id:
+                partner_session = matching_queue.get_session(partner_id)
+                if partner_session:
+                    if partner_session['user1']['user_id'] == partner_id:
+                        partner_is_guest = partner_session['user1'].get('is_guest', False)
+                    else:
+                        partner_is_guest = partner_session['user2'].get('is_guest', False)
+            
             result = matching_queue.end_session(user_id, reason='skipped')
             
             if result:
+                # End match sessions and update stats for both users
+                await stats_service.end_match_session(user_id, is_guest)
+                if partner_id:
+                    await stats_service.end_match_session(partner_id, partner_is_guest)
+                
                 # Notify both users
                 await sio.emit('match_ended', {'reason': 'skipped'}, room=sid)
                 if partner_socket:
@@ -770,6 +838,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             player2_id = session_data['user2']['user_id']
             player1_username = session_data['user1'].get('username', 'Player 1')
             player2_username = session_data['user2'].get('username', 'Player 2')
+            player1_is_guest = session_data['user1'].get('is_guest', False)
+            player2_is_guest = session_data['user2'].get('is_guest', False)
+            
+            # Increment games_played for both players
+            await stats_service.increment_games_played(player1_id, player1_is_guest)
+            await stats_service.increment_games_played(player2_id, player2_is_guest)
             
             # Mark game as active
             matching_queue.set_game_active(user_id, 'feud')
@@ -840,6 +914,17 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if result['game_state']['status'] == 'finished':
                 # Save result to DB
                 await feud_service.save_game_result(session_id)
+                
+                # Track games won for the winner
+                winner_id = result['game_state']['winner_id']
+                if winner_id:
+                    # Determine if winner is guest
+                    winner_is_guest = False
+                    if winner_id == session_data['user1']['user_id']:
+                        winner_is_guest = session_data['user1'].get('is_guest', False)
+                    else:
+                        winner_is_guest = session_data['user2'].get('is_guest', False)
+                    await stats_service.increment_games_won(winner_id, winner_is_guest)
                 
                 # Send game ended event
                 await sio.emit('feud_game_ended', {
@@ -933,6 +1018,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             player2_id = session_data['user2']['user_id']
             player1_username = session_data['user1'].get('username', 'Player 1')
             player2_username = session_data['user2'].get('username', 'Player 2')
+            player1_is_guest = session_data['user1'].get('is_guest', False)
+            player2_is_guest = session_data['user2'].get('is_guest', False)
+            
+            # Increment games_played for both players
+            await stats_service.increment_games_played(player1_id, player1_is_guest)
+            await stats_service.increment_games_played(player2_id, player2_is_guest)
             
             # Check if another game is active
             if feud_service.has_active_game(session_id):
@@ -1275,6 +1366,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 player1 = session_data['user2']
                 player2 = session_data['user1']
             
+            # Increment games_played for both players
+            player1_is_guest = player1.get('is_guest', False)
+            player2_is_guest = player2.get('is_guest', False)
+            await stats_service.increment_games_played(player1['user_id'], player1_is_guest)
+            await stats_service.increment_games_played(player2['user_id'], player2_is_guest)
+            
             # Create UNO game
             uno_service.create_game(
                 session_id=room_id,
@@ -1346,6 +1443,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Check for game over
             game_state = uno_service.get_game(room_id)
             if game_state and game_state['status'] == 'finished':
+                # Track games won for winner
+                winner_id = game_state.get('winner_id')
+                if winner_id:
+                    winner_is_guest = False
+                    if session_data['user1']['user_id'] == winner_id:
+                        winner_is_guest = session_data['user1'].get('is_guest', False)
+                    elif session_data['user2']['user_id'] == winner_id:
+                        winner_is_guest = session_data['user2'].get('is_guest', False)
+                    await stats_service.increment_games_won(winner_id, winner_is_guest)
+                
                 await _emit_uno_state_to_both(sio, session_data, room_id, 'uno_game_ended', {
                     'winner_id': game_state['winner_id'],
                     'winner_username': game_state['winner_username']

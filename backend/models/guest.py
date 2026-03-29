@@ -48,6 +48,8 @@ class Guest(BaseModel):
     total_matches: int = Field(default=0, description="Total successful matches")
     total_messages_sent: int = Field(default=0, description="Messages sent count")
     total_reports_received: int = Field(default=0, description="Reports against guest")
+    games_played: int = Field(default=0, description="Total games played")
+    games_won: int = Field(default=0, description="Total games won")
     
     # === Timestamps ===
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -69,6 +71,9 @@ class GuestResponse(BaseModel):
     country_flag: Optional[str] = None
     total_sessions: int = 0
     total_time_spent: int = 0
+    games_played: int = 0
+    games_won: int = 0
+    created_at: Optional[str] = None
 
 
 class GuestPublic(BaseModel):
