@@ -34,7 +34,7 @@ Build a premium real-time social matching platform for text and video chat. The 
 ### Core Authentication
 - Email/Password login and signup
 - Guest mode with instant access
-- Social login structure (Google, Apple, Phone OTP) - awaiting Firebase config
+- **Firebase Google Sign-In** - ✅ LIVE (Using redirect flow for cross-origin compatibility)
 - JWT token-based authentication
 - Age verification (18+) on first entry
 - Terms & Privacy checkbox on signup with acceptance timestamp tracking
@@ -719,14 +719,6 @@ Build a premium real-time social matching platform for text and video chat. The 
 ---
 
 ## 🔴 Pending Configuration
-
-### Firebase (Social Login)
-Requires user-provided credentials to activate Google/Apple/Phone login:
-```
-REACT_APP_FIREBASE_API_KEY=
-REACT_APP_FIREBASE_AUTH_DOMAIN=
-REACT_APP_FIREBASE_PROJECT_ID=
-```
 
 ### Stripe (Production)
 Test mode working. Needs production keys for live payments.

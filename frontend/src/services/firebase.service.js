@@ -2,7 +2,8 @@ import { initializeApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInAnonymously as firebaseSignInAnonymously,
   signOut as firebaseSignOut
 } from 'firebase/auth';
@@ -40,27 +41,48 @@ if (isFirebaseConfigured()) {
   }
 }
 
-// Google Sign In
+// Google Sign In - Uses redirect for better cross-origin compatibility
 export const signInWithGoogle = async () => {
   if (!auth || !googleProvider) {
     throw new Error('Firebase not initialized');
   }
   
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    const idToken = await user.getIdToken();
-    
-    return {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      provider: 'google',
-      idToken: idToken,
-    };
+    // Use redirect instead of popup to avoid COOP issues
+    await signInWithRedirect(auth, googleProvider);
+    // This function won't return anything as the page redirects
+    // The result will be handled by getGoogleRedirectResult() on page load
+    return null;
   } catch (error) {
-    console.error('Google sign-in error:', error);
+    console.error('Google sign-in redirect error:', error);
+    throw error;
+  }
+};
+
+// Handle redirect result after returning from Google
+export const getGoogleRedirectResult = async () => {
+  if (!auth) {
+    return null;
+  }
+  
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      const user = result.user;
+      const idToken = await user.getIdToken();
+      
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        provider: 'google',
+        idToken: idToken,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Google redirect result error:', error);
     throw error;
   }
 };

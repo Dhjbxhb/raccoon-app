@@ -1,6 +1,8 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
+from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import socketio
 import os
 import logging
@@ -19,6 +21,18 @@ sio = socketio.AsyncServer(
 
 # Create the main FastAPI app
 app = FastAPI()
+
+# COOP Middleware for Firebase Auth popup support
+class COOPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Allow popups to communicate with opener (required for Firebase Google Auth)
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+        response.headers["Cross-Origin-Embedder-Policy"] = "unsafe-none"
+        return response
+
+# Add COOP middleware first
+app.add_middleware(COOPMiddleware)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")

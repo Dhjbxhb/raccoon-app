@@ -12,7 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, signInAnonymousUser } from '@/services/firebase.service';
+import { isFirebaseReady, signInWithGoogle, signInAnonymousUser, getGoogleRedirectResult } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
   getErrorMessage,
@@ -50,6 +50,32 @@ const Signup = () => {
       }
     }
   }, [user, authLoading, navigate]);
+
+  // Handle Google redirect result on page load
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      if (!firebaseReady) return;
+      
+      try {
+        setSocialLoading('google');
+        const userData = await getGoogleRedirectResult();
+        if (userData) {
+          await syncSocialAuth(userData);
+        }
+      } catch (error) {
+        console.error('Google redirect error:', error);
+        if (error.code === 'auth/unauthorized-domain') {
+          toast.error('This domain is not authorized for Google Sign-In.');
+        } else {
+          toast.error('Google signup failed. Please try again.');
+        }
+      } finally {
+        setSocialLoading(null);
+      }
+    };
+    
+    handleRedirectResult();
+  }, [firebaseReady]);
 
   // Clear field error when user types
   const handleFieldChange = useCallback((field, value) => {
@@ -140,7 +166,7 @@ const Signup = () => {
     }
   };
 
-  // Google signup handler
+  // Google signup handler - uses redirect for cross-origin compatibility
   const handleGoogleSignup = async () => {
     if (!firebaseReady) {
       toast.error('Firebase is initializing. Please try again.');
@@ -150,22 +176,17 @@ const Signup = () => {
 
     setSocialLoading('google');
     try {
-      const userData = await signInWithGoogle();
-      await syncSocialAuth(userData);
+      // This will redirect to Google - no return value
+      await signInWithGoogle();
+      // User will be redirected to Google, then back here
+      // The result is handled in the useEffect above
     } catch (error) {
       console.error('Google signup error:', error);
-      if (error.code === 'auth/popup-closed-by-user') {
-        // User closed popup - no error needed
-      } else if (error.code === 'auth/popup-blocked') {
-        toast.error('Popup was blocked. Please allow popups for this site.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        // Multiple popups - ignore
-      } else if (error.code === 'auth/unauthorized-domain') {
-        toast.error('This domain is not authorized for Google Sign-In. Please add it to Firebase Console > Authentication > Settings > Authorized domains.');
+      if (error.code === 'auth/unauthorized-domain') {
+        toast.error('This domain is not authorized for Google Sign-In. Please add it to Firebase Console.');
       } else {
         toast.error('Google signup failed. Please try again.');
       }
-    } finally {
       setSocialLoading(null);
     }
   };
