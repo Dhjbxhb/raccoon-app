@@ -2,6 +2,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signInAnonymously as firebaseSignInAnonymously,
@@ -16,32 +17,39 @@ let app = null;
 let auth = null;
 let googleProvider = null;
 let initPromise = null;
-
-console.log('=== FIREBASE SERVICE LOADING ===');
-console.log('Firebase configured:', isFirebaseConfigured());
+let initDone = false;
 
 // Initialize on module load if configured
 const initFirebase = async () => {
+  if (initDone) return true;
+  
   if (!isFirebaseConfigured()) {
     console.log('Firebase not configured');
     return false;
   }
   
   try {
+    console.log('=== INITIALIZING FIREBASE ===');
+    
     // Check if already initialized
     if (getApps().length === 0) {
-      console.log('Initializing Firebase app...');
       app = initializeApp(firebaseConfig);
+      console.log('Firebase app created');
     } else {
       app = getApps()[0];
       console.log('Firebase app already exists');
     }
     
     auth = getAuth(app);
+    console.log('Auth object created');
     
-    // CRITICAL: Set persistence to LOCAL so auth state survives page reload
-    await setPersistence(auth, browserLocalPersistence);
-    console.log('Auth persistence set to LOCAL');
+    // Set persistence to LOCAL
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      console.log('Auth persistence set to LOCAL');
+    } catch (e) {
+      console.log('Persistence already set or error:', e.message);
+    }
     
     // Configure Google Provider
     googleProvider = new GoogleAuthProvider();
@@ -51,9 +59,8 @@ const initFirebase = async () => {
       prompt: 'select_account'
     });
     
-    console.log('=== FIREBASE INITIALIZED ===');
-    console.log('Auth:', !!auth);
-    console.log('Google Provider:', !!googleProvider);
+    initDone = true;
+    console.log('=== FIREBASE READY ===');
     
     return true;
   } catch (error) {
@@ -65,31 +72,55 @@ const initFirebase = async () => {
 // Start initialization immediately
 initPromise = initFirebase();
 
-// Google Sign In - Uses redirect for better cross-origin compatibility
+// Google Sign In - Try popup first, fall back to redirect
 export const signInWithGoogle = async () => {
-  // Ensure Firebase is initialized
   await initPromise;
   
   if (!auth || !googleProvider) {
     throw new Error('Firebase not initialized');
   }
   
+  console.log('=== STARTING GOOGLE SIGN-IN ===');
+  
+  // Try popup first (works better in most cases)
   try {
-    console.log('=== STARTING GOOGLE SIGN-IN ===');
-    console.log('Using redirect flow...');
-    // Use redirect instead of popup to avoid COOP issues
-    await signInWithRedirect(auth, googleProvider);
-    // This function won't return anything as the page redirects
-    return null;
-  } catch (error) {
-    console.error('Google sign-in redirect error:', error);
-    throw error;
+    console.log('Trying popup...');
+    const result = await signInWithPopup(auth, googleProvider);
+    
+    if (result && result.user) {
+      console.log('=== POPUP SUCCESS ===');
+      console.log('User:', result.user.email);
+      
+      const idToken = await result.user.getIdToken(true);
+      
+      return {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        photoURL: result.user.photoURL,
+        provider: 'google',
+        idToken: idToken,
+      };
+    }
+  } catch (popupError) {
+    console.log('Popup failed:', popupError.code, popupError.message);
+    
+    // If popup blocked or failed, try redirect
+    if (popupError.code === 'auth/popup-blocked' || 
+        popupError.code === 'auth/popup-closed-by-user' ||
+        popupError.code === 'auth/cancelled-popup-request') {
+      console.log('Falling back to redirect...');
+      await signInWithRedirect(auth, googleProvider);
+      return null; // Page will redirect
+    }
+    
+    // For other errors, throw
+    throw popupError;
   }
 };
 
 // Handle redirect result after returning from Google
 export const getGoogleRedirectResult = async () => {
-  // Ensure Firebase is initialized
   await initPromise;
   
   if (!auth) {
@@ -98,47 +129,39 @@ export const getGoogleRedirectResult = async () => {
   }
   
   try {
-    console.log('=== GETTING REDIRECT RESULT ===');
-    console.log('Current user before getRedirectResult:', auth.currentUser?.email || 'null');
+    console.log('=== CHECKING REDIRECT RESULT ===');
+    console.log('Current user:', auth.currentUser?.email || 'none');
     
     const result = await getRedirectResult(auth);
     
-    console.log('Redirect result:', result ? 'FOUND' : 'NULL');
-    
     if (result && result.user) {
-      console.log('=== GOOGLE USER FROM REDIRECT ===');
-      console.log('UID:', result.user.uid);
-      console.log('Email:', result.user.email);
-      console.log('Name:', result.user.displayName);
+      console.log('=== REDIRECT RESULT FOUND ===');
+      console.log('User:', result.user.email);
       
-      const user = result.user;
-      const idToken = await user.getIdToken(true);
-      
-      console.log('ID Token obtained:', idToken ? 'YES' : 'NO');
+      const idToken = await result.user.getIdToken(true);
       
       return {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        photoURL: result.user.photoURL,
         provider: 'google',
         idToken: idToken,
       };
     }
     
-    // Check if there's a current user (might be from persistence)
+    // Check current user as fallback
     if (auth.currentUser && !auth.currentUser.isAnonymous) {
-      console.log('=== FOUND PERSISTENT USER ===');
-      console.log('Email:', auth.currentUser.email);
+      console.log('=== FOUND CURRENT USER ===');
+      console.log('User:', auth.currentUser.email);
       
-      const user = auth.currentUser;
-      const idToken = await user.getIdToken(true);
+      const idToken = await auth.currentUser.getIdToken(true);
       
       return {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        displayName: auth.currentUser.displayName,
+        photoURL: auth.currentUser.photoURL,
         provider: 'google',
         idToken: idToken,
       };
@@ -147,15 +170,7 @@ export const getGoogleRedirectResult = async () => {
     console.log('No redirect result and no current user');
     return null;
   } catch (error) {
-    console.error('=== REDIRECT RESULT ERROR ===');
-    console.error('Code:', error.code);
-    console.error('Message:', error.message);
-    
-    if (error.code === 'auth/unauthorized-domain') {
-      console.error('DOMAIN NOT AUTHORIZED!');
-      console.error('Add domain to Firebase Console:', window.location.hostname);
-    }
-    
+    console.error('=== REDIRECT ERROR ===', error.code, error.message);
     throw error;
   }
 };
@@ -168,24 +183,18 @@ export const signInAnonymousUser = async () => {
     throw new Error('Firebase not initialized');
   }
   
-  try {
-    const result = await firebaseSignInAnonymously(auth);
-    const user = result.user;
-    const idToken = await user.getIdToken();
-    
-    return {
-      uid: user.uid,
-      email: null,
-      displayName: null,
-      photoURL: null,
-      provider: 'anonymous',
-      idToken: idToken,
-      isAnonymous: true
-    };
-  } catch (error) {
-    console.error('Anonymous sign-in error:', error);
-    throw error;
-  }
+  const result = await firebaseSignInAnonymously(auth);
+  const idToken = await result.user.getIdToken();
+  
+  return {
+    uid: result.user.uid,
+    email: null,
+    displayName: null,
+    photoURL: null,
+    provider: 'anonymous',
+    idToken: idToken,
+    isAnonymous: true
+  };
 };
 
 // Sign Out
@@ -197,7 +206,7 @@ export const signOut = async () => {
 
 // Check if Firebase is ready
 export const isFirebaseReady = () => {
-  return !!auth && !!googleProvider;
+  return initDone && !!auth && !!googleProvider;
 };
 
 // Wait for Firebase to be ready
@@ -206,5 +215,5 @@ export const waitForFirebase = async () => {
   return isFirebaseReady();
 };
 
-// Export auth for direct access (needed for onAuthStateChanged)
+// Export auth for direct access
 export { auth };

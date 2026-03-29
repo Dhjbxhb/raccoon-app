@@ -12,7 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, getGoogleRedirectResult, auth, waitForFirebase } from '@/services/firebase.service';
+import { signInWithGoogle, getGoogleRedirectResult, waitForFirebase } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
   getErrorMessage,
@@ -33,230 +33,125 @@ const Login = () => {
   const [socialLoading, setSocialLoading] = useState(null);
   const [checkingRedirect, setCheckingRedirect] = useState(true);
   
-  // Refs to prevent double-processing
+  // Refs
   const backendSyncDone = useRef(false);
   const navigationDone = useRef(false);
 
-  const firebaseReady = isFirebaseReady();
-
-  // DEBUG: Log current auth state
-  useEffect(() => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    console.log('=== LOGIN PAGE STATE ===');
-    console.log('localStorage token:', storedToken ? 'EXISTS' : 'NULL');
-    console.log('Context user:', user ? user.username || user.email : 'NULL');
-    console.log('Auth loading:', authLoading);
-    console.log('Checking redirect:', checkingRedirect);
-  }, [user, authLoading, checkingRedirect]);
-
-  // Sync Firebase user with backend - THE CRITICAL FUNCTION
-  const syncFirebaseUserWithBackend = useCallback(async (firebaseUser) => {
-    // Prevent duplicate calls
+  // Sync user with backend and save JWT
+  const syncWithBackend = useCallback(async (userData) => {
     if (backendSyncDone.current) {
-      console.log('Backend sync already done, skipping');
+      console.log('Backend sync already done');
       return false;
     }
     
     backendSyncDone.current = true;
     
     try {
-      console.log('=== SYNCING FIREBASE USER WITH BACKEND ===');
-      console.log('Firebase UID:', firebaseUser.uid);
-      console.log('Email:', firebaseUser.email);
-      console.log('Display Name:', firebaseUser.displayName);
-      
-      // Get Firebase ID token
-      const idToken = await firebaseUser.getIdToken(true);
-      console.log('Got Firebase ID token:', idToken ? 'YES (length: ' + idToken.length + ')' : 'NO');
-      
-      if (!idToken) {
-        console.error('Failed to get Firebase ID token');
-        toast.error('Authentication failed. Please try again.');
-        backendSyncDone.current = false;
-        return false;
-      }
+      console.log('=== SYNCING WITH BACKEND ===');
+      console.log('UID:', userData.uid);
+      console.log('Email:', userData.email);
+      console.log('Name:', userData.displayName);
+      console.log('ID Token:', userData.idToken ? 'YES (' + userData.idToken.length + ' chars)' : 'NO');
       
       const browserLocale = getBrowserLocale();
       
-      // Send to backend
-      console.log('Sending to backend /api/auth/google...');
       const response = await axios.post(`${API_URL}/auth/google`, {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        displayName: firebaseUser.displayName,
-        photoURL: firebaseUser.photoURL,
-        idToken: idToken,
+        uid: userData.uid,
+        email: userData.email,
+        displayName: userData.displayName,
+        photoURL: userData.photoURL,
+        idToken: userData.idToken,
         browser_locale: browserLocale
       });
       
       console.log('=== BACKEND RESPONSE ===');
-      console.log('Token received:', response.data.token ? 'YES' : 'NO');
+      console.log('JWT Token:', response.data.token ? 'YES' : 'NO');
       console.log('User:', response.data.user?.username);
       
       if (!response.data.token) {
-        console.error('No JWT token in backend response!');
-        toast.error('Login failed. Please try again.');
+        toast.error('Login failed - no token received');
         backendSyncDone.current = false;
         return false;
       }
       
-      // CRITICAL: Save JWT token to localStorage
-      console.log('Saving JWT token to localStorage...');
+      // Save JWT to localStorage
       localStorage.setItem(TOKEN_KEY, response.data.token);
-      
-      // Verify it was saved
-      const savedToken = localStorage.getItem(TOKEN_KEY);
-      console.log('Token saved:', savedToken ? 'SUCCESS' : 'FAILED');
+      console.log('JWT saved to localStorage');
       
       // Update auth context
       login(response.data.token, response.data.user);
-      console.log('Auth context updated');
       
       toast.success(`Welcome, ${response.data.user.username || response.data.user.email}!`);
       
       // Navigate
       navigationDone.current = true;
-      setCheckingRedirect(false);
-      
       if (response.data.user.age_verified) {
-        console.log('Navigating to dashboard');
         navigate('/dashboard', { replace: true });
       } else {
-        console.log('Navigating to age verification');
         navigate('/verify-age', { replace: true });
       }
       
       return true;
     } catch (error) {
-      console.error('=== BACKEND SYNC ERROR ===', error);
-      console.error('Response:', error.response?.data);
+      console.error('=== BACKEND ERROR ===', error.response?.data || error.message);
       toast.error(getErrorMessage(error));
       backendSyncDone.current = false;
       return false;
     }
   }, [login, navigate]);
 
-  // Redirect if already logged in (via our JWT token)
+  // Check for existing session on mount
   useEffect(() => {
     if (authLoading) return;
     
     const storedToken = localStorage.getItem(TOKEN_KEY);
-    
     if (user && storedToken && !navigationDone.current) {
-      console.log('=== ALREADY LOGGED IN (JWT exists) ===');
+      console.log('Already logged in, redirecting...');
       navigationDone.current = true;
-      setCheckingRedirect(false);
-      
-      if (!user.age_verified) {
-        navigate('/verify-age', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
     }
   }, [user, authLoading, navigate]);
 
-  // Handle Google redirect - Listen for Firebase auth state changes
+  // Check for Google redirect result on page load
   useEffect(() => {
-    let unsubscribe = () => {};
-    let authCheckTimeout;
-    let cancelled = false;
-    
-    const setupFirebaseListener = async () => {
-      // Wait for Firebase to be fully initialized
-      console.log('=== WAITING FOR FIREBASE ===');
-      const ready = await waitForFirebase();
-      console.log('Firebase ready:', ready);
-      
-      if (cancelled) return;
-      
-      if (!ready || !auth) {
-        console.log('Firebase not ready');
-        setCheckingRedirect(false);
-        return;
-      }
-      
-      // Skip if already have a valid JWT token
+    const checkRedirect = async () => {
+      // Skip if already have token
       const existingToken = localStorage.getItem(TOKEN_KEY);
       if (existingToken) {
-        console.log('JWT token already exists, skipping Firebase check');
+        console.log('Token exists, skipping redirect check');
         setCheckingRedirect(false);
         return;
       }
       
       console.log('=== CHECKING FOR GOOGLE REDIRECT ===');
-      setSocialLoading('google');
       
-      // FIRST - Check for redirect result (most important)
       try {
-        console.log('Calling getGoogleRedirectResult...');
+        await waitForFirebase();
+        
         const userData = await getGoogleRedirectResult();
         
-        if (cancelled) return;
-        
         if (userData) {
-          console.log('=== REDIRECT RESULT FOUND ===');
-          console.log('User:', userData.email);
-          
-          // Create a mock firebaseUser object with getIdToken
-          const mockUser = {
-            uid: userData.uid,
-            email: userData.email,
-            displayName: userData.displayName,
-            photoURL: userData.photoURL,
-            getIdToken: async () => userData.idToken
-          };
-          
-          // Sync with backend
-          await syncFirebaseUserWithBackend(mockUser);
-          return; // Exit early, we're done
+          console.log('=== GOT USER FROM REDIRECT ===');
+          setSocialLoading('google');
+          await syncWithBackend(userData);
+          setSocialLoading(null);
+        } else {
+          console.log('No redirect result');
         }
-        
-        console.log('No redirect result found');
       } catch (error) {
-        console.error('Redirect result error:', error);
+        console.error('Redirect check error:', error);
         if (error.code === 'auth/unauthorized-domain') {
-          toast.error('Domain not authorized for Google Sign-In');
-          setSocialLoading(null);
-          setCheckingRedirect(false);
-          return;
+          toast.error('This domain is not authorized for Google Sign-In');
         }
       }
       
-      if (cancelled) return;
-      
-      // THEN - Check for current user (in case they're already signed into Firebase)
-      if (auth.currentUser && !auth.currentUser.isAnonymous) {
-        console.log('=== FOUND CURRENT USER ===');
-        console.log('User:', auth.currentUser.email);
-        
-        const jwt = localStorage.getItem(TOKEN_KEY);
-        if (!jwt && !backendSyncDone.current) {
-          await syncFirebaseUserWithBackend(auth.currentUser);
-          return;
-        }
-      }
-      
-      // No user found - wait a bit for auth state to settle
-      console.log('No user found, setting timeout...');
-      authCheckTimeout = setTimeout(() => {
-        if (!cancelled) {
-          console.log('Auth check complete - no user');
-          setSocialLoading(null);
-          setCheckingRedirect(false);
-        }
-      }, 1500);
+      setCheckingRedirect(false);
     };
     
-    setupFirebaseListener();
-    
-    return () => {
-      cancelled = true;
-      unsubscribe();
-      clearTimeout(authCheckTimeout);
-    };
-  }, [syncFirebaseUserWithBackend]);
+    checkRedirect();
+  }, [syncWithBackend]);
 
-  // Clear field error when user types
+  // Form field change handler
   const handleFieldChange = useCallback((field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
@@ -264,10 +159,9 @@ const Login = () => {
     }
   }, [errors]);
 
-  // Handle email/password login
+  // Email/password login
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (loading) return;
     
     const validation = validateLoginForm(formData.email, formData.password);
@@ -280,82 +174,72 @@ const Login = () => {
     setLoading(true);
 
     try {
-      console.log('=== EMAIL/PASSWORD LOGIN ===');
       const response = await axios.post(`${API_URL}/auth/login`, {
         email: formData.email,
         password: formData.password
       });
       
-      // Save JWT token
       localStorage.setItem(TOKEN_KEY, response.data.token);
-      console.log('Token saved to localStorage');
-      
-      // Update auth context
       login(response.data.token, response.data.user);
       toast.success('Welcome back!');
       
-      navigationDone.current = true;
-      if (response.data.user.age_verified) {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/verify-age', { replace: true });
-      }
+      navigate(response.data.user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
     } catch (error) {
-      const errorMsg = getErrorMessage(error);
-      setErrors({ form: errorMsg });
+      setErrors({ form: getErrorMessage(error) });
     } finally {
       setLoading(false);
     }
   };
 
-  // Google login handler
+  // Google login - NOW USES POPUP
   const handleGoogleLogin = async () => {
-    if (!firebaseReady) {
-      toast.error('Please wait, initializing...');
-      return;
-    }
     if (socialLoading) return;
-
+    
     console.log('=== GOOGLE LOGIN CLICKED ===');
     setSocialLoading('google');
+    backendSyncDone.current = false;
     
     try {
-      // Reset flags for the new login attempt
-      backendSyncDone.current = false;
-      navigationDone.current = false;
+      await waitForFirebase();
       
-      // Clear any stale tokens
-      localStorage.removeItem(TOKEN_KEY);
+      // signInWithGoogle now returns user data directly (popup) or null (redirect)
+      const userData = await signInWithGoogle();
       
-      // Start Google redirect
-      await signInWithGoogle();
-      // Page will redirect to Google
+      if (userData) {
+        // Popup succeeded - sync with backend
+        console.log('=== POPUP RETURNED USER ===');
+        await syncWithBackend(userData);
+      }
+      // If null, page is redirecting to Google
+      
     } catch (error) {
       console.error('Google login error:', error);
-      toast.error('Google login failed. Please try again.');
+      
+      if (error.code === 'auth/unauthorized-domain') {
+        toast.error('Domain not authorized. Add it to Firebase Console.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // User closed popup, no error needed
+      } else {
+        toast.error('Google login failed: ' + error.message);
+      }
       setSocialLoading(null);
     }
   };
 
-  // Guest login handler
+  // Guest login
   const handleAnonymousLogin = async () => {
     if (socialLoading) return;
     
     setSocialLoading('anonymous');
     try {
-      const browserLocale = getBrowserLocale();
       const response = await axios.post(`${API_URL}/auth/guest`, { 
         gender: 'male',
-        browser_locale: browserLocale
+        browser_locale: getBrowserLocale()
       });
       
-      // Save JWT token
       localStorage.setItem(TOKEN_KEY, response.data.token);
-      
       login(response.data.token, response.data.user);
       toast.success(`Welcome, ${response.data.user.username}!`);
-      
-      navigationDone.current = true;
       navigate('/verify-age', { replace: true });
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -364,14 +248,14 @@ const Login = () => {
     }
   };
 
-  // Show loading while checking auth
+  // Loading state
   if (authLoading || checkingRedirect) {
     return (
       <AuthLayout>
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin mb-4" />
           <p className="text-gray-400 text-sm">
-            {socialLoading === 'google' ? 'Signing in with Google...' : 'Checking login status...'}
+            {socialLoading === 'google' ? 'Signing in with Google...' : 'Loading...'}
           </p>
         </div>
       </AuthLayout>
@@ -384,10 +268,9 @@ const Login = () => {
         title="Welcome Back"
         subtitle="Sign in to continue to Raccoon"
       >
-        {/* Email/Password Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {errors.form && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm" data-testid="login-form-error">
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
               {errors.form}
             </div>
           )}
@@ -426,7 +309,6 @@ const Login = () => {
           </AuthButton>
         </form>
 
-        {/* Social Login */}
         <SocialAuthSection
           onGoogleClick={handleGoogleLogin}
           onAnonymousClick={handleAnonymousLogin}
