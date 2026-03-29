@@ -9,13 +9,20 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => {
-    // Initialize token from localStorage, but validate it
+    // Initialize token from localStorage
     const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (storedToken && isTokenValid(storedToken)) {
-      return storedToken;
-    }
-    // Clear invalid token
+    console.log('=== AUTH CONTEXT INIT ===');
+    console.log('Stored token:', storedToken ? 'EXISTS' : 'NULL');
+    
     if (storedToken) {
+      const valid = isTokenValid(storedToken);
+      console.log('Token valid:', valid);
+      
+      if (valid) {
+        return storedToken;
+      }
+      // Clear invalid token
+      console.log('Clearing invalid token');
       localStorage.removeItem(TOKEN_KEY);
     }
     return null;
@@ -24,7 +31,11 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const fetchCurrentUser = useCallback(async () => {
+    console.log('=== FETCH CURRENT USER ===');
+    console.log('Token:', token ? 'EXISTS' : 'NULL');
+    
     if (!token) {
+      console.log('No token, skipping user fetch');
       setLoading(false);
       return;
     }
@@ -38,15 +49,19 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      console.log('Fetching user from /api/auth/me...');
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log('User fetched:', response.data?.username || response.data?.email);
       setUser(response.data);
       setError(null);
     } catch (error) {
       console.error('Failed to fetch user:', error);
       // Only logout if it's an auth error
       if (error.response?.status === 401 || error.response?.status === 403) {
+        console.log('Auth error, logging out');
         logout();
       } else {
         setError('Failed to load user data');
@@ -69,26 +84,43 @@ export const AuthProvider = ({ children }) => {
   }, [token, fetchCurrentUser]);
 
   const login = useCallback((newToken, userData) => {
+    console.log('=== AUTH CONTEXT LOGIN ===');
+    console.log('New token:', newToken ? 'PROVIDED' : 'MISSING');
+    console.log('User data:', userData?.username || userData?.email);
+    
+    // Save to localStorage
     localStorage.setItem(TOKEN_KEY, newToken);
+    
+    // Verify it was saved
+    const saved = localStorage.getItem(TOKEN_KEY);
+    console.log('Token saved to localStorage:', saved ? 'SUCCESS' : 'FAILED');
+    
+    // Update state
     setToken(newToken);
     setUser(userData);
     setError(null);
+    
+    console.log('Auth state updated');
   }, []);
 
   const loginAsGuest = useCallback(async (gender = 'male') => {
     try {
-      // Get browser locale for country detection fallback
+      console.log('=== GUEST LOGIN ===');
       const browserLocale = navigator.language || navigator.userLanguage || 'en-US';
       
       const response = await axios.post(`${API_URL}/auth/guest`, { 
         gender,
         browser_locale: browserLocale
       });
+      
       const { token: newToken, user: userData } = response.data;
+      console.log('Guest token received:', newToken ? 'YES' : 'NO');
+      
       localStorage.setItem(TOKEN_KEY, newToken);
       setToken(newToken);
       setUser(userData);
       setError(null);
+      
       return userData;
     } catch (error) {
       console.error('Guest login failed:', error);
@@ -97,6 +129,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(() => {
+    console.log('=== LOGOUT ===');
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
@@ -108,7 +141,8 @@ export const AuthProvider = ({ children }) => {
   }, [user]);
 
   const isAuthenticated = useCallback(() => {
-    return !!user && !!token && isTokenValid(token);
+    const authenticated = !!user && !!token && isTokenValid(token);
+    return authenticated;
   }, [user, token]);
 
   const value = {

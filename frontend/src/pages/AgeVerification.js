@@ -12,23 +12,42 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 const AgeVerification = () => {
   const navigate = useNavigate();
-  const { user, token, refreshUser } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { user, token, loading, refreshUser } = useAuth();
+  const [verifying, setVerifying] = useState(false);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('=== AGE VERIFICATION PAGE ===');
+    console.log('User:', user ? user.username || user.email : 'NULL');
+    console.log('Token:', token ? 'EXISTS' : 'NULL');
+    console.log('Loading:', loading);
+    console.log('Age verified:', user?.age_verified);
+  }, [user, token, loading]);
 
   // Redirect if already verified or not logged in
   useEffect(() => {
-    if (!user) {
+    // Wait for auth to finish loading
+    if (loading) {
+      console.log('Auth loading, waiting...');
+      return;
+    }
+    
+    // Not logged in - redirect to login
+    if (!user && !token) {
+      console.log('No user and no token, redirecting to login');
       navigate('/login');
       return;
     }
     
-    if (user.age_verified) {
+    // Already verified - redirect to dashboard
+    if (user?.age_verified) {
+      console.log('Already age verified, redirecting to dashboard');
       navigate('/dashboard');
     }
-  }, [user, navigate]);
+  }, [user, token, loading, navigate]);
 
   const handleConfirm = async () => {
-    setLoading(true);
+    setVerifying(true);
     
     try {
       await axios.post(
@@ -46,9 +65,26 @@ const AgeVerification = () => {
       console.error('Age verification error:', error);
       toast.error('Failed to verify age. Please try again.');
     } finally {
-      setLoading(false);
+      setVerifying(false);
     }
   };
+
+  // Show loading state while auth is loading
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #020205 0%, #050510 30%, #0a0818 60%, #050510 100%)' }}>
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+          <p className="text-white/70 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render until we have a user
+  if (!user) {
+    return null;
+  }
 
   const handleDeny = () => {
     // Redirect away from the site
@@ -121,7 +157,7 @@ const AgeVerification = () => {
           <div className="space-y-3">
             <Button
               onClick={handleConfirm}
-              loading={loading}
+              loading={verifying}
               fullWidth
               size="lg"
               className="shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.5)]"
@@ -131,7 +167,7 @@ const AgeVerification = () => {
             </Button>
             <Button
               onClick={handleDeny}
-              disabled={loading}
+              disabled={verifying}
               variant="secondary"
               fullWidth
               data-testid="age-verify-deny"

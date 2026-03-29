@@ -16,14 +16,15 @@ import { isFirebaseReady, signInWithGoogle, getGoogleRedirectResult } from '@/se
 import { 
   validateLoginForm, 
   getErrorMessage,
-  getBrowserLocale 
+  getBrowserLocale,
+  TOKEN_KEY
 } from '@/utils/auth';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, user, loading: authLoading } = useAuth();
+  const { login, user, token, loading: authLoading } = useAuth();
   
   // Form state
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -34,134 +35,64 @@ const Login = () => {
   
   // Ref to prevent double-processing of redirect result
   const redirectProcessed = useRef(false);
+  const navigationDone = useRef(false);
 
   const firebaseReady = isFirebaseReady();
 
-  // Handle social auth backend sync - defined as ref to avoid dependency issues
-  const syncSocialAuthRef = useRef(async (userData) => {
-    console.log('=== SYNC SOCIAL AUTH START ===');
-    console.log('Google user data received:', {
-      uid: userData.uid,
-      email: userData.email,
-      displayName: userData.displayName,
-      provider: userData.provider
-    });
+  // DEBUG: Log current auth state on every render
+  useEffect(() => {
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    console.log('=== LOGIN PAGE AUTH STATE ===');
+    console.log('Token from context:', token ? 'EXISTS' : 'NULL');
+    console.log('Token from localStorage:', storedToken ? 'EXISTS' : 'NULL');
+    console.log('User from context:', user ? user.username || user.email : 'NULL');
+    console.log('Auth loading:', authLoading);
+    console.log('Checking redirect:', checkingRedirect);
+  }, [token, user, authLoading, checkingRedirect]);
+
+  // Redirect if already logged in - CRITICAL CHECK
+  useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) {
+      console.log('Auth still loading, waiting...');
+      return;
+    }
     
-    try {
-      const browserLocale = getBrowserLocale();
+    // Check if user is already authenticated
+    if (user && token && !navigationDone.current) {
+      console.log('=== USER ALREADY AUTHENTICATED ===');
+      console.log('User:', user.username || user.email);
+      console.log('Redirecting to appropriate page...');
+      navigationDone.current = true;
       
-      // Use dedicated /auth/google endpoint for Google login
-      console.log('Sending to backend /api/auth/google...');
-      const response = await axios.post(`${API_URL}/auth/google`, {
-        uid: userData.uid,
-        email: userData.email,
-        displayName: userData.displayName,
-        photoURL: userData.photoURL,
-        idToken: userData.idToken,
-        browser_locale: browserLocale
-      });
-      
-      console.log('Backend response received:', {
-        hasToken: !!response.data.token,
-        user: response.data.user?.username || response.data.user?.email
-      });
-      
-      // Store token and set user state
-      login(response.data.token, response.data.user);
-      
-      console.log('Token stored, user logged in!');
-      toast.success(`Welcome, ${response.data.user.username || response.data.user.email}!`);
-      
-      // Navigate based on age verification status
-      if (response.data.user.age_verified) {
-        console.log('User age verified, navigating to dashboard');
-        navigate('/dashboard');
-      } else {
-        console.log('User needs age verification');
-        navigate('/verify-age');
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('=== SYNC SOCIAL AUTH ERROR ===', error);
-      console.error('Error response:', error.response?.data);
-      toast.error(getErrorMessage(error));
-      return false;
-    }
-  });
-
-  // Update ref when dependencies change
-  useEffect(() => {
-    syncSocialAuthRef.current = async (userData) => {
-      console.log('=== SYNC SOCIAL AUTH START ===');
-      console.log('Google user data received:', {
-        uid: userData.uid,
-        email: userData.email,
-        displayName: userData.displayName,
-        provider: userData.provider
-      });
-      
-      try {
-        const browserLocale = getBrowserLocale();
-        
-        // Use dedicated /auth/google endpoint for Google login
-        console.log('Sending to backend /api/auth/google...');
-        const response = await axios.post(`${API_URL}/auth/google`, {
-          uid: userData.uid,
-          email: userData.email,
-          displayName: userData.displayName,
-          photoURL: userData.photoURL,
-          idToken: userData.idToken,
-          browser_locale: browserLocale
-        });
-        
-        console.log('Backend response received:', {
-          hasToken: !!response.data.token,
-          user: response.data.user?.username || response.data.user?.email
-        });
-        
-        // Store token and set user state
-        login(response.data.token, response.data.user);
-        
-        console.log('Token stored, user logged in!');
-        toast.success(`Welcome, ${response.data.user.username || response.data.user.email}!`);
-        
-        // Navigate based on age verification status
-        if (response.data.user.age_verified) {
-          console.log('User age verified, navigating to dashboard');
-          navigate('/dashboard');
-        } else {
-          console.log('User needs age verification');
-          navigate('/verify-age');
-        }
-        
-        return true;
-      } catch (error) {
-        console.error('=== SYNC SOCIAL AUTH ERROR ===', error);
-        console.error('Error response:', error.response?.data);
-        toast.error(getErrorMessage(error));
-        return false;
-      }
-    };
-  }, [login, navigate]);
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (user && !authLoading) {
-      console.log('User already logged in, redirecting...');
       if (!user.age_verified) {
-        navigate('/verify-age');
+        navigate('/verify-age', { replace: true });
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, token, authLoading, navigate]);
 
   // Handle Google redirect result on page load - CRITICAL for Google login
   useEffect(() => {
     const handleRedirectResult = async () => {
-      // Skip if already processing or not ready
-      if (!firebaseReady || redirectProcessed.current) {
+      // Skip if not ready or already processing
+      if (!firebaseReady) {
+        console.log('Firebase not ready yet');
+        setCheckingRedirect(false);
+        return;
+      }
+      
+      if (redirectProcessed.current) {
+        console.log('Redirect already processed');
+        setCheckingRedirect(false);
+        return;
+      }
+      
+      // Check if there's already a valid token - don't process redirect if logged in
+      const existingToken = localStorage.getItem(TOKEN_KEY);
+      if (existingToken) {
+        console.log('Token already exists, skipping redirect check');
         setCheckingRedirect(false);
         return;
       }
@@ -174,38 +105,92 @@ const Login = () => {
         const userData = await getGoogleRedirectResult();
         
         if (userData) {
-          console.log('Google redirect result found!');
-          console.log('User:', userData.email, userData.displayName);
+          console.log('=== GOOGLE REDIRECT RESULT FOUND ===');
+          console.log('Firebase UID:', userData.uid);
+          console.log('Email:', userData.email);
+          console.log('Display Name:', userData.displayName);
           
           // Sync with backend
-          const success = await syncSocialAuthRef.current(userData);
-          
-          if (!success) {
-            console.error('Backend sync failed');
-            setSocialLoading(null);
-          }
+          await syncGoogleUser(userData);
         } else {
           console.log('No Google redirect result (normal page load)');
-          setSocialLoading(null);
         }
       } catch (error) {
         console.error('=== GOOGLE REDIRECT ERROR ===', error);
         
         if (error.code === 'auth/unauthorized-domain') {
-          toast.error('This domain is not authorized for Google Sign-In. Please contact support.');
-        } else if (error.code === 'auth/popup-closed-by-user') {
-          // User closed popup, no error needed
-        } else {
+          toast.error('This domain is not authorized for Google Sign-In.');
+        } else if (error.code !== 'auth/popup-closed-by-user') {
           toast.error('Google login failed. Please try again.');
         }
-        setSocialLoading(null);
       } finally {
+        setSocialLoading(null);
         setCheckingRedirect(false);
       }
     };
     
     handleRedirectResult();
   }, [firebaseReady]);
+
+  // Sync Google user with backend
+  const syncGoogleUser = async (userData) => {
+    console.log('=== SYNCING GOOGLE USER WITH BACKEND ===');
+    
+    try {
+      const browserLocale = getBrowserLocale();
+      
+      console.log('Sending to backend /api/auth/google...');
+      const response = await axios.post(`${API_URL}/auth/google`, {
+        uid: userData.uid,
+        email: userData.email,
+        displayName: userData.displayName,
+        photoURL: userData.photoURL,
+        idToken: userData.idToken,
+        browser_locale: browserLocale
+      });
+      
+      console.log('=== BACKEND RESPONSE ===');
+      console.log('Token received:', response.data.token ? 'YES' : 'NO');
+      console.log('User:', response.data.user?.username || response.data.user?.email);
+      
+      if (!response.data.token) {
+        console.error('No token in response!');
+        toast.error('Login failed - no token received');
+        return false;
+      }
+      
+      // CRITICAL: Save token to localStorage FIRST
+      console.log('Saving token to localStorage...');
+      localStorage.setItem(TOKEN_KEY, response.data.token);
+      
+      // Verify token was saved
+      const savedToken = localStorage.getItem(TOKEN_KEY);
+      console.log('Token saved:', savedToken ? 'SUCCESS' : 'FAILED');
+      
+      // Update auth context
+      login(response.data.token, response.data.user);
+      console.log('Auth context updated');
+      
+      toast.success(`Welcome, ${response.data.user.username || response.data.user.email}!`);
+      
+      // Navigate based on age verification status
+      navigationDone.current = true;
+      if (response.data.user.age_verified) {
+        console.log('Navigating to dashboard...');
+        navigate('/dashboard', { replace: true });
+      } else {
+        console.log('Navigating to age verification...');
+        navigate('/verify-age', { replace: true });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('=== BACKEND SYNC ERROR ===', error);
+      console.error('Response:', error.response?.data);
+      toast.error(getErrorMessage(error));
+      return false;
+    }
+  };
 
   // Clear field error when user types
   const handleFieldChange = useCallback((field, value) => {
@@ -231,18 +216,27 @@ const Login = () => {
     setLoading(true);
 
     try {
+      console.log('=== EMAIL/PASSWORD LOGIN ===');
       const response = await axios.post(`${API_URL}/auth/login`, {
         email: formData.email,
         password: formData.password
       });
       
+      console.log('Token received:', response.data.token ? 'YES' : 'NO');
+      
+      // Save token to localStorage
+      localStorage.setItem(TOKEN_KEY, response.data.token);
+      console.log('Token saved to localStorage');
+      
+      // Update auth context
       login(response.data.token, response.data.user);
       toast.success('Welcome back!');
       
+      navigationDone.current = true;
       if (response.data.user.age_verified) {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       } else {
-        navigate('/verify-age');
+        navigate('/verify-age', { replace: true });
       }
     } catch (error) {
       const errorMsg = getErrorMessage(error);
@@ -273,15 +267,15 @@ const Login = () => {
     try {
       // Reset the redirect processed flag so it can be processed when we come back
       redirectProcessed.current = false;
+      navigationDone.current = false;
       
-      // This will redirect to Google - no return value
+      // This will redirect to Google - page will reload after
       await signInWithGoogle();
       // User will be redirected to Google, then back here
-      // The result is handled in the useEffect above
     } catch (error) {
       console.error('Google login redirect error:', error);
       if (error.code === 'auth/unauthorized-domain') {
-        toast.error('This domain is not authorized for Google Sign-In. Please add it to Firebase Console.');
+        toast.error('This domain is not authorized for Google Sign-In.');
       } else {
         toast.error('Google login failed. Please try again.');
       }
@@ -301,9 +295,14 @@ const Login = () => {
         browser_locale: browserLocale
       });
       
+      // Save token to localStorage
+      localStorage.setItem(TOKEN_KEY, response.data.token);
+      
       login(response.data.token, response.data.user);
       toast.success(`Welcome, ${response.data.user.username}!`);
-      navigate('/verify-age');
+      
+      navigationDone.current = true;
+      navigate('/verify-age', { replace: true });
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
