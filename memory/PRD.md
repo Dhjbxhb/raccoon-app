@@ -31,6 +31,31 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST SPRINT COMPLETE (March 2025)
 
+### Google Login Fix ✅
+**Problem:** Google login opened but user was NOT logged into the app and got redirected back to login page. Firebase Auth was working but backend login + session handling was broken.
+
+**Solution:**
+- Created dedicated `POST /api/auth/google` endpoint (`/app/backend/routes/auth.py`)
+  - Takes Firebase user data (uid, email, displayName, photoURL, idToken)
+  - Creates new user if not exists (auth_provider=google)
+  - Returns existing user if email or firebase_uid matches
+  - Returns valid JWT token for session
+  - Includes comprehensive logging for debugging
+- Updated `Login.js` frontend:
+  - Uses `useRef` for `syncSocialAuthRef` to avoid React dependency issues
+  - Handles `getGoogleRedirectResult()` on page load
+  - Stores token via `login()` from AuthContext
+  - Redirects to /verify-age or /dashboard based on age_verified
+- All Google users saved to MongoDB with proper fields
+- Google users appear in Admin Panel users list
+
+**Tested (12/12 backend tests passed):**
+- ✅ Creates new user with firebase_uid, email, username, auth_provider=google
+- ✅ Returns valid JWT token
+- ✅ Returns existing user on subsequent logins
+- ✅ Token works for authenticated requests
+- ✅ Google users appear in admin panel
+
 ### TASK 6/6: Real Counters Implementation ✅
 **Backend:**
 - New `StatsService` (`/app/backend/services/stats_service.py`):
