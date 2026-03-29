@@ -226,6 +226,36 @@ const Dashboard = () => {
                   <span>2 Players</span>
                 </div>
               </div>
+              
+              {/* Raccoon UNO Card */}
+              <div 
+                className={`group relative p-8 bg-gradient-to-br from-[#7c3aed]/40 to-[#5b21b6]/40 backdrop-blur-xl border ${isPremium ? 'border-purple-500/30 hover:border-purple-500/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(124,58,237,0.3)]`}
+                onClick={() => handleGameClick('UNO')}
+                data-testid="uno-game-card"
+              >
+                {!isPremium && (
+                  <div className="absolute top-4 right-4 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center border border-yellow-400/30">
+                    <Lock size={16} className="text-yellow-400" />
+                  </div>
+                )}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-[#7c3aed] to-[#a855f7] rounded-2xl flex items-center justify-center text-2xl">
+                    🦝
+                  </div>
+                  <span className={`px-3 py-1 ${isPremium ? 'bg-purple-500/20 text-purple-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
+                    {isPremium ? 'PLAY NOW' : 'PREMIUM'}
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon UNO</h3>
+                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  {isPremium ? 'Classic card game with a raccoon twist!' : 'Unlock with Premium to play!'}
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-purple-500/60 text-sm">
+                  <span>🎴 Card Game</span>
+                  <span>•</span>
+                  <span>2 Players</span>
+                </div>
+              </div>
             </div>
 
             {/* Premium Upgrade Banner (shown for non-premium users) */}

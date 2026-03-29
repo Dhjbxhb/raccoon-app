@@ -16,6 +16,7 @@ import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
 import FeudGame from '@/components/games/FeudGame';
 import TruthOrDare from '@/components/games/TruthOrDare';
+import UnoGame from '@/components/games/UnoGame';
 import CameraFilters from '@/components/match/CameraFilters';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
@@ -23,6 +24,7 @@ import '@/styles/match.css';
 import '@/styles/chat.css';
 import '@/styles/filters.css';
 import '@/styles/games.css';
+import '@/styles/uno.css';
 
 const RACCOON_FACTS = [
   "Raccoons are extremely intelligent animals",
@@ -91,6 +93,7 @@ const Match = () => {
   // Derived game visibility states
   const showFeud = activeGame === 'feud';
   const showTruthOrDare = activeGame === 'truthordare';
+  const showUno = activeGame === 'uno';
   const isGameActive = activeGame !== null;
   
   // Session duration tracking
@@ -182,6 +185,12 @@ const Match = () => {
       setGameSessionId(sessionId);
     };
     
+    const handleUnoStarted = (data) => {
+      // Both players receive this - open UNO game UI for both
+      setActiveGame('uno');
+      setGameSessionId(sessionId);
+    };
+    
     // ===== GAME END =====
     const handleFeudEnded = () => {
       if (activeGame === 'feud') {
@@ -192,6 +201,13 @@ const Match = () => {
     
     const handleTodEnded = () => {
       if (activeGame === 'truthordare') {
+        setActiveGame(null);
+        setGameSessionId(null);
+      }
+    };
+    
+    const handleUnoEnded = () => {
+      if (activeGame === 'uno') {
         setActiveGame(null);
         setGameSessionId(null);
       }
@@ -234,6 +250,9 @@ const Match = () => {
         } else if (data.active_game.game_type === 'tod') {
           setActiveGame('truthordare');
           setGameSessionId(sessionId);
+        } else if (data.active_game.game_type === 'uno') {
+          setActiveGame('uno');
+          setGameSessionId(sessionId);
         }
       }
     };
@@ -241,8 +260,10 @@ const Match = () => {
     // Register event handlers
     socket.on('feud_game_started', handleFeudStarted);
     socket.on('tod_game_started', handleTodStarted);
+    socket.on('uno_game_started', handleUnoStarted);
     socket.on('feud_game_ended', handleFeudEnded);
     socket.on('tod_game_ended', handleTodEnded);
+    socket.on('uno_game_ended', handleUnoEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
     socket.on('premium_filter_blocked', handlePremiumFilterBlocked);
@@ -252,8 +273,10 @@ const Match = () => {
     return () => {
       socket.off('feud_game_started', handleFeudStarted);
       socket.off('tod_game_started', handleTodStarted);
+      socket.off('uno_game_started', handleUnoStarted);
       socket.off('feud_game_ended', handleFeudEnded);
       socket.off('tod_game_ended', handleTodEnded);
+      socket.off('uno_game_ended', handleUnoEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
       socket.off('premium_filter_blocked', handlePremiumFilterBlocked);
@@ -389,8 +412,12 @@ const Match = () => {
   // Start game - emits to backend, waits for confirmation
   const startGame = useCallback((gameType) => {
     if (!isPremium) {
-      const gameName = gameType === 'feud' ? 'Raccoon Feud' : 'Truth or Dare';
-      showPremiumModal(gameName);
+      const gameNames = {
+        'feud': 'Raccoon Feud',
+        'truthordare': 'Truth or Dare',
+        'uno': 'UNO'
+      };
+      showPremiumModal(gameNames[gameType] || gameType);
       return;
     }
     
@@ -406,6 +433,8 @@ const Match = () => {
         socket.emit('start_feud_game');
       } else if (gameType === 'truthordare') {
         socket.emit('start_tod_game');
+      } else if (gameType === 'uno') {
+        socket.emit('start_uno_game');
       }
     }
     // DO NOT set activeGame here - wait for backend confirmation
@@ -418,6 +447,8 @@ const Match = () => {
         socket.emit('end_feud_game');
       } else if (activeGame === 'truthordare') {
         socket.emit('end_tod_game');
+      } else if (activeGame === 'uno') {
+        socket.emit('end_uno_game');
       }
     }
     setActiveGame(null);
@@ -667,6 +698,20 @@ const Match = () => {
               />
             </div>
           )}
+          
+          {showUno && (
+            <div className="game-container game-container--uno">
+              <UnoGame
+                isOpen={showUno}
+                onClose={closeGame}
+                socket={socket}
+                myUserId={user?.user_id || user?.guest_id}
+                partnerUsername={partner?.username || 'Stranger'}
+                sessionId={sessionId}
+                isMobile={isMobile}
+              />
+            </div>
+          )}
         </div>
 
         {/* REMOTE VIDEO PANEL (Stranger) - ALWAYS VISIBLE */}
@@ -744,13 +789,25 @@ const Match = () => {
                 <span>T/D</span>
                 {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
               </button>
+              
+              {/* UNO */}
+              <button
+                onClick={() => toggleGame('uno')}
+                disabled={activeGame && activeGame !== 'uno'}
+                className={`match-bottombar__game-btn ${showUno ? 'match-bottombar__game-btn--active' : ''} ${activeGame && activeGame !== 'uno' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                data-testid="uno-btn"
+              >
+                <span style={{ fontSize: '12px' }}>🎴</span>
+                <span>UNO</span>
+                {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
+              </button>
             </div>
 
             {/* Active Game Indicator */}
             {isGameActive && (
               <div className="match-bottombar__active-game">
                 <span className="text-xs text-[#ffd700]/80">
-                  {showFeud ? '🦝 Feud' : '🍾 T/D'}
+                  {showFeud ? '🦝 Feud' : showTruthOrDare ? '🍾 T/D' : '🎴 UNO'}
                 </span>
               </div>
             )}

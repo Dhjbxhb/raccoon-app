@@ -1,0 +1,721 @@
+/* ============================================
+   UNO GAME STYLES - Premium Raccoon Theme
+   Dark purple aesthetic with raccoon branding
+   ============================================ */
+
+/* === GAME OVERLAY === */
+.uno-game {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0d0a1a 0%, #120e24 50%, #0a0814 100%);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  overflow: hidden;
+}
+
+/* Subtle animated background gradient */
+.uno-game::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse 60% 40% at 30% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 35% at 70% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+/* === HEADER === */
+.uno-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.15);
+  position: relative;
+  z-index: 10;
+}
+
+.uno-header__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.uno-header__logo {
+  font-size: 1.5rem;
+}
+
+.uno-header__name {
+  font-weight: 700;
+  font-size: 1.125rem;
+  background: linear-gradient(135deg, #fff, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.uno-header__close {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.uno-header__close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* === START SCREEN === */
+.uno-start-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  z-index: 5;
+}
+
+.uno-start-screen__cards {
+  display: flex;
+  gap: -1rem;
+  margin-bottom: 1.5rem;
+}
+
+.uno-start-screen__card {
+  width: 4rem;
+  height: 5.5rem;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.35);
+  animation: cardFloat 3s ease-in-out infinite;
+}
+
+.uno-start-screen__card--1 { animation-delay: 0s; transform: rotate(-12deg); }
+.uno-start-screen__card--2 { animation-delay: 0.2s; transform: rotate(0deg) translateY(-8px); margin: 0 -0.5rem; z-index: 1; }
+.uno-start-screen__card--3 { animation-delay: 0.4s; transform: rotate(12deg); }
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0) rotate(var(--rotate, 0deg)); }
+  50% { transform: translateY(-5px) rotate(var(--rotate, 0deg)); }
+}
+
+.uno-start-screen__title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.uno-start-screen__subtitle {
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 2rem;
+}
+
+.uno-start-btn {
+  padding: 1rem 2.5rem;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  border: none;
+  border-radius: 1rem;
+  color: white;
+  font-weight: 700;
+  font-size: 1.125rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+}
+
+.uno-start-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(124, 58, 237, 0.5);
+}
+
+/* === END SCREEN === */
+.uno-end-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  z-index: 5;
+}
+
+.uno-end-screen__trophy {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  animation: trophyBounce 0.6s ease-out;
+}
+
+@keyframes trophyBounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.uno-end-screen__title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.uno-end-screen__actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.uno-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.uno-btn--primary {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: white;
+}
+
+.uno-btn--secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.uno-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* === GAME BOARD === */
+.uno-board {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  position: relative;
+  z-index: 5;
+  min-height: 0;
+}
+
+/* === OPPONENT AREA === */
+.uno-opponent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.uno-opponent__info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.uno-opponent__indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.uno-opponent__indicator--active {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+  50% { box-shadow: 0 0 16px rgba(34, 197, 94, 0.8); }
+}
+
+.uno-opponent__name {
+  font-weight: 600;
+  color: white;
+  font-size: 0.875rem;
+}
+
+.uno-opponent__count {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.uno-opponent__hand {
+  display: flex;
+  justify-content: center;
+  gap: -1rem;
+}
+
+.uno-opponent__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 3rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* === CENTER PLAY AREA === */
+.uno-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  position: relative;
+  min-height: 0;
+}
+
+.uno-center__color-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.uno-center__discard {
+  position: relative;
+}
+
+.uno-center__draw {
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  transition: transform 0.2s ease;
+}
+
+.uno-center__draw:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.uno-center__draw:not(:disabled):hover {
+  transform: scale(1.05);
+}
+
+.uno-center__draw--highlight {
+  animation: drawHighlight 1s ease-in-out infinite;
+}
+
+@keyframes drawHighlight {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}
+
+.uno-center__draw-stack {
+  position: relative;
+}
+
+.uno-center__draw-count {
+  position: absolute;
+  bottom: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.125rem 0.5rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  color: white;
+}
+
+.uno-center__turn {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.375rem 1rem;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.uno-center__turn--active {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.15));
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+/* === UNO CALL BUTTON === */
+.uno-call-btn {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: none;
+  border-radius: 1rem;
+  color: white;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+  transition: all 0.2s ease;
+  z-index: 20;
+}
+
+.uno-call-btn:hover {
+  transform: translateY(-50%) scale(1.05);
+}
+
+.uno-call-btn--urgent {
+  animation: urgentPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes urgentPulse {
+  0%, 100% { transform: translateY(-50%) scale(1); }
+  50% { transform: translateY(-50%) scale(1.08); }
+}
+
+.uno-call-btn__text {
+  font-family: 'Outfit', sans-serif;
+}
+
+.uno-call-btn__icon {
+  animation: zapFlash 0.3s ease-in-out infinite;
+}
+
+@keyframes zapFlash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* === PLAYER HAND === */
+.uno-hand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.uno-hand__cards {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 0.5rem;
+  gap: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.uno-hand__cards::-webkit-scrollbar {
+  display: none;
+}
+
+.uno-hand__info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+}
+
+.uno-hand__indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.uno-hand__indicator--active {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+.uno-hand__label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* === UNO CARD === */
+.uno-card {
+  position: relative;
+  border-radius: 0.5rem;
+  background: var(--card-color, #1f2937);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.uno-card--small {
+  width: 2.5rem;
+  height: 3.5rem;
+  font-size: 0.875rem;
+  border-radius: 0.375rem;
+}
+
+.uno-card--normal {
+  width: 3.5rem;
+  height: 5rem;
+  font-size: 1.25rem;
+}
+
+.uno-card--large {
+  width: 5rem;
+  height: 7rem;
+  font-size: 1.75rem;
+}
+
+.uno-card__inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  font-weight: 800;
+}
+
+.uno-card__corner {
+  position: absolute;
+  font-size: 0.6em;
+  font-weight: 700;
+}
+
+.uno-card__corner--top {
+  top: 0.25rem;
+  left: 0.375rem;
+}
+
+.uno-card__corner--bottom {
+  bottom: 0.25rem;
+  right: 0.375rem;
+  transform: rotate(180deg);
+}
+
+.uno-card__center {
+  font-size: 1.5em;
+}
+
+/* Card back (raccoon pattern) */
+.uno-card--back {
+  background: linear-gradient(135deg, #1a1625, #0f0d18);
+  border: 2px solid rgba(124, 58, 237, 0.3);
+}
+
+.uno-card__back-pattern {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      rgba(124, 58, 237, 0.05) 0px,
+      rgba(124, 58, 237, 0.05) 2px,
+      transparent 2px,
+      transparent 8px
+    );
+  border-radius: inherit;
+}
+
+.uno-card__back-logo {
+  font-size: 1.5em;
+  opacity: 0.4;
+}
+
+/* Playable card highlight */
+.uno-card--playable {
+  box-shadow: 0 0 0 2px white, 0 4px 20px var(--card-glow, rgba(255, 255, 255, 0.3));
+}
+
+.uno-card--playable:hover {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 0 0 3px white, 0 8px 30px var(--card-glow, rgba(255, 255, 255, 0.4));
+}
+
+/* Card animation */
+.uno-card--played {
+  animation: cardPlayed 0.3s ease-out;
+}
+
+@keyframes cardPlayed {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* === COLOR PICKER === */
+.uno-color-picker__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.uno-color-picker {
+  background: linear-gradient(135deg, #1a1625, #0f0d18);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.uno-color-picker__title {
+  color: white;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.uno-color-picker__options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.uno-color-picker__btn {
+  width: 4rem;
+  height: 4rem;
+  border: none;
+  border-radius: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.uno-color-picker__btn:hover {
+  transform: scale(1.1);
+}
+
+/* === NOTIFICATION === */
+.uno-notification {
+  position: absolute;
+  top: 4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.625rem 1.25rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  z-index: 50;
+  animation: notificationSlide 0.3s ease-out;
+}
+
+@keyframes notificationSlide {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.uno-notification--info {
+  background: rgba(59, 130, 246, 0.9);
+  color: white;
+}
+
+.uno-notification--success {
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
+}
+
+.uno-notification--warning {
+  background: rgba(234, 179, 8, 0.9);
+  color: #1f2937;
+}
+
+.uno-notification--error {
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+}
+
+.uno-notification--action {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: white;
+}
+
+/* === MOBILE ADJUSTMENTS === */
+.uno-game--mobile .uno-board {
+  padding: 0.5rem;
+}
+
+.uno-game--mobile .uno-opponent__hand {
+  gap: -0.75rem;
+}
+
+.uno-game--mobile .uno-center {
+  gap: 1rem;
+}
+
+.uno-game--mobile .uno-hand__cards {
+  gap: -0.25rem;
+}
+
+.uno-game--mobile .uno-call-btn {
+  right: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* === DESKTOP LAYOUT === */
+.uno-game--desktop .uno-board {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.uno-game--desktop .uno-hand__cards {
+  gap: 0.375rem;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}

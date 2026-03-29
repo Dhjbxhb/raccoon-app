@@ -35,6 +35,13 @@ logger = logging.getLogger(__name__)
 
 async def get_active_game_state(session_id: str) -> dict:
     """Get active game state for session (used for reconnection)"""
+    from services.uno_service import uno_service
+    
+    # Check for active UNO game
+    uno_game = uno_service.get_game(session_id)
+    if uno_game and uno_game.get('status') == 'active':
+        return {'game_type': 'uno', 'game_state': uno_game}
+    
     # Check for active Feud game
     feud_game = feud_service.get_game(session_id)
     if feud_game and feud_game.get('status') == 'active':
@@ -1223,6 +1230,259 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         except Exception as e:
             logger.error(f"Error in webrtc_end_call: {e}")
+
+    # ============================================
+    # UNO GAME HANDLERS
+    # ============================================
+    
+    from services.uno_service import uno_service
+    
+    @sio.event
+    async def start_uno_game(sid):
+        """Start a new UNO game for the current match session"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    await sio.emit('uno_error', {'message': 'Not authenticated'}, room=sid)
+                    return
+            
+            # Check premium status
+            users_collection = get_users_collection()
+            user_data = await users_collection.find_one({'user_id': user_id})
+            is_premium = user_data.get('premium_status', False) if user_data else False
+            
+            if not is_premium:
+                await sio.emit('premium_required', {
+                    'game': 'UNO',
+                    'message': 'Premium subscription required to play UNO'
+                }, room=sid)
+                return
+            
+            # Get active session
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('uno_error', {'message': 'No active match session'}, room=sid)
+                return
+            
+            room_id = session_data['session_id']
+            
+            # Get both players info
+            if session_data['user1']['user_id'] == user_id:
+                player1 = session_data['user1']
+                player2 = session_data['user2']
+            else:
+                player1 = session_data['user2']
+                player2 = session_data['user1']
+            
+            # Create UNO game
+            uno_service.create_game(
+                session_id=room_id,
+                player1_id=player1['user_id'],
+                player2_id=player2['user_id'],
+                player1_username=player1.get('username', 'Player 1'),
+                player2_username=player2.get('username', 'Player 2')
+            )
+            
+            # Send game started to both players with their respective hands
+            player1_state = uno_service.get_player_state(room_id, player1['user_id'])
+            player2_state = uno_service.get_player_state(room_id, player2['user_id'])
+            
+            # Send to player 1
+            player1_socket = matching_queue.get_socket_id(player1['user_id'])
+            if player1_socket:
+                await sio.emit('uno_game_started', {
+                    'game_state': player1_state,
+                    'started_by': user_id
+                }, room=player1_socket)
+            
+            # Send to player 2
+            player2_socket = matching_queue.get_socket_id(player2['user_id'])
+            if player2_socket:
+                await sio.emit('uno_game_started', {
+                    'game_state': player2_state,
+                    'started_by': user_id
+                }, room=player2_socket)
+            
+            logger.info(f"UNO game started in session {room_id} by {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error starting UNO game: {e}")
+            await sio.emit('uno_error', {'message': 'Failed to start game'}, room=sid)
+    
+    @sio.event
+    async def uno_play_card(sid, data):
+        """Handle UNO card play"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            room_id = session_data['session_id']
+            card_id = data.get('card_id')
+            chosen_color = data.get('chosen_color')
+            
+            result = uno_service.play_card(room_id, user_id, card_id, chosen_color)
+            
+            if 'error' in result:
+                await sio.emit('uno_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Emit updated state to both players
+            await _emit_uno_state_to_both(sio, session_data, room_id, 'uno_card_played', {
+                'player_id': user_id,
+                'card': result['card'],
+                'effect': result.get('effect'),
+                'new_color': result.get('new_color'),
+                'uno_penalty': result.get('uno_penalty', False),
+                'penalty_cards': result.get('penalty_cards', 0)
+            })
+            
+            # Check for game over
+            game_state = uno_service.get_game(room_id)
+            if game_state and game_state['status'] == 'finished':
+                await _emit_uno_state_to_both(sio, session_data, room_id, 'uno_game_ended', {
+                    'winner_id': game_state['winner_id'],
+                    'winner_username': game_state['winner_username']
+                })
+            
+        except Exception as e:
+            logger.error(f"Error in uno_play_card: {e}")
+            await sio.emit('uno_error', {'message': 'Failed to play card'}, room=sid)
+    
+    @sio.event
+    async def uno_draw_card(sid):
+        """Handle UNO card draw"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            room_id = session_data['session_id']
+            
+            result = uno_service.draw_card(room_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('uno_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Emit updated state to both players
+            await _emit_uno_state_to_both(sio, session_data, room_id, 'uno_card_drawn', {
+                'player_id': user_id,
+                'can_play_drawn': result.get('can_play_drawn', False)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in uno_draw_card: {e}")
+            await sio.emit('uno_error', {'message': 'Failed to draw card'}, room=sid)
+    
+    @sio.event
+    async def uno_call_uno(sid):
+        """Handle UNO call"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            room_id = session_data['session_id']
+            
+            result = uno_service.call_uno(room_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('uno_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Notify both players
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            
+            await sio.emit('uno_called', {
+                'player_id': user_id,
+                'player_username': result['player_username']
+            }, room=sid)
+            
+            if partner_socket:
+                await sio.emit('uno_called', {
+                    'player_id': user_id,
+                    'player_username': result['player_username']
+                }, room=partner_socket)
+            
+        except Exception as e:
+            logger.error(f"Error in uno_call_uno: {e}")
+    
+    @sio.event
+    async def end_uno_game(sid):
+        """End the current UNO game"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            room_id = session_data['session_id']
+            
+            uno_service.end_game(room_id)
+            
+            # Notify both players
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            
+            await sio.emit('uno_game_ended', {
+                'ended_by': user_id,
+                'reason': 'quit'
+            }, room=sid)
+            
+            if partner_socket:
+                await sio.emit('uno_game_ended', {
+                    'ended_by': user_id,
+                    'reason': 'quit'
+                }, room=partner_socket)
+            
+            logger.info(f"UNO game ended in session {room_id} by {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error ending UNO game: {e}")
+    
+    async def _emit_uno_state_to_both(sio, session_data, room_id, event_name, extra_data=None):
+        """Helper to emit UNO state to both players"""
+        player1_id = session_data['user1']['user_id']
+        player2_id = session_data['user2']['user_id']
+        
+        player1_state = uno_service.get_player_state(room_id, player1_id)
+        player2_state = uno_service.get_player_state(room_id, player2_id)
+        
+        player1_socket = matching_queue.get_socket_id(player1_id)
+        player2_socket = matching_queue.get_socket_id(player2_id)
+        
+        payload1 = {'game_state': player1_state}
+        payload2 = {'game_state': player2_state}
+        
+        if extra_data:
+            payload1.update(extra_data)
+            payload2.update(extra_data)
+        
+        if player1_socket:
+            await sio.emit(event_name, payload1, room=player1_socket)
+        if player2_socket:
+            await sio.emit(event_name, payload2, room=player2_socket)
+
     
     # ============================================
     # UTILITY HANDLERS
