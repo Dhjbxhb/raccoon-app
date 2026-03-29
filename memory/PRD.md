@@ -29,6 +29,54 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ---
 
+## ✅ LATEST SPRINT COMPLETE (March 2025)
+
+### TASK 6/6: Real Counters Implementation ✅
+**Backend:**
+- New `StatsService` (`/app/backend/services/stats_service.py`):
+  - `get_user_stats()` - Fetch real stats from MongoDB
+  - `increment_session_count()` - Increment on match end
+  - `add_time_spent()` - Accumulate platform usage time
+  - `increment_games_played()` - Track game starts
+  - `increment_games_won()` - Track game wins
+  - `process_heartbeat()` - Real-time time tracking (30s intervals)
+  - `start_platform_session()` / `end_platform_session()` - Connection-based tracking
+  - `start_match_session()` / `end_match_session()` - Match duration tracking
+- New API routes (`/app/backend/routes/stats.py`):
+  - `GET /api/stats/me` - User stats with formatted time
+  - `POST /api/stats/heartbeat` - Time tracking heartbeat
+  - `GET /api/stats/full` - Complete user data with stats and premium
+  - `GET /api/stats/premium-status` - Premium subscription details
+- Socket handlers updated for stats tracking:
+  - `authenticate` - Starts platform session
+  - `disconnect` - Ends platform session, persists time
+  - `skip_match` / match end - Increments session count
+  - Game handlers - Increment games_played/games_won
+- User/Guest models updated with `games_played`, `games_won` fields
+
+**Frontend:**
+- Dashboard (`/app/frontend/src/pages/Dashboard.js`):
+  - 4-card stats grid: Sessions, Time Spent, Games Played, Games Won
+  - Real stats fetched from `/api/stats/me`
+  - Heartbeat sent every 30 seconds
+  - Time updates in real-time
+- Profile (`/app/frontend/src/pages/Profile.js`):
+  - Real stats fetched from `/api/stats/full`
+  - Premium status card (only for premium users)
+  - Shows remaining subscription time and expiry date
+  - Human-readable time formatting (5s, 1m, 1h 23m, 3d 4h)
+
+**Key Requirements Met:**
+- ✅ No fake/static counters - all real from MongoDB
+- ✅ Real session count from match history
+- ✅ Real time tracking via heartbeat
+- ✅ Real games played/won from backend
+- ✅ Premium remaining time for premium users
+- ✅ No user kicks/blocks/limits
+- ✅ Guests have real stats too
+
+---
+
 ## ✅ COMPLETED FEATURES
 
 ### Core Authentication
