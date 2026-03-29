@@ -164,10 +164,25 @@ const Match = () => {
   }, [navigate]);
 
   // ========== SOCKET EVENT CLEANUP ==========
-  // Listen for game end events and premium blocks to clean up properly
+  // Listen for game events to sync between players and clean up properly
   useEffect(() => {
     if (!socket) return;
     
+    // ===== GAME START SYNC =====
+    // When partner starts a game, open it for both players
+    const handleFeudStarted = (data) => {
+      // Both players receive this - open game UI for both
+      setActiveGame('feud');
+      setGameSessionId(sessionId);
+    };
+    
+    const handleTodStarted = (data) => {
+      // Both players receive this - open game UI for both
+      setActiveGame('truthordare');
+      setGameSessionId(sessionId);
+    };
+    
+    // ===== GAME END =====
     const handleFeudEnded = () => {
       if (activeGame === 'feud') {
         setActiveGame(null);
@@ -210,22 +225,42 @@ const Match = () => {
       showPremiumModal(featureName);
     };
     
+    // Handle session restoration with active game
+    const handleSessionRestored = (data) => {
+      if (data.active_game && data.active_game.game_type) {
+        if (data.active_game.game_type === 'feud') {
+          setActiveGame('feud');
+          setGameSessionId(sessionId);
+        } else if (data.active_game.game_type === 'tod') {
+          setActiveGame('truthordare');
+          setGameSessionId(sessionId);
+        }
+      }
+    };
+    
+    // Register event handlers
+    socket.on('feud_game_started', handleFeudStarted);
+    socket.on('tod_game_started', handleTodStarted);
     socket.on('feud_game_ended', handleFeudEnded);
     socket.on('tod_game_ended', handleTodEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
     socket.on('premium_filter_blocked', handlePremiumFilterBlocked);
     socket.on('premium_required', handlePremiumRequired);
+    socket.on('session_restored', handleSessionRestored);
     
     return () => {
+      socket.off('feud_game_started', handleFeudStarted);
+      socket.off('tod_game_started', handleTodStarted);
       socket.off('feud_game_ended', handleFeudEnded);
       socket.off('tod_game_ended', handleTodEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
       socket.off('premium_filter_blocked', handlePremiumFilterBlocked);
       socket.off('premium_required', handlePremiumRequired);
+      socket.off('session_restored', handleSessionRestored);
     };
-  }, [socket, activeGame, resetAllGameState, showPremiumModal]);
+  }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal]);
 
   // Track session duration
   useEffect(() => {
@@ -351,7 +386,7 @@ const Match = () => {
   };
 
   // ========== GAME CONTROL FUNCTIONS ==========
-  // Start game - prevents conflicts
+  // Start game - emits to backend, waits for confirmation
   const startGame = useCallback((gameType) => {
     if (!isPremium) {
       const gameName = gameType === 'feud' ? 'Raccoon Feud' : 'Truth or Dare';
@@ -365,15 +400,29 @@ const Match = () => {
       return;
     }
     
-    setActiveGame(gameType);
-    setGameSessionId(sessionId);
-  }, [isPremium, isGameActive, sessionId, showPremiumModal]);
+    // Emit to backend - backend will send game_started to BOTH players
+    if (socket && sessionId) {
+      if (gameType === 'feud') {
+        socket.emit('start_feud_game');
+      } else if (gameType === 'truthordare') {
+        socket.emit('start_tod_game');
+      }
+    }
+    // DO NOT set activeGame here - wait for backend confirmation
+  }, [isPremium, isGameActive, sessionId, socket, showPremiumModal]);
   
-  // Close game - safe cleanup
+  // Close game - safe cleanup (emit to backend to notify partner)
   const closeGame = useCallback(() => {
+    if (socket && activeGame) {
+      if (activeGame === 'feud') {
+        socket.emit('end_feud_game');
+      } else if (activeGame === 'truthordare') {
+        socket.emit('end_tod_game');
+      }
+    }
     setActiveGame(null);
     setGameSessionId(null);
-  }, []);
+  }, [socket, activeGame]);
   
   // Toggle game with conflict prevention
   const toggleGame = useCallback((gameType) => {

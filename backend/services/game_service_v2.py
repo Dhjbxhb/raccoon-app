@@ -720,16 +720,177 @@ class FeudGameService:
 
 
 # ============================================================
+# TRUTH OR DARE PROMPTS BANK
+# ============================================================
+
+TRUTH_PROMPTS = [
+    # Social / Fun
+    "What's your most embarrassing moment on camera?",
+    "What's the weirdest thing you've ever done alone?",
+    "What's your guilty pleasure song you'd never admit to liking?",
+    "What's the most childish thing you still do?",
+    "What's your biggest pet peeve about other people?",
+    "What's the most awkward date you've ever been on?",
+    "What's a lie you've told that you still feel guilty about?",
+    "What's your most unpopular opinion?",
+    "What's something you've never told anyone before?",
+    "What's the worst gift you've ever received but pretended to like?",
+    # Personality
+    "What's your biggest fear?",
+    "What's the most spontaneous thing you've ever done?",
+    "What's your hidden talent that nobody knows about?",
+    "What would your dream job be if money wasn't an issue?",
+    "What's the most embarrassing thing in your search history?",
+    "What's your go-to excuse when you don't want to go somewhere?",
+    "What's the longest you've gone without showering?",
+    "What celebrity would you trade lives with for a day?",
+    "What's your worst habit you can't seem to break?",
+    "What's the pettiest reason you've stopped talking to someone?",
+    # Relationships
+    "What's your biggest turn-off?",
+    "Have you ever ghosted someone? Why?",
+    "What's the craziest thing you've done to impress someone?",
+    "What's your idea of a perfect date?",
+    "Have you ever slid into someone's DMs? What happened?",
+    "What's the most romantic thing someone has done for you?",
+    "What's a deal-breaker for you in relationships?",
+    "Have you ever had a crush on a friend's partner?",
+    "What's the worst pickup line you've ever used or received?",
+    "What's something you pretend to like to impress others?",
+    # Fun Facts
+    "What's your most irrational fear?",
+    "What's the strangest dream you've ever had?",
+    "What's the most money you've spent on something stupid?",
+    "What's your most rewatched movie or TV show?",
+    "What's the last thing you cried about?",
+    "What fictional character do you relate to the most?",
+    "What's your comfort food when you're sad?",
+    "What's the most illegal thing you've ever done?",
+    "What superstition do you actually believe in?",
+    "What's your secret snack combo that sounds gross?",
+    # Getting Personal
+    "What's a compliment you've received that you'll never forget?",
+    "What's the worst advice you've ever followed?",
+    "What's your most toxic trait?",
+    "What would you do if you won the lottery tomorrow?",
+    "What's your biggest regret in life so far?",
+    "What's the meanest thing you've ever said to someone?",
+    "What's something about you that would surprise most people?",
+    "What's the bravest thing you've ever done?",
+    "What keeps you up at night?",
+    "What's your most embarrassing nickname?"
+]
+
+DARE_PROMPTS = [
+    # Camera-Friendly Performance
+    "Do your best impression of a celebrity for 30 seconds",
+    "Sing the chorus of your favorite song right now",
+    "Show your best dance move on camera",
+    "Make your funniest face and hold it for 10 seconds",
+    "Talk in an accent for the next minute",
+    "Do 10 jumping jacks right now",
+    "Make up a rap about the other person",
+    "Show your most flexible yoga pose",
+    "Act out a dramatic movie death scene",
+    "Do your best evil villain laugh",
+    # Fun Challenges
+    "Show the last photo in your camera roll (if appropriate)",
+    "Tell a joke and try not to laugh while telling it",
+    "Describe yourself in 3 emojis and explain why",
+    "Talk without using the letter 'A' for one minute",
+    "Do your best model walk across the room",
+    "Show your 'surprised' face, 'angry' face, and 'happy' face",
+    "Beatbox for 15 seconds",
+    "Spell your name backwards out loud",
+    "Sing everything you say for the next 30 seconds",
+    "Act like a robot for the next minute",
+    # Interactive
+    "Give the other person a genuine compliment",
+    "Create a nickname for the other person and explain it",
+    "Tell the other person what you like about them so far",
+    "Make a prediction about the other person's future",
+    "Ask the other person any question you want",
+    "Give your best motivational speech to the other person",
+    "Tell the other person a fun fact about yourself",
+    "Describe the other person using only food comparisons",
+    "Give the other person advice about something",
+    "Tell the other person what superpower you think they'd have",
+    # Silly Actions
+    "Speak in slow motion for 30 seconds",
+    "Pretend you're a news reporter and report something happening in your room",
+    "Do your best 'baby voice' for 20 seconds",
+    "Show the contents of your fridge (or describe what's in it)",
+    "Tell us your most embarrassing autocorrect fail",
+    "Draw something on screen with your finger and we guess what it is",
+    "Show us your best 'thinking' pose",
+    "Demonstrate how you wake up in the morning",
+    "Act out your morning routine in fast forward",
+    "Show us your 'serious work face' vs 'party face'",
+    # Quick Physical
+    "Touch your nose with your tongue (or try)",
+    "Balance something on your head for 15 seconds",
+    "Do a spin in your chair (if you have one)",
+    "Make a paper airplane and throw it",
+    "Clap your hands above your head 20 times",
+    "Do air guitar to an imaginary solo",
+    "Pat your head and rub your tummy at the same time",
+    "Show your best fake sneeze",
+    "Do your best slow-mo run in place",
+    "Wiggle your eyebrows for 10 seconds straight"
+]
+
+
+# ============================================================
 # TRUTH OR DARE GAME SERVICE
 # ============================================================
 
 class TruthOrDareService:
     """
-    Manages Truth or Dare games with bottle sync
+    Manages Truth or Dare games with bottle sync and AUTO-GENERATED prompts
     """
     
     def __init__(self):
         self.active_games: Dict[str, dict] = {}
+        # Track used prompts per session to avoid repetition
+        self.used_truths: Dict[str, set] = {}
+        self.used_dares: Dict[str, set] = {}
+    
+    def _get_random_prompt(self, session_id: str, choice: str) -> str:
+        """Get a random unused prompt for truth or dare"""
+        if choice == 'truth':
+            prompts = TRUTH_PROMPTS
+            used = self.used_truths.get(session_id, set())
+        else:
+            prompts = DARE_PROMPTS
+            used = self.used_dares.get(session_id, set())
+        
+        # Get unused prompts
+        available = [p for i, p in enumerate(prompts) if i not in used]
+        
+        # If all used, reset
+        if not available:
+            if choice == 'truth':
+                self.used_truths[session_id] = set()
+            else:
+                self.used_dares[session_id] = set()
+            available = prompts
+        
+        # Pick random
+        idx = random.randint(0, len(available) - 1)
+        prompt = available[idx]
+        
+        # Track as used
+        original_idx = prompts.index(prompt) if prompt in prompts else idx
+        if choice == 'truth':
+            if session_id not in self.used_truths:
+                self.used_truths[session_id] = set()
+            self.used_truths[session_id].add(original_idx)
+        else:
+            if session_id not in self.used_dares:
+                self.used_dares[session_id] = set()
+            self.used_dares[session_id].add(original_idx)
+        
+        return prompt
     
     def create_game(self, session_id: str, player1_id: str, player2_id: str,
                     player1_username: str = "", player2_username: str = "") -> dict:
@@ -832,7 +993,7 @@ class TruthOrDareService:
         }
     
     def choose_truth_or_dare(self, session_id: str, player_id: str, choice: str) -> dict:
-        """Selected player chooses truth or dare"""
+        """Selected player chooses truth or dare - AUTOMATICALLY generates prompt"""
         game = self.active_games.get(session_id)
         if not game:
             return {'error': 'Game not found'}
@@ -846,14 +1007,21 @@ class TruthOrDareService:
         if choice not in ['truth', 'dare']:
             return {'error': 'Invalid choice'}
         
+        # Auto-generate the prompt
+        prompt = self._get_random_prompt(session_id, choice)
+        
         game['current_choice'] = choice
-        game['round_state'] = 'asking'
+        game['current_question'] = prompt
+        game['round_state'] = 'answering'  # Skip the asking phase - go directly to answering
         
         return {
             'action': 'choice_made',
             'choice': choice,
+            'question': prompt,
             'selected_player': game['selected_player'],
+            'selected_username': game['player1_username'] if game['selected_player'] == game['player1_id'] else game['player2_username'],
             'asker': game['asker'],
+            'asker_username': game['player1_username'] if game['asker'] == game['player1_id'] else game['player2_username'],
             'game_state': self._get_public_state(game)
         }
     
@@ -987,6 +1155,10 @@ class TruthOrDareService:
     def end_game(self, session_id: str) -> Optional[dict]:
         """End and cleanup game"""
         game = self.active_games.pop(session_id, None)
+        # Clean up used prompts
+        self.used_truths.pop(session_id, None)
+        self.used_dares.pop(session_id, None)
+        
         if game:
             game['status'] = 'finished'
             game['finished_at'] = datetime.now(timezone.utc).isoformat()

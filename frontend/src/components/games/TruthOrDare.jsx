@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { X, RotateCcw, Star, Send } from 'lucide-react';
+import { X, RotateCcw, Star, CheckCircle, Zap } from 'lucide-react';
 import '@/styles/games.css';
 
 /**
- * TruthOrDare - Multiplayer game with real-time backend sync
+ * TruthOrDare - Multiplayer game with AUTO-GENERATED prompts
  * 
- * Bottle direction rules:
- * - Desktop (side-by-side): LEFT = me, RIGHT = stranger
- * - Mobile (stacked): TOP = stranger, BOTTOM = me
+ * Flow:
+ * 1. Player spins bottle
+ * 2. Bottle lands on a player (selected player)
+ * 3. Selected player chooses Truth or Dare
+ * 4. Backend auto-generates a prompt for both players to see
+ * 5. Selected player completes the task
+ * 6. Next round begins
  * 
- * Backend determines the random result, frontend syncs the animation.
- * Memoized to prevent unnecessary re-renders.
+ * No manual question input required!
  */
 const TruthOrDare = memo(({ 
   isOpen, 
@@ -19,23 +22,20 @@ const TruthOrDare = memo(({
   myUserId,
   partnerUsername = 'Stranger',
   sessionId,
-  isMobile = false
+  isMobile = false,
+  initialGameState = null
 }) => {
-  const [gameState, setGameState] = useState(null);
+  const [gameState, setGameState] = useState(initialGameState);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [spinRotation, setSpinRotation] = useState(0);
-  const [question, setQuestion] = useState('');
-  const [roundsCompleted, setRoundsCompleted] = useState(0);
+  const [spinRotation, setSpinRotation] = useState(initialGameState?.spin_rotation || 0);
+  const [roundsCompleted, setRoundsCompleted] = useState(initialGameState?.rounds_played || 0);
   
-  const questionInputRef = useRef(null);
   const mountedRef = useRef(true);
   const socketIdRef = useRef(null);
   
   // Determine if I'm the selected player (must answer) or the asker
   const isSelected = gameState?.selected_player === myUserId;
-  const isAsker = gameState?.asker === myUserId;
   const selectedUsername = gameState?.selected_username || 'Player';
-  const askerUsername = gameState?.asker_username || 'Player';
   
   // Track mount state
   useEffect(() => {
@@ -76,15 +76,7 @@ const TruthOrDare = memo(({
     
     const handleChoiceMade = (data) => {
       if (!mountedRef.current) return;
-      setGameState(data.game_state);
-      // If I'm the asker, focus on input
-      if (data.asker === myUserId && questionInputRef.current) {
-        setTimeout(() => questionInputRef.current?.focus(), 100);
-      }
-    };
-    
-    const handleQuestionSubmitted = (data) => {
-      if (!mountedRef.current) return;
+      // Now includes the auto-generated question!
       setGameState(data.game_state);
     };
     
@@ -106,7 +98,6 @@ const TruthOrDare = memo(({
     socket.on('tod_game_started', handleGameStarted);
     socket.on('tod_spin_result', handleSpinResult);
     socket.on('tod_choice_made', handleChoiceMade);
-    socket.on('tod_question_submitted', handleQuestionSubmitted);
     socket.on('tod_round_complete', handleRoundComplete);
     socket.on('tod_game_ended', handleGameEnded);
     socket.on('tod_error', handleError);
@@ -115,13 +106,21 @@ const TruthOrDare = memo(({
       socket.off('tod_game_started', handleGameStarted);
       socket.off('tod_spin_result', handleSpinResult);
       socket.off('tod_choice_made', handleChoiceMade);
-      socket.off('tod_question_submitted', handleQuestionSubmitted);
       socket.off('tod_round_complete', handleRoundComplete);
       socket.off('tod_game_ended', handleGameEnded);
       socket.off('tod_error', handleError);
       socketIdRef.current = null;
     };
   }, [socket, myUserId]);
+  
+  // Restore initial game state
+  useEffect(() => {
+    if (initialGameState) {
+      setGameState(initialGameState);
+      setSpinRotation(initialGameState.spin_rotation || 0);
+      setRoundsCompleted(initialGameState.rounds_played || 0);
+    }
+  }, [initialGameState]);
   
   const startGame = useCallback(() => {
     if (!socket) return;
@@ -139,16 +138,17 @@ const TruthOrDare = memo(({
     socket.emit('tod_choose', { choice });
   }, [socket]);
   
-  const submitQuestion = useCallback(() => {
-    if (!socket || !question.trim()) return;
-    socket.emit('tod_submit_question', { question: question.trim() });
-    setQuestion('');
-  }, [socket, question]);
-  
   const completeRound = useCallback((completed = true) => {
     if (!socket) return;
     socket.emit('tod_complete_round', { completed });
   }, [socket]);
+  
+  const handleClose = useCallback(() => {
+    if (socket) {
+      socket.emit('end_tod_game');
+    }
+    onClose?.();
+  }, [socket, onClose]);
   
   if (!isOpen) return null;
   
@@ -156,24 +156,9 @@ const TruthOrDare = memo(({
   
   /**
    * Calculate bottle rotation for display
-   * Backend sends actual final angle, we apply it to show correct direction
-   * 
-   * Desktop layout: LEFT = me (player1), RIGHT = stranger (player2)
-   * - Bottle pointing LEFT (135-225°) = me
-   * - Bottle pointing RIGHT (315-360° or 0-45°) = stranger
-   * 
-   * Mobile layout: TOP = stranger, BOTTOM = me
-   * - Bottle pointing UP (270-360° or 0-90°) = stranger
-   * - Bottle pointing DOWN (90-270°) = me
    */
   const getBottleTransform = () => {
-    // On mobile, we rotate the bottle 90° to account for vertical layout
-    // The backend calculates based on desktop (horizontal) layout
-    // For mobile, we need to adjust the visual rotation
-    
     if (isMobile) {
-      // Add 90° offset for mobile vertical layout
-      // This makes "pointing right" (0°) become "pointing up" visually
       return spinRotation + 90;
     }
     return spinRotation;
@@ -192,7 +177,7 @@ const TruthOrDare = memo(({
             <Star size={14} className="text-yellow-400 fill-yellow-400" />
             <span className="text-yellow-400 font-bold">{roundsCompleted}</span>
           </div>
-          <button onClick={onClose} className="game-close-btn">
+          <button onClick={handleClose} className="game-close-btn">
             <X size={16} />
           </button>
         </div>
@@ -337,59 +322,13 @@ const TruthOrDare = memo(({
           </div>
         )}
         
-        {/* Asking phase - asker writes question */}
-        {roundState === 'asking' && !isSpinning && (
-          <div className="text-center">
-            <div className={`truth-selected ${isAsker ? '' : 'truth-selected--stranger'}`}>
-              <span className="truth-selected__icon">{gameState.current_choice === 'truth' ? '🤔' : '🔥'}</span>
-              <div className="truth-selected__info">
-                <div className="truth-selected__label">{selectedUsername} chose</div>
-                <div className="truth-selected__name capitalize">{gameState.current_choice}</div>
-              </div>
-            </div>
-            
-            {isAsker ? (
-              <div className="mt-4">
-                <p className="text-gray-400 text-sm mb-3">
-                  Write your {gameState.current_choice} for {selectedUsername}:
-                </p>
-                <div className="truth-asker-input">
-                  <textarea
-                    ref={questionInputRef}
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder={gameState.current_choice === 'truth' 
-                      ? "Ask a truth question..." 
-                      : "Write a dare..."
-                    }
-                    className="truth-asker-input__field"
-                    data-testid="tod-question-input"
-                  />
-                  <button
-                    onClick={submitQuestion}
-                    disabled={!question.trim()}
-                    className="truth-asker-input__submit"
-                    data-testid="tod-submit-question"
-                  >
-                    <Send size={16} className="inline mr-2" />
-                    Submit
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-400 text-sm mt-4">
-                Waiting for {askerUsername} to write a {gameState.current_choice}...
-              </p>
-            )}
-          </div>
-        )}
-        
-        {/* Answering phase - show the question/dare */}
+        {/* Answering phase - show the auto-generated prompt */}
         {roundState === 'answering' && !isSpinning && (
           <div className="space-y-4">
             {/* Who and what */}
             <div className={`truth-prompt ${gameState.current_choice === 'truth' ? 'truth-prompt--truth' : 'truth-prompt--dare'}`}>
               <div className="truth-prompt__badge">
+                <Zap size={14} className="inline mr-1" />
                 {isSelected ? 'Your' : `${selectedUsername}'s`} {gameState.current_choice}
               </div>
               <div className="truth-prompt__text">
@@ -411,10 +350,18 @@ const TruthOrDare = memo(({
                 className="truth-action-btn truth-action-btn--done"
                 data-testid="tod-done-btn"
               >
-                <Star size={16} className="inline mr-1" />
+                <CheckCircle size={16} className="inline mr-1" />
                 Done! {isSelected && '+1'}
               </button>
             </div>
+            
+            {/* Encouragement text */}
+            <p className="text-center text-gray-500 text-xs">
+              {isSelected 
+                ? "Complete the challenge, then tap Done!" 
+                : `Watch ${selectedUsername} complete the challenge!`
+              }
+            </p>
           </div>
         )}
       </div>

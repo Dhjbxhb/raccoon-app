@@ -33,6 +33,21 @@ from services.chat_moderation import filter_message, is_message_allowed
 logger = logging.getLogger(__name__)
 
 
+async def get_active_game_state(session_id: str) -> dict:
+    """Get active game state for session (used for reconnection)"""
+    # Check for active Feud game
+    feud_game = feud_service.get_game(session_id)
+    if feud_game and feud_game.get('status') == 'active':
+        return {'game_type': 'feud', 'game_state': feud_game}
+    
+    # Check for active Truth or Dare game
+    tod_game = truth_or_dare_service.get_game(session_id)
+    if tod_game and tod_game.get('status') == 'active':
+        return {'game_type': 'tod', 'game_state': tod_game}
+    
+    return None
+
+
 async def register_socket_handlers(sio: socketio.AsyncServer):
     """Register all Socket.IO event handlers"""
     
@@ -664,7 +679,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'is_premium': partner_data.get('premium', False)
                 },
                 'messages': messages,
-                'created_at': session_data.get('created_at')
+                'created_at': session_data.get('created_at'),
+                # Include active game state if any
+                'active_game': await get_active_game_state(room_id)
             }, room=sid)
             
             # Notify partner of reconnection

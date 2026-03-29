@@ -5,9 +5,10 @@ import '@/styles/games.css';
 /**
  * FeudGame - Multiplayer Raccoon Feud with real-time backend sync
  * 
- * Displays on MY side only, stranger video remains visible.
- * Backend is source of truth for all game state.
- * Memoized to prevent unnecessary re-renders.
+ * Features:
+ * - Both players see the same game state
+ * - Backend is source of truth
+ * - Supports reconnection with state restoration
  */
 const FeudGame = memo(({ 
   isOpen, 
@@ -15,14 +16,15 @@ const FeudGame = memo(({
   socket,
   myUserId,
   partnerUsername = 'Stranger',
-  sessionId
+  sessionId,
+  initialGameState = null
 }) => {
-  const [gameState, setGameState] = useState(null);
-  const [isMyTurn, setIsMyTurn] = useState(false);
+  const [gameState, setGameState] = useState(initialGameState);
+  const [isMyTurn, setIsMyTurn] = useState(initialGameState?.current_player === myUserId);
   const [guess, setGuess] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [revealingIdx, setRevealingIdx] = useState(null);
-  const [gameEnded, setGameEnded] = useState(false);
+  const [gameEnded, setGameEnded] = useState(initialGameState?.status === 'finished');
   const [winner, setWinner] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -128,6 +130,23 @@ const FeudGame = memo(({
     };
   }, [socket, myUserId]);
   
+  // Restore initial game state
+  useEffect(() => {
+    if (initialGameState) {
+      setGameState(initialGameState);
+      setIsMyTurn(initialGameState.current_player === myUserId);
+      setGameEnded(initialGameState.status === 'finished');
+      if (initialGameState.winner_id) {
+        setWinner({
+          id: initialGameState.winner_id,
+          username: initialGameState.winner_username,
+          isMe: initialGameState.winner_id === myUserId,
+          isTie: initialGameState.winner_id === 'tie'
+        });
+      }
+    }
+  }, [initialGameState, myUserId]);
+  
   // Focus input on my turn
   useEffect(() => {
     if (isMyTurn && inputRef.current) {
@@ -159,6 +178,13 @@ const FeudGame = memo(({
     startGame();
   }, [startGame]);
   
+  const handleClose = useCallback(() => {
+    if (socket) {
+      socket.emit('end_feud_game');
+    }
+    onClose?.();
+  }, [socket, onClose]);
+  
   if (!isOpen) return null;
   
   // Derive display values
@@ -189,7 +215,7 @@ const FeudGame = memo(({
             <span className="text-gray-500 text-sm">-</span>
             <span className="text-white font-bold">{partnerScore}</span>
           </div>
-          <button onClick={onClose} className="game-close-btn">
+          <button onClick={handleClose} className="game-close-btn">
             <X size={16} />
           </button>
         </div>
@@ -245,7 +271,7 @@ const FeudGame = memo(({
                 Play Again
               </button>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all"
               >
                 Close
