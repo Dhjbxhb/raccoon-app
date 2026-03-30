@@ -1073,21 +1073,28 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
                 if not user_id:
+                    logger.warning("ToD spin: No user_id in session")
                     return
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:
+                logger.warning(f"ToD spin: No active session for user {user_id}")
                 return
             
             session_id = session_data['session_id']
+            logger.info(f"ToD spin: Processing spin for session {session_id}, user {user_id}")
+            
             result = truth_or_dare_service.spin_bottle(session_id, user_id)
             
             if 'error' in result:
-                await sio.emit('error', {'message': result['error']}, room=sid)
+                logger.warning(f"ToD spin error: {result['error']}")
+                await sio.emit('tod_error', {'message': result['error']}, room=sid)
                 return
             
             player1_socket = session_data['user1']['socket_id']
             player2_socket = session_data['user2']['socket_id']
+            
+            logger.info(f"ToD spin: Selected player {result.get('selected_player')}, emitting to {player1_socket} and {player2_socket}")
             
             await sio.emit('tod_spin_result', result, room=player1_socket)
             await sio.emit('tod_spin_result', result, room=player2_socket)
@@ -1102,23 +1109,30 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
                 if not user_id:
+                    logger.warning("ToD choose: No user_id in session")
                     return
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:
+                logger.warning(f"ToD choose: No active session for user {user_id}")
                 return
             
             session_id = session_data['session_id']
             choice = data.get('choice')
             
+            logger.info(f"ToD choose: User {user_id} chose {choice} in session {session_id}")
+            
             result = truth_or_dare_service.choose_truth_or_dare(session_id, user_id, choice)
             
             if 'error' in result:
-                await sio.emit('error', {'message': result['error']}, room=sid)
+                logger.warning(f"ToD choose error: {result['error']}")
+                await sio.emit('tod_error', {'message': result['error']}, room=sid)
                 return
             
             player1_socket = session_data['user1']['socket_id']
             player2_socket = session_data['user2']['socket_id']
+            
+            logger.info(f"ToD choose: Generated prompt '{result.get('question', '')[:50]}...', emitting to both players")
             
             await sio.emit('tod_choice_made', result, room=player1_socket)
             await sio.emit('tod_choice_made', result, room=player2_socket)

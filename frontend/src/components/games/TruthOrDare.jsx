@@ -152,13 +152,27 @@ const TruthOrDare = memo(({
   }, [socket, isSpinning]);
   
   const chooseTruthOrDare = useCallback((choice) => {
-    if (!socket) return;
+    console.log('=== CHOOSE TRUTH OR DARE ===');
+    console.log('choice:', choice);
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    if (!socket) {
+      console.log('BLOCKED: No socket connection');
+      return;
+    }
     socket.emit('tod_choose', { choice });
+    console.log('EMITTED: tod_choose', { choice });
   }, [socket]);
   
   const completeRound = useCallback((completed = true) => {
-    if (!socket) return;
+    console.log('=== COMPLETE ROUND ===');
+    console.log('completed:', completed);
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    if (!socket) {
+      console.log('BLOCKED: No socket connection');
+      return;
+    }
     socket.emit('tod_complete_round', { completed });
+    console.log('EMITTED: tod_complete_round', { completed });
   }, [socket]);
   
   const handleClose = useCallback(() => {

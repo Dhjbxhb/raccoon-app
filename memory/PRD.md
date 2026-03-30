@@ -31,6 +31,51 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Truth or Dare Game System (March 30, 2025) ✅
+**Task:** Complete audit and verification of room-based Truth or Dare mini-game.
+
+**Architecture Review:**
+
+1. **Backend Service (game_service_v2.py):**
+   - `TruthOrDareService` with full game lifecycle
+   - **50 Truth prompts** (social, personality, relationships, fun facts)
+   - **40 Dare prompts** (camera-friendly, interactive, silly actions)
+   - Auto-prompt selection via `_get_random_prompt()` - no manual input needed!
+   - Used prompt tracking to avoid repetition
+   - Spin bottle physics with deterministic backend-controlled result
+
+2. **Game Phases:**
+   - `ready` → Can spin bottle
+   - `spinning` → Visual animation (frontend only)
+   - `choosing` → Selected player chooses Truth or Dare
+   - `answering` → Auto-generated prompt shown to BOTH players
+   - Round complete → Back to `ready`
+
+3. **Socket Events (Backend → Frontend):**
+   - `tod_game_started` → Both players enter game
+   - `tod_spin_result` → Both see same selected player
+   - `tod_choice_made` → Both see same auto-generated prompt
+   - `tod_round_complete` → Round ends, ready for next spin
+   - `tod_game_ended` → Game closes
+
+4. **Frontend Component (TruthOrDare.jsx):**
+   - Properly listens to all backend events
+   - Renders correct phase based on `round_state`
+   - Shows auto-generated prompt (no manual input UI)
+   - Supports reconnection via `initialGameState` prop
+
+**Debug Logging Added:**
+- Backend: `tod_spin_bottle`, `tod_choose` handlers
+- Frontend: `spinBottle`, `chooseTruthOrDare`, `completeRound`
+
+**Key Implementation Notes:**
+- Game is premium-only
+- Requires active match session (two matched users)
+- Both players receive identical events simultaneously
+- Prompts are backend-generated (not frontend-side)
+
+**Cannot Test Fully:** Requires two premium users matched in real-time session.
+
 ### Chat System Architecture (March 30, 2025) ✅
 **Task:** Complete audit and verification of room-based chat system.
 
