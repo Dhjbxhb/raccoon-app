@@ -186,16 +186,17 @@ export const cleanupStream = (stream) => {
   }
 };
 
-// CSS filter map for GPU-accelerated filters (no face tracking)
+// CSS filter map for GPU-accelerated filters
 export const CSS_FILTERS = {
   none: 'none',
-  beauty: 'brightness(1.08) contrast(1.05) saturate(1.15)',
-  warm: 'brightness(1.08) sepia(0.2) saturate(1.3)',
-  cool: 'brightness(1.05) saturate(0.9) hue-rotate(10deg)',
-  vintage: 'sepia(0.4) contrast(1.1) brightness(0.95)',
-  bw: 'grayscale(1) contrast(1.15)',
-  neon: 'brightness(1.15) contrast(1.3) saturate(1.5)',
-  dreamy: 'brightness(1.1) contrast(0.92) saturate(1.1) blur(0.3px)'
+  beauty: 'brightness(1.08) contrast(0.98) saturate(1.12) blur(0.2px)',
+  warm: 'brightness(1.06) sepia(0.12) saturate(1.2) contrast(1.02)',
+  cool: 'brightness(1.04) saturate(0.9) hue-rotate(8deg) contrast(1.05)',
+  vintage: 'sepia(0.22) contrast(1.08) brightness(0.98) saturate(0.88)',
+  noir: 'grayscale(1) contrast(1.12) brightness(1.02)',
+  glow: 'brightness(1.12) contrast(0.94) saturate(1.08) blur(0.3px)',
+  neon: 'brightness(1.08) contrast(1.18) saturate(1.35)',
+  dreamy: 'brightness(1.1) contrast(0.88) saturate(1.05) blur(0.4px)'
 };
 
 // Get CSS filter string (GPU accelerated, no canvas processing)
@@ -204,16 +205,16 @@ export const getCSSFilter = (filterId) => {
 };
 
 // Check if filter can use CSS-only (GPU accelerated)
+// All new face filters support CSS-only mode for performance
 export const canUseCSSFilter = (filterId, performanceMode) => {
-  // In low/performance mode, always use CSS
+  // In low/performance mode, always use pure CSS (no canvas overlays)
   if (performanceMode === 'low' || performanceMode === 'performance') {
     return true;
   }
   
-  // These filters require face tracking
-  const faceTrackingFilters = ['raccoon', 'bigeyes', 'bignose', 'beard', 'cartoon', 'stretch', 'bigsmile', 'angry', 'cybermask'];
-  
-  return !faceTrackingFilters.includes(filterId);
+  // For balanced/high modes, all filters can use canvas for overlays
+  // but CSS is still the primary filter method
+  return true;
 };
 
 export default {

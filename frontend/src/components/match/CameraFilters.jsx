@@ -6,13 +6,13 @@ import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/filters.css';
 
 /**
- * CameraFilters - Real Face Filter Selector (Snapchat/TikTok Style)
+ * CameraFilters - Face-Focused Filter Selector
  * 
  * RULES:
- * - First 3 filters (None, Beauty, Cute Face) are FREE
+ * - First 3 filters (None, Beauty, Warm Glow) are FREE
  * - All other filters require Premium
- * - Filters use MediaPipe face tracking
- * - Filters are visible to both users (processed via canvas + WebRTC)
+ * - Filters affect face/camera feed - NOT backgrounds
+ * - Both users see the SAME filtered video via WebRTC
  * - Swipe/drag to navigate, tap to select
  */
 const CameraFilters = ({

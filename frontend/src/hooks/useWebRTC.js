@@ -110,42 +110,45 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, []);
 
-  // Initialize filter processor with face tracking (or CSS-only mode)
+  // Initialize filter processor - ALWAYS use canvas for consistent output
+  // Pipeline: camera → canvas → apply filter → captureStream → WebRTC
   const initFilterProcessor = useCallback(async (video, originalStream) => {
     const mode = performanceModeRef.current;
     const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
     
-    // Check if we can use CSS-only filter (GPU accelerated)
-    const shouldUseCSSOnly = canUseCSSFilter(currentFilter, mode);
-    setUseCSSFilter(shouldUseCSSOnly);
-    
-    // In CSS-only mode, just return the original stream
-    if (shouldUseCSSOnly || currentFilter === 'none') {
+    // No filter = return original stream
+    if (currentFilter === 'none') {
       filteredStream.current = originalStream;
+      setUseCSSFilter(true);
       return originalStream;
     }
     
-    // Face tracking mode (canvas processing)
+    // ALWAYS use canvas processing for filters
+    // This ensures BOTH users see the SAME filter via WebRTC
+    setUseCSSFilter(false);
+    
+    // Create canvas if needed
     if (!filterCanvasRef.current) {
       filterCanvasRef.current = document.createElement('canvas');
     }
     
+    // Create processor if needed
     if (!filterProcessor.current) {
       filterProcessor.current = new FaceFilterProcessor();
     }
     
     // Initialize with performance-optimized FPS
-    await filterProcessor.current.init(filterCanvasRef.current);
+    filterProcessor.current.init(filterCanvasRef.current);
     filterProcessor.current.setFilter(currentFilter);
     filterProcessor.current.targetFPS = settings.filterFPS;
     
-    // Start processing
+    // Start processing video frames
     filterProcessor.current.startProcessing(video, () => {});
     
     // Get canvas stream with optimized FPS
     const canvasStream = filterProcessor.current.getCanvasStream(settings.filterFPS);
     
-    // Combine with audio
+    // Combine canvas video with original audio
     const audioTracks = originalStream.getAudioTracks();
     const newStream = new MediaStream([
       ...canvasStream.getVideoTracks(),
@@ -153,6 +156,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     ]);
     
     filteredStream.current = newStream;
+    console.log('Filter processor initialized:', currentFilter, 'FPS:', settings.filterFPS);
     return newStream;
   }, [currentFilter]);
 

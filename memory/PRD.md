@@ -31,6 +31,36 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Face-Focused Filter System Rebuild (March 30, 2025) ✅
+**Issue:** Filters were incorrect types (weather/environment filters). Filters were not face-focused. Remote user may not see the same filter.
+
+**Fix Applied:**
+
+1. **Removed wrong filter types:**
+   - Deleted all weather filters (rain, snow, fog, etc.)
+   - Deleted all background/scene filters
+   - Deleted complex MediaPipe face tracking filters (raccoon mask, big eyes, etc.)
+
+2. **New face-focused filter set:**
+   - FREE: None, Beauty (soft skin + brightness), Warm Glow (face tone enhancement)
+   - PREMIUM: Cool (blue tone), Vintage (soft sepia), B&W, Soft Glow, Neon (edge glow), Dreamy (cinematic blur)
+
+3. **Video pipeline fixed:**
+   - camera → canvas → apply CSS filter + overlay → captureStream → WebRTC
+   - BOTH users now see the SAME filtered video
+   - Filter is applied to outgoing WebRTC stream
+
+4. **Performance optimized:**
+   - Uses CSS filters for GPU acceleration
+   - Canvas processing at configurable FPS (15-30 based on performance mode)
+   - Lightweight overlays (vignette, edge glow) for premium effects
+
+**Files Modified:**
+- `/app/frontend/src/utils/faceFilters.js` - Complete rewrite with 9 face-focused filters
+- `/app/frontend/src/config/performanceConfig.js` - Updated CSS filter map
+- `/app/frontend/src/hooks/useWebRTC.js` - Fixed to always use canvas for consistent output
+- `/app/frontend/src/components/match/CameraFilters.jsx` - Updated comments
+
 ### Google Auth Redirect Loop Fix (March 30, 2025) ✅
 **Issue:** After successful Google sign-in and redirect back to app, users saw "Checking login status..." briefly before being redirected back to /login. The JWT token was not persisting.
 
