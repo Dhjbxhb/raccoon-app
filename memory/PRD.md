@@ -31,6 +31,34 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Dashboard UI Cleanup (March 30, 2025) ✅
+**Task:** Remove useless stats, add Premium subscription timer.
+
+**Removed:**
+- Sessions card
+- Time Spent card  
+- Games Played card
+- Games Won card
+- Related heartbeat/stats fetching logic
+- `formatTimeSpent` helper function
+
+**Added:**
+- **Premium Status Card** (centered, single card):
+  - **Free users:** Shows "Free Plan" + "Upgrade to unlock all features" + Upgrade button
+  - **Premium users:** Shows days/months remaining + expiry date + gold star
+  - **Expiring soon:** Shows orange warning + "Renew" button
+  - **Expired:** Shows red warning + "Renew" button
+
+**Logic:**
+- Uses `user.premium_expires_at` from backend
+- Calculates remaining time in days/months
+- Dynamic styling based on status (purple for premium, gray for free, orange/red for expiring)
+
+**Result:**
+- Dashboard is cleaner and minimal
+- Only useful information displayed
+- Premium upsell is clear without being aggressive
+
 ### UNO Multiplayer Game System (March 30, 2025) ✅
 **Task:** Complete verification of backend-controlled UNO card game.
 

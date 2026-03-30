@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Clock, TrendingUp, Trophy, Sparkles, Crown, Lock, Gamepad2 } from 'lucide-react';
+import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/Button';
@@ -12,58 +12,55 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, logout, isGuest, token, loading } = useAuth();
-  const [stats, setStats] = useState(null);
-  const heartbeatRef = useRef(null);
 
   const isPremium = user?.premium_status;
 
-  // Fetch real stats and start heartbeat for time tracking
-  useEffect(() => {
-    if (!user || !token) return;
-
-    const fetchStats = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/stats/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setStats(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch stats:', error);
-      }
+  // Calculate premium time remaining
+  const getPremiumStatus = () => {
+    if (!isPremium) {
+      return { status: 'free', text: 'Free Plan', subtext: 'Upgrade to unlock all features' };
+    }
+    
+    const expiresAt = user?.premium_expires_at;
+    if (!expiresAt) {
+      return { status: 'premium', text: 'Premium Active', subtext: 'Lifetime access' };
+    }
+    
+    const expiryDate = new Date(expiresAt);
+    const now = new Date();
+    const diffMs = expiryDate - now;
+    
+    if (diffMs <= 0) {
+      return { status: 'expired', text: 'Premium Expired', subtext: 'Renew to continue' };
+    }
+    
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 30) {
+      const months = Math.floor(diffDays / 30);
+      return { 
+        status: 'premium', 
+        text: `${months} month${months > 1 ? 's' : ''} remaining`, 
+        subtext: `Expires ${expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` 
+      };
+    }
+    
+    if (diffDays > 1) {
+      return { 
+        status: 'premium', 
+        text: `${diffDays} days remaining`, 
+        subtext: `Expires ${expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` 
+      };
+    }
+    
+    return { 
+      status: 'expiring', 
+      text: 'Expires today!', 
+      subtext: 'Renew now to keep access' 
     };
+  };
 
-    fetchStats();
-
-    // Send heartbeat for time tracking
-    const sendHeartbeat = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/stats/heartbeat`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // Update stats with new time
-          setStats(prev => prev ? { ...prev, total_time_spent: data.total_time_spent } : prev);
-        }
-      } catch (error) {
-        console.error('Heartbeat error:', error);
-      }
-    };
-
-    // Send heartbeat every 30 seconds
-    heartbeatRef.current = setInterval(sendHeartbeat, 30000);
-    sendHeartbeat(); // Send immediately
-
-    return () => {
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-      }
-    };
-  }, [user, token]);
+  const premiumInfo = getPremiumStatus();
 
   const handleLogout = () => {
     logout();
@@ -91,21 +88,6 @@ const Dashboard = () => {
     }
   };
 
-  // Format time spent helper
-  const formatTimeSpent = (seconds) => {
-    if (!seconds || seconds === 0) return '0m';
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) {
-      const hours = Math.floor(seconds / 3600);
-      const mins = Math.floor((seconds % 3600) / 60);
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
-  };
-
   // Wait for auth to load before checking user
   if (loading) {
     return (
@@ -123,14 +105,6 @@ const Dashboard = () => {
     navigate('/login');
     return null;
   }
-
-  // Use real stats if available, otherwise fall back to user data
-  const displayStats = {
-    total_sessions: stats?.total_sessions ?? user?.total_sessions ?? 0,
-    total_time_spent: stats?.total_time_spent ?? user?.total_time_spent ?? 0,
-    games_played: stats?.games_played ?? user?.games_played ?? 0,
-    games_won: stats?.games_won ?? user?.games_won ?? 0
-  };
 
   return (
     <div className="min-h-screen text-white relative">
@@ -208,46 +182,72 @@ const Dashboard = () => {
             </Button>
           </div>
 
-          {/* Stats Grid - Shows real stats for all users (including guests) */}
-          <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mb-12" data-testid="dashboard-stats-grid">
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#7c3aed]/50 transition-all" data-testid="dashboard-sessions-stat">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-[#7c3aed]/20 rounded-lg flex items-center justify-center">
-                  <TrendingUp size={20} className="text-[#7c3aed]" />
+          {/* Premium Status Card */}
+          <div className="max-w-md mx-auto mb-12" data-testid="premium-status-card">
+            <div 
+              className={`p-6 backdrop-blur-xl rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] ${
+                premiumInfo.status === 'free' 
+                  ? 'bg-white/5 border-white/10 hover:border-[#7c3aed]/50' 
+                  : premiumInfo.status === 'expiring'
+                  ? 'bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30 hover:border-orange-500/60'
+                  : premiumInfo.status === 'expired'
+                  ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40'
+                  : 'bg-gradient-to-br from-[#7c3aed]/10 to-[#4c1d95]/10 border-[#7c3aed]/30 hover:border-[#7c3aed]/60'
+              }`}
+              onClick={() => !isPremium && navigate('/premium')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    premiumInfo.status === 'free'
+                      ? 'bg-white/10'
+                      : premiumInfo.status === 'expiring' || premiumInfo.status === 'expired'
+                      ? 'bg-orange-500/20'
+                      : 'bg-gradient-to-br from-[#7c3aed] to-[#4c1d95]'
+                  }`}>
+                    {premiumInfo.status === 'free' ? (
+                      <User size={24} className="text-gray-400" />
+                    ) : premiumInfo.status === 'expiring' || premiumInfo.status === 'expired' ? (
+                      <Calendar size={24} className="text-orange-400" />
+                    ) : (
+                      <Crown size={24} className="text-white" />
+                    )}
+                  </div>
+                  <div>
+                    <p className={`text-lg font-bold ${
+                      premiumInfo.status === 'free' ? 'text-gray-300' : 
+                      premiumInfo.status === 'expiring' ? 'text-orange-400' :
+                      premiumInfo.status === 'expired' ? 'text-red-400' :
+                      'text-white'
+                    }`} style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      {premiumInfo.text}
+                    </p>
+                    <p className="text-sm text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                      {premiumInfo.subtext}
+                    </p>
+                  </div>
                 </div>
-                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{displayStats.total_sessions}</span>
+                {premiumInfo.status === 'free' && (
+                  <button 
+                    className="px-4 py-2 bg-gradient-to-r from-[#7c3aed] to-[#4c1d95] rounded-full text-sm font-medium hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] transition-all"
+                    data-testid="upgrade-now-btn"
+                  >
+                    Upgrade
+                  </button>
+                )}
+                {(premiumInfo.status === 'expiring' || premiumInfo.status === 'expired') && (
+                  <button 
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-full text-sm font-medium hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] transition-all"
+                    onClick={(e) => { e.stopPropagation(); navigate('/premium'); }}
+                    data-testid="renew-now-btn"
+                  >
+                    Renew
+                  </button>
+                )}
+                {premiumInfo.status === 'premium' && (
+                  <Star size={24} className="text-yellow-400 fill-yellow-400" />
+                )}
               </div>
-              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Sessions</p>
-            </div>
-
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#10b981]/50 transition-all" data-testid="dashboard-time-stat">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-[#10b981]/20 rounded-lg flex items-center justify-center">
-                  <Clock size={20} className="text-[#10b981]" />
-                </div>
-                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{formatTimeSpent(displayStats.total_time_spent)}</span>
-              </div>
-              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Time Spent</p>
-            </div>
-
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#f59e0b]/50 transition-all" data-testid="dashboard-games-stat">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-[#f59e0b]/20 rounded-lg flex items-center justify-center">
-                  <Gamepad2 size={20} className="text-[#f59e0b]" />
-                </div>
-                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{displayStats.games_played}</span>
-              </div>
-              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Games Played</p>
-            </div>
-
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-[#ec4899]/50 transition-all" data-testid="dashboard-wins-stat">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-[#ec4899]/20 rounded-lg flex items-center justify-center">
-                  <Trophy size={20} className="text-[#ec4899]" />
-                </div>
-                <span className="text-2xl font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{displayStats.games_won}</span>
-              </div>
-              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>Games Won</p>
             </div>
           </div>
 
