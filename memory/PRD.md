@@ -31,6 +31,62 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### UNO Multiplayer Game System (March 30, 2025) ✅
+**Task:** Complete verification of backend-controlled UNO card game.
+
+**FULLY IMPLEMENTED - Already E2E Tested**
+
+**Backend Engine (uno_service.py):**
+- Complete 108-card UNO deck
+- Deck creation, shuffle, dealing (7 cards each)
+- `is_valid_play()` validation: color match, value match, wild cards
+- Turn management with direction tracking
+- All special cards:
+  - Skip: Skip opponent's turn
+  - Reverse: (visual only in 2-player)
+  - Draw Two: Opponent draws 2, loses turn
+  - Wild: Choose any color
+  - Wild Draw Four: Choose color, opponent draws 4
+- UNO call tracking (`uno_called` set per session)
+- UNO penalty: 2 cards if failed to call with 2 cards
+- Draw pile refill from discard (keeps top card)
+- Winner detection when hand empty
+
+**Socket Events:**
+- `start_uno_game` → Both players receive personalized state
+- `uno_play_card` → Backend validates → `uno_card_played` to both
+- `uno_draw_card` → Backend draws → `uno_card_drawn` to both
+- `uno_call_uno` → `uno_called` to both
+- `end_uno_game` → `uno_game_ended` to both
+
+**Frontend (UnoGame.jsx):**
+- Raccoon-themed card design with 🦝 logo on backs
+- Color-coded cards (red, blue, green, yellow, wild purple)
+- Playable cards highlighted with glow effect
+- Wild card color picker modal
+- UNO call button (appears at 2 cards)
+- Turn indicator: "Your Turn" / "Waiting..."
+- Opponent card count display
+- Draw pile with card count
+- Game end modal with winner announcement
+- Mobile-responsive layout
+
+**Game Flow:**
+1. Player clicks UNO button → `start_uno_game`
+2. Both players receive `uno_game_started` with their hands
+3. Active player plays card → `uno_play_card` → backend validates
+4. Backend emits `uno_card_played` with new state to BOTH
+5. Special card effects applied by backend
+6. Player reaches 2 cards → UNO button appears
+7. Player empties hand → `uno_game_ended` with winner
+
+**Synchronization:**
+- Both players always see same top card
+- Both players always see same current turn
+- Both players always see same active color
+- Each player sees only their own hand
+- Each player sees opponent's card count
+
 ### Real Face Filter System (March 30, 2025) ✅
 **Task:** Build Snapchat/TikTok-style real face filters with MediaPipe face tracking.
 
