@@ -884,28 +884,35 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
                 if not user_id:
+                    logger.warning("Feud guess: No user_id in session")
                     return
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:
+                logger.warning(f"Feud guess: No active session for user {user_id}")
                 return
             
             session_id = session_data['session_id']
             guess = data.get('guess', '').strip()
             
             if not guess:
-                await sio.emit('error', {'message': 'Empty guess'}, room=sid)
+                await sio.emit('feud_error', {'message': 'Empty guess'}, room=sid)
                 return
+            
+            logger.info(f"Feud guess: User {user_id} guessed '{guess}' in session {session_id}")
             
             result = feud_service.submit_guess(session_id, user_id, guess)
             
             if 'error' in result:
+                logger.warning(f"Feud guess error: {result['error']}")
                 await sio.emit('feud_error', {'message': result['error']}, room=sid)
                 return
             
             # Notify both players of the result
             player1_socket = session_data['user1']['socket_id']
             player2_socket = session_data['user2']['socket_id']
+            
+            logger.info(f"Feud guess result: correct={result.get('correct')}, points={result.get('points', 0)}, emitting to both players")
             
             await sio.emit('feud_guess_result', result, room=player1_socket)
             await sio.emit('feud_guess_result', result, room=player2_socket)

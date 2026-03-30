@@ -31,6 +31,54 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Family Feud (Raccoon Feud) Game System (March 30, 2025) ✅
+**Task:** Complete audit and verification of room-based Raccoon Feud mini-game.
+
+**Architecture Review:**
+
+1. **Backend Service (game_service_v2.py):**
+   - `FeudGameService` with full game lifecycle
+   - **20 questions** in diverse categories (technology, food, everyday, hobbies, etc.)
+   - Fuzzy answer matching via `rapidfuzz` library
+   - Alternative answers supported (e.g., "instagram" matches "ig", "insta")
+   - 5 questions per game, proper round progression
+   - Steal mechanics when 3 strikes
+
+2. **Game Flow:**
+   - Start game → Backend selects 5 random questions
+   - Both players see SAME question
+   - Turn-based answer submission
+   - Backend validates via fuzzy matching
+   - Correct → reveal answer + points to BOTH players
+   - Strike → switch turn (3 strikes = steal attempt)
+   - All questions complete → game ends, winner declared
+
+3. **Socket Events (Backend → Frontend):**
+   - `feud_game_started` → Both players enter game with same initial state
+   - `feud_guess_result` → Both see same answer reveal + score update
+   - `feud_game_ended` → Both see final results
+
+4. **Frontend Component (FeudGame.jsx):**
+   - Renders game board with hidden answer slots
+   - Reveals answers identically for both users
+   - Score synced via `gameState.player1_score` / `gameState.player2_score`
+   - Turn indicator: "Your turn!" vs "Stranger's turn"
+   - Strike indicators (X X X)
+   - Steal attempt visual
+
+**Debug Logging Added:**
+- Backend: `feud_guess` handler
+- Frontend: `submitGuess` function
+
+**Key Implementation Notes:**
+- Game is premium-only
+- Requires active match session (two matched users)
+- Both players receive identical events simultaneously
+- Answer validation is 100% backend-controlled
+- Score is 100% backend-controlled
+
+**Cannot Test Fully:** Requires two premium users matched in real-time session.
+
 ### Truth or Dare Game System (March 30, 2025) ✅
 **Task:** Complete audit and verification of room-based Truth or Dare mini-game.
 

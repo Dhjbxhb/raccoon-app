@@ -166,9 +166,19 @@ const FeudGame = memo(({
   }, [socket]);
   
   const submitGuess = useCallback(() => {
-    if (!socket || !guess.trim() || !isMyTurn || isSubmitting) return;
+    console.log('=== FEUD SUBMIT GUESS ===');
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    console.log('guess:', guess);
+    console.log('isMyTurn:', isMyTurn);
+    console.log('isSubmitting:', isSubmitting);
+    
+    if (!socket || !guess.trim() || !isMyTurn || isSubmitting) {
+      console.log('BLOCKED: Missing socket, guess, not my turn, or already submitting');
+      return;
+    }
     setIsSubmitting(true);
     socket.emit('feud_guess', { guess: guess.trim() });
+    console.log('EMITTED: feud_guess', { guess: guess.trim() });
     setGuess('');
   }, [socket, guess, isMyTurn, isSubmitting]);
   
