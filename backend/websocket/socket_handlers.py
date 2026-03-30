@@ -920,7 +920,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Check if game ended
             if result['game_state']['status'] == 'finished':
                 # Save result to DB
-                await feud_service.save_game_result(session_id)
+                await feud_service.save_to_db(session_id)
                 
                 # Track games won for the winner
                 winner_id = result['game_state']['winner_id']
