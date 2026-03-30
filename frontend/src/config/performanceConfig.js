@@ -2,7 +2,7 @@
  * Performance Optimization Configuration
  * 
  * This module provides performance settings and utilities
- * for optimizing the video call experience without paid services.
+ * for optimizing the video call experience.
  */
 
 // Detect device capabilities
@@ -33,10 +33,7 @@ export const PERFORMANCE_MODES = {
       height: { ideal: 720, max: 1080 },
       frameRate: { ideal: 30, max: 30 }
     },
-    bitrate: 2500000, // 2.5 Mbps
-    filterFPS: 30,
-    enableFilters: true,
-    enableFaceTracking: true
+    bitrate: 2500000 // 2.5 Mbps
   },
   
   balanced: {
@@ -46,10 +43,7 @@ export const PERFORMANCE_MODES = {
       height: { ideal: 480, max: 720 },
       frameRate: { ideal: 24, max: 30 }
     },
-    bitrate: 1500000, // 1.5 Mbps
-    filterFPS: 24,
-    enableFilters: true,
-    enableFaceTracking: true
+    bitrate: 1500000 // 1.5 Mbps
   },
   
   performance: {
@@ -59,10 +53,7 @@ export const PERFORMANCE_MODES = {
       height: { ideal: 360, max: 480 },
       frameRate: { ideal: 20, max: 24 }
     },
-    bitrate: 800000, // 800 Kbps
-    filterFPS: 15,
-    enableFilters: true,
-    enableFaceTracking: false // Disable face tracking for performance
+    bitrate: 800000 // 800 Kbps
   },
   
   low: {
@@ -72,10 +63,7 @@ export const PERFORMANCE_MODES = {
       height: { ideal: 270, max: 360 },
       frameRate: { ideal: 15, max: 20 }
     },
-    bitrate: 400000, // 400 Kbps
-    filterFPS: 10,
-    enableFilters: false, // CSS only
-    enableFaceTracking: false
+    bitrate: 400000 // 400 Kbps
   }
 };
 
@@ -109,10 +97,8 @@ export const getBitrateSettings = (mode) => {
 };
 
 // Apply bitrate constraints to RTCPeerConnection
-export const applyBitrateConstraints = async (peerConnection, mode) => {
+export const applyBitrateConstraints = async (peerConnection, targetBitrate) => {
   if (!peerConnection) return;
-  
-  const settings = getBitrateSettings(mode);
   
   const senders = peerConnection.getSenders();
   for (const sender of senders) {
@@ -122,7 +108,7 @@ export const applyBitrateConstraints = async (peerConnection, mode) => {
         params.encodings = [{}];
       }
       
-      params.encodings[0].maxBitrate = settings.maxBitrate;
+      params.encodings[0].maxBitrate = targetBitrate;
       
       try {
         await sender.setParameters(params);
@@ -186,37 +172,6 @@ export const cleanupStream = (stream) => {
   }
 };
 
-// CSS filter map for GPU-accelerated filters
-export const CSS_FILTERS = {
-  none: 'none',
-  beauty: 'brightness(1.08) contrast(0.98) saturate(1.12) blur(0.2px)',
-  warm: 'brightness(1.06) sepia(0.12) saturate(1.2) contrast(1.02)',
-  cool: 'brightness(1.04) saturate(0.9) hue-rotate(8deg) contrast(1.05)',
-  vintage: 'sepia(0.22) contrast(1.08) brightness(0.98) saturate(0.88)',
-  noir: 'grayscale(1) contrast(1.12) brightness(1.02)',
-  glow: 'brightness(1.12) contrast(0.94) saturate(1.08) blur(0.3px)',
-  neon: 'brightness(1.08) contrast(1.18) saturate(1.35)',
-  dreamy: 'brightness(1.1) contrast(0.88) saturate(1.05) blur(0.4px)'
-};
-
-// Get CSS filter string (GPU accelerated, no canvas processing)
-export const getCSSFilter = (filterId) => {
-  return CSS_FILTERS[filterId] || CSS_FILTERS.none;
-};
-
-// Check if filter can use CSS-only (GPU accelerated)
-// All new face filters support CSS-only mode for performance
-export const canUseCSSFilter = (filterId, performanceMode) => {
-  // In low/performance mode, always use pure CSS (no canvas overlays)
-  if (performanceMode === 'low' || performanceMode === 'performance') {
-    return true;
-  }
-  
-  // For balanced/high modes, all filters can use canvas for overlays
-  // but CSS is still the primary filter method
-  return true;
-};
-
 export default {
   detectDeviceCapabilities,
   PERFORMANCE_MODES,
@@ -226,8 +181,5 @@ export default {
   debounce,
   throttle,
   rafThrottle,
-  cleanupStream,
-  CSS_FILTERS,
-  getCSSFilter,
-  canUseCSSFilter
+  cleanupStream
 };

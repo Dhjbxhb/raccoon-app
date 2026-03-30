@@ -8,7 +8,7 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Loader2, Trophy, 
-  Sparkles, Filter, X, MessageCircle, Crown, Zap
+  Sparkles, Filter, X, MessageCircle, Crown
 } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
@@ -17,13 +17,9 @@ import MatchingFilters from '@/components/MatchingFilters';
 import FeudGame from '@/components/games/FeudGame';
 import TruthOrDare from '@/components/games/TruthOrDare';
 import UnoGame from '@/components/games/UnoGame';
-import CameraFilters from '@/components/match/CameraFilters';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
-import { FACE_FILTERS, getFilter as getFaceFilter } from '@/utils/faceFilters';
-import { PERFORMANCE_MODES, getCSSFilter } from '@/config/performanceConfig';
 import '@/styles/match.css';
 import '@/styles/chat.css';
-import '@/styles/filters.css';
 import '@/styles/games.css';
 import '@/styles/uno.css';
 
@@ -70,7 +66,6 @@ const Match = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
-  const [showCameraFilters, setShowCameraFilters] = useState(false);
   const [showChat, setShowChat] = useState(true);
   
   // Responsive state
@@ -78,7 +73,6 @@ const Match = () => {
   
   // Refs
   const messagesEndRef = useRef(null);
-  const filterTouchStart = useRef(null);
   const localPanelRef = useRef(null);
   const previousSessionRef = useRef(null);
   
@@ -106,29 +100,16 @@ const Match = () => {
   const [sessionDuration, setSessionDuration] = useState(0);
   const sessionStartRef = useRef(null);
 
-  // WebRTC hook - AUTO START when matched
+  // WebRTC hook - AUTO START when matched (direct camera stream, no filters)
   const {
     localVideoRef,
     remoteVideoRef,
     localStream,
     remoteStream,
-    currentFilter,
-    endCall,
-    changeFilter,
-    getFilterStyle,
-    performanceMode,
-    setPerformanceMode,
-    useCSSFilter,
-    perfSettings
+    endCall
   } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
   const isPremium = user?.premium_status;
-  const filterKeys = Object.keys(FACE_FILTERS);
-  
-  // Get filter info for display
-  const getCurrentFilterInfo = useCallback((filterId) => {
-    return getFaceFilter(filterId);
-  }, []);
   
   // ========== RESPONSIVE HANDLER ==========
   useEffect(() => {
@@ -146,7 +127,6 @@ const Match = () => {
     setTodGameState(null);
     setFeudGameState(null);
     setUnoGameState(null);
-    setShowCameraFilters(false);
     setMessageInput('');
     setSessionDuration(0);
     if (clearMessages) clearMessages();
@@ -196,10 +176,8 @@ const Match = () => {
     const handleFeudStarted = (data) => {
       console.log('=== FEUD_GAME_STARTED EVENT RECEIVED ===');
       console.log('Data:', JSON.stringify(data));
-      // Both players receive this - open game UI for both
       setActiveGame('feud');
       setGameSessionId(sessionId);
-      // Store the initial game state
       if (data.game_state) {
         setFeudGameState(data.game_state);
       }
@@ -208,10 +186,8 @@ const Match = () => {
     const handleTodStarted = (data) => {
       console.log('=== TOD_GAME_STARTED EVENT RECEIVED ===');
       console.log('Data:', JSON.stringify(data));
-      // Both players receive this - open game UI for both
       setActiveGame('truthordare');
       setGameSessionId(sessionId);
-      // Store the initial game state
       if (data.game_state) {
         setTodGameState(data.game_state);
       }
@@ -220,10 +196,8 @@ const Match = () => {
     const handleUnoStarted = (data) => {
       console.log('=== UNO_GAME_STARTED EVENT RECEIVED ===');
       console.log('Data:', JSON.stringify(data));
-      // Both players receive this - open UNO game UI for both
       setActiveGame('uno');
       setGameSessionId(sessionId);
-      // Store the initial game state
       if (data.game_state) {
         setUnoGameState(data.game_state);
       }
@@ -260,22 +234,6 @@ const Match = () => {
     
     const handlePartnerDisconnected = () => {
       resetAllGameState();
-    };
-    
-    // Handle premium feature blocks from backend
-    const handlePremiumFilterBlocked = (data) => {
-      console.log('=== PREMIUM_FILTER_BLOCKED EVENT ===');
-      console.log('Data:', JSON.stringify(data));
-      if (data.warnings && data.warnings.length > 0) {
-        // Show toast for downgraded filters
-        toast.info(
-          <div className="flex items-center gap-2">
-            <Crown size={16} className="text-yellow-400" />
-            <span>{data.warnings[0]}</span>
-          </div>,
-          { duration: 4000 }
-        );
-      }
     };
     
     // Handle premium required events (games, etc)
@@ -318,7 +276,6 @@ const Match = () => {
     socket.on('uno_game_ended', handleUnoEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
-    socket.on('premium_filter_blocked', handlePremiumFilterBlocked);
     socket.on('premium_required', handlePremiumRequired);
     socket.on('session_restored', handleSessionRestored);
     socket.on('error', handleError);
@@ -335,7 +292,6 @@ const Match = () => {
       socket.off('uno_game_ended', handleUnoEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
-      socket.off('premium_filter_blocked', handlePremiumFilterBlocked);
       socket.off('premium_required', handlePremiumRequired);
       socket.off('session_restored', handleSessionRestored);
       socket.off('error', handleError);
@@ -356,64 +312,9 @@ const Match = () => {
       };
     }
   }, [state, partner]);
-  
-  // Get current filter index for swipe navigation
-  const getCurrentFilterIndex = useCallback(() => {
-    return filterKeys.indexOf(currentFilter) || 0;
-  }, [filterKeys, currentFilter]);
-
-  // Handle filter change from swipe component
-  const handleFilterSelect = useCallback((filterKey) => {
-    changeFilter(filterKey);
-  }, [changeFilter]);
-
-  // Handle swipe on video area for filter changes
-  const handleVideoSwipeStart = useCallback((e) => {
-    // Don't allow swipe if game is active
-    if (isGameActive) return;
-    const touch = e.touches ? e.touches[0] : e;
-    filterTouchStart.current = { x: touch.clientX, time: Date.now() };
-  }, [isGameActive]);
-
-  const handleVideoSwipeEnd = useCallback((e) => {
-    if (!filterTouchStart.current || isGameActive) return;
-    
-    const touch = e.changedTouches ? e.changedTouches[0] : e;
-    const deltaX = touch.clientX - filterTouchStart.current.x;
-    const deltaTime = Date.now() - filterTouchStart.current.time;
-    
-    // Quick swipe detection (less than 300ms and more than 50px)
-    if (deltaTime < 300 && Math.abs(deltaX) > 50) {
-      const currentIdx = getCurrentFilterIndex();
-      let newIndex;
-      
-      if (deltaX > 0) {
-        newIndex = currentIdx - 1;
-        if (newIndex < 0) newIndex = filterKeys.length - 1;
-      } else {
-        newIndex = currentIdx + 1;
-        if (newIndex >= filterKeys.length) newIndex = 0;
-      }
-      
-      const newFilterKey = filterKeys[newIndex];
-      const filter = FACE_FILTERS[newFilterKey];
-      
-      if (filter?.premium && !isPremium) {
-        toast.info('Premium filter - upgrade to unlock');
-        navigate('/premium');
-      } else {
-        changeFilter(newFilterKey);
-        setShowCameraFilters(true);
-        setTimeout(() => setShowCameraFilters(false), 2000);
-      }
-    }
-    
-    filterTouchStart.current = null;
-  }, [getCurrentFilterIndex, filterKeys, isPremium, changeFilter, navigate, isGameActive]);
 
   // Navigation effects
   useEffect(() => {
-    // Wait for auth to load before redirecting
     if (authLoading) return;
     if (!user) navigate('/login');
   }, [user, authLoading, navigate]);
@@ -488,14 +389,12 @@ const Match = () => {
       return;
     }
     
-    // Prevent starting another game
     if (isGameActive) {
       console.log('BLOCKED: Another game is already active');
       toast.info('Please close the current game first');
       return;
     }
     
-    // Emit to backend - backend will send game_started to BOTH players
     if (socket && sessionId) {
       console.log('EMITTING game start event for:', gameType);
       if (gameType === 'feud') {
@@ -508,13 +407,11 @@ const Match = () => {
       toast.info(`Starting ${gameType === 'feud' ? 'Raccoon Feud' : gameType === 'truthordare' ? 'Truth or Dare' : 'UNO'}...`);
     } else {
       console.log('BLOCKED: socket or sessionId missing');
-      console.log('socket:', !!socket, 'sessionId:', sessionId);
       toast.error('Cannot start game - connection issue');
     }
-    // DO NOT set activeGame here - wait for backend confirmation
   }, [isPremium, isGameActive, sessionId, socket, showPremiumModal]);
   
-  // Close game - safe cleanup (emit to backend to notify partner)
+  // Close game
   const closeGame = useCallback(() => {
     if (socket && activeGame) {
       if (activeGame === 'feud') {
@@ -529,15 +426,12 @@ const Match = () => {
     setGameSessionId(null);
   }, [socket, activeGame]);
   
-  // Toggle game with conflict prevention
+  // Toggle game
   const toggleGame = useCallback((gameType) => {
     console.log('=== TOGGLE GAME CLICKED ===');
     console.log('gameType:', gameType);
     console.log('activeGame:', activeGame);
     console.log('state:', state);
-    console.log('partner:', partner?.username || 'none');
-    console.log('sessionId:', sessionId);
-    console.log('socket connected:', socket?.connected);
     
     if (state !== 'matched') {
       console.log('BLOCKED: Not in matched state');
@@ -546,30 +440,20 @@ const Match = () => {
     }
     
     if (activeGame === gameType) {
-      // Close current game
       console.log('Closing current game');
       closeGame();
     } else {
-      // Start new game (closes any existing first)
       console.log('Starting new game:', gameType);
       startGame(gameType);
     }
-  }, [activeGame, closeGame, startGame, state, partner, sessionId, socket]);
+  }, [activeGame, closeGame, startGame, state]);
 
   // ========== SKIP LOGIC ==========
   const handleSkip = useCallback(() => {
-    if (isSkipping) return; // Prevent double-skip
-    
-    // Reset game state first
+    if (isSkipping) return;
     resetAllGameState();
-    
-    // End WebRTC call
     endCall();
-    
-    // Trigger skip (hook handles state reset and auto-rejoin)
     skipMatch();
-    
-    // Show feedback
     toast.info('Finding next match...', { duration: 1500 });
   }, [isSkipping, endCall, skipMatch, resetAllGameState]);
 
@@ -583,21 +467,12 @@ const Match = () => {
     }
   }, [endCall, blockUser, resetAllGameState]);
 
-  // Handle back navigation - clean exit
+  // Handle back navigation
   const handleBackToDashboard = useCallback(() => {
-    // Disable auto-rejoin when leaving
     setAutoRejoin(false);
-    
-    // Reset game state
     resetAllGameState();
-    
-    // End any active call
     endCall();
-    
-    // End session if active
     endSession();
-    
-    // Navigate
     navigate('/dashboard');
   }, [setAutoRejoin, endCall, endSession, navigate, resetAllGameState]);
 
@@ -693,26 +568,21 @@ const Match = () => {
       />
 
       {/* ===== VIDEO AREA ===== */}
-      {/* Desktop: Left=Me, Right=Stranger | Mobile: Top=Stranger, Bottom=Me */}
       <div className="match-videos">
         
         {/* LOCAL VIDEO PANEL (Me) */}
-        {/* Desktop: order-1 (LEFT) | Mobile: order-2 (BOTTOM) */}
         <div 
           ref={localPanelRef}
           className="video-panel video-panel--local"
-          onTouchStart={handleVideoSwipeStart}
-          onTouchEnd={handleVideoSwipeEnd}
           data-testid="local-video-panel"
         >
-          {/* My Video */}
+          {/* My Video - Direct camera stream */}
           <video
             ref={localVideoRef}
             autoPlay
             playsInline
             muted
             className="video-panel__video video-panel__video--mirrored"
-            style={useCSSFilter && currentFilter !== 'none' ? { filter: getCSSFilter(currentFilter) } : undefined}
           />
           
           {/* My Label */}
@@ -721,63 +591,7 @@ const Match = () => {
             <span>You</span>
           </div>
 
-          {/* Active Filter Badge */}
-          {currentFilter !== 'none' && (
-            <div className="video-panel__filter-badge">
-              <span>{FACE_FILTERS[currentFilter]?.icon}</span>
-              <span>{FACE_FILTERS[currentFilter]?.name}</span>
-            </div>
-          )}
-
-          {/* Camera Filter Controls */}
-          <div className="video-panel__filter-controls">
-            {showCameraFilters ? (
-              <div className="relative">
-                <CameraFilters
-                  currentFilter={currentFilter}
-                  onFilterChange={handleFilterSelect}
-                  isPremium={isPremium}
-                  onPremiumRequired={() => navigate('/premium')}
-                  visible={true}
-                  onClose={() => setShowCameraFilters(false)}
-                />
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowCameraFilters(true)}
-                className={`video-panel__filter-btn ${currentFilter !== 'none' ? 'video-panel__filter-btn--active' : ''}`}
-                data-testid="open-camera-filters"
-              >
-                <Sparkles size={22} />
-              </button>
-            )}
-          </div>
-
-          {/* Swipe Hint - hidden when game active */}
-          {!showCameraFilters && currentFilter === 'none' && !isGameActive && (
-            <div className="video-panel__swipe-hint">
-              ← Swipe for filters →
-            </div>
-          )}
-          
-          {/* Performance Mode Indicator */}
-          <button
-            onClick={() => {
-              const modes = ['high', 'balanced', 'performance', 'low'];
-              const currentIndex = modes.indexOf(performanceMode);
-              const nextIndex = (currentIndex + 1) % modes.length;
-              setPerformanceMode(modes[nextIndex]);
-              toast.info(`Performance: ${PERFORMANCE_MODES[modes[nextIndex]].name}`);
-            }}
-            className="absolute bottom-2 right-2 p-2 bg-black/50 rounded-lg hover:bg-black/70 transition-all z-10"
-            title={`Performance Mode: ${perfSettings?.name || 'Balanced'}`}
-            data-testid="performance-mode-toggle"
-          >
-            <Zap size={16} className={performanceMode === 'high' ? 'text-yellow-400' : performanceMode === 'low' ? 'text-red-400' : 'text-green-400'} />
-          </button>
-
           {/* ===== GAME OVERLAY ZONE (MY SIDE ONLY) ===== */}
-          {/* Games overlay my video panel - stranger always visible */}
           {showFeud && (
             <div className="game-container game-container--feud">
               <FeudGame
@@ -824,7 +638,6 @@ const Match = () => {
         </div>
 
         {/* REMOTE VIDEO PANEL (Stranger) - ALWAYS VISIBLE */}
-        {/* Desktop: order-2 (RIGHT) | Mobile: order-1 (TOP) */}
         <div 
           className="video-panel video-panel--remote"
           data-testid="remote-video-panel"
@@ -862,7 +675,7 @@ const Match = () => {
       {/* ===== BOTTOM ACTION BAR ===== */}
       <div className={`match-bottombar ${isGameActive ? 'match-bottombar--game-active' : ''}`}>
         <div className="match-bottombar__content">
-          {/* Game & Filter Buttons */}
+          {/* Game Buttons */}
           <div className="match-bottombar__games">
             <div className="match-bottombar__game-btns">
               {/* Matching Filters */}
@@ -931,7 +744,7 @@ const Match = () => {
             </button>
           </div>
 
-          {/* Chat Input - still accessible during game */}
+          {/* Chat Input */}
           {showChat && (
             <form onSubmit={handleSendMessage} className="match-bottombar__chat">
               <input
@@ -955,7 +768,7 @@ const Match = () => {
         </div>
       </div>
 
-      {/* ===== CHAT PANEL (Desktop overlay / Mobile toggle) ===== */}
+      {/* ===== CHAT PANEL ===== */}
       {showChat && (
         <ChatPanel
           messages={messages}
@@ -988,9 +801,7 @@ const Match = () => {
           partner={partner}
           sessionId={sessionId}
           onClose={() => setShowReportModal(false)}
-          onSuccess={() => {
-            // Optional: Could skip after report
-          }}
+          onSuccess={() => {}}
         />
       )}
 

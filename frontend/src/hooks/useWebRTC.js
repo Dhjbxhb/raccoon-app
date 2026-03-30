@@ -1,26 +1,21 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
-import { getFilter, FaceFilterProcessor } from '@/utils/faceFilters';
 import { 
   getAutoPerformanceMode, 
   PERFORMANCE_MODES, 
   applyBitrateConstraints,
   cleanupStream,
-  getCSSFilter,
-  canUseCSSFilter,
   throttle
 } from '@/config/performanceConfig';
 
 /**
- * OPTIMIZED WebRTC Hook with Performance Mode Support
+ * Simplified WebRTC Hook - Direct Camera Stream
  * 
- * Optimizations:
+ * Features:
+ * - Direct camera stream (no filter processing)
  * - Auto performance mode detection
  * - Bitrate control based on device capabilities
- * - CSS filters for GPU acceleration when possible
- * - Reduced canvas processing in performance mode
  * - Memory leak prevention
- * - Throttled state updates
  */
 export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   // Performance mode state
@@ -34,16 +29,11 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [connectionState, setConnectionState] = useState('disconnected');
   const [error, setError] = useState(null);
-  const [currentFilter, setCurrentFilter] = useState('none');
-  const [useCSSFilter, setUseCSSFilter] = useState(true);
   
   // Refs
   const peerConnection = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const filterCanvasRef = useRef(null);
-  const filterProcessor = useRef(null);
-  const filteredStream = useRef(null);
   
   // WebRTC negotiation state
   const makingOffer = useRef(false);
@@ -58,7 +48,6 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const mountedRef = useRef(true);
   const socketIdRef = useRef(null);
   const localStreamRef = useRef(null);
-  const hiddenVideoRef = useRef(null); // Hidden video for filter processing
 
   // Get current performance settings
   const perfSettings = useMemo(() => {
@@ -84,6 +73,10 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
     
     if (peerConnection.current) {
+      peerConnection.current.ontrack = null;
+      peerConnection.current.onicecandidate = null;
+      peerConnection.current.oniceconnectionstatechange = null;
+      peerConnection.current.onnegotiationneeded = null;
       peerConnection.current.close();
       peerConnection.current = null;
     }
@@ -92,73 +85,12 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     ignoreOffer.current = false;
     isSettingRemoteAnswerPending.current = false;
     pendingCandidates.current = [];
-  }, []);
-
-  // Clean up filter processor
-  const cleanupFilterProcessor = useCallback(() => {
-    if (filterProcessor.current) {
-      filterProcessor.current.destroy();
-      filterProcessor.current = null;
-    }
-    if (filteredStream.current) {
-      cleanupStream(filteredStream.current);
-      filteredStream.current = null;
-    }
-    if (hiddenVideoRef.current) {
-      hiddenVideoRef.current.srcObject = null;
-      hiddenVideoRef.current = null;
+    
+    if (mountedRef.current) {
+      setConnectionState('disconnected');
+      setRemoteStream(null);
     }
   }, []);
-
-  // Initialize filter processor - ALWAYS use canvas for consistent output
-  // Pipeline: camera → canvas → apply filter → captureStream → WebRTC
-  const initFilterProcessor = useCallback(async (video, originalStream) => {
-    const mode = performanceModeRef.current;
-    const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
-    
-    // No filter = return original stream
-    if (currentFilter === 'none') {
-      filteredStream.current = originalStream;
-      setUseCSSFilter(true);
-      return originalStream;
-    }
-    
-    // ALWAYS use canvas processing for filters
-    // This ensures BOTH users see the SAME filter via WebRTC
-    setUseCSSFilter(false);
-    
-    // Create canvas if needed
-    if (!filterCanvasRef.current) {
-      filterCanvasRef.current = document.createElement('canvas');
-    }
-    
-    // Create processor if needed
-    if (!filterProcessor.current) {
-      filterProcessor.current = new FaceFilterProcessor();
-    }
-    
-    // Initialize with performance-optimized FPS
-    filterProcessor.current.init(filterCanvasRef.current);
-    filterProcessor.current.setFilter(currentFilter);
-    filterProcessor.current.targetFPS = settings.filterFPS;
-    
-    // Start processing video frames
-    filterProcessor.current.startProcessing(video, () => {});
-    
-    // Get canvas stream with optimized FPS
-    const canvasStream = filterProcessor.current.getCanvasStream(settings.filterFPS);
-    
-    // Combine canvas video with original audio
-    const audioTracks = originalStream.getAudioTracks();
-    const newStream = new MediaStream([
-      ...canvasStream.getVideoTracks(),
-      ...audioTracks
-    ]);
-    
-    filteredStream.current = newStream;
-    console.log('Filter processor initialized:', currentFilter, 'FPS:', settings.filterFPS);
-    return newStream;
-  }, [currentFilter]);
 
   // Initialize peer connection with proper event handlers
   const createPeerConnection = useCallback(() => {
@@ -168,66 +100,72 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate && socket) {
+      if (event.candidate && socket && sessionId) {
         socket.emit('webrtc_ice_candidate', {
-          candidate: event.candidate.toJSON(),
+          candidate: event.candidate,
           session_id: sessionId
         });
       }
     };
 
-    // Handle incoming tracks (remote video/audio)
+    // Handle remote tracks
     pc.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
-      const [stream] = event.streams;
-      setRemoteStream(stream);
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
+      if (event.streams && event.streams[0]) {
+        if (mountedRef.current) {
+          setRemoteStream(event.streams[0]);
+        }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
       }
     };
 
-    // Monitor connection state
-    pc.onconnectionstatechange = () => {
-      console.log('Connection state:', pc.connectionState);
-      setConnectionState(pc.connectionState);
+    // Handle connection state changes
+    pc.oniceconnectionstatechange = () => {
+      if (!mountedRef.current) return;
       
-      if (pc.connectionState === 'connected') {
+      const state = pc.iceConnectionState;
+      
+      if (state === 'connected' || state === 'completed') {
+        setConnectionState('connected');
+        setError(null);
         if (connectionTimeout.current) {
           clearTimeout(connectionTimeout.current);
           connectionTimeout.current = null;
         }
-        setError(null);
-      } else if (pc.connectionState === 'failed') {
-        setError('Connection failed. Please try again.');
-      } else if (pc.connectionState === 'disconnected') {
-        setTimeout(() => {
-          if (peerConnection.current?.connectionState === 'disconnected') {
-            setError('Connection lost. Reconnecting...');
-          }
-        }, 3000);
-      }
-    };
-
-    // Handle ICE connection state changes
-    pc.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'disconnected') {
-        setConnectionState('disconnected');
-      } else if (pc.iceConnectionState === 'failed') {
-        console.log('ICE failed, attempting restart...');
-        pc.restartIce();
+      } else if (state === 'failed') {
+        setConnectionState('failed');
+        setError('Connection failed');
+      } else if (state === 'disconnected') {
+        setConnectionState('reconnecting');
+      } else if (state === 'checking') {
+        setConnectionState('connecting');
       }
     };
 
     // Handle negotiation needed
     pc.onnegotiationneeded = async () => {
+      if (makingOffer.current) return;
+      
       try {
         makingOffer.current = true;
-        await pc.setLocalDescription();
-        socket?.emit('webrtc_offer', {
-          offer: pc.localDescription,
-          session_id: sessionId
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true
         });
+        
+        if (pc.signalingState !== 'stable') {
+          return;
+        }
+        
+        await pc.setLocalDescription(offer);
+        
+        if (socket && sessionId) {
+          socket.emit('webrtc_offer', {
+            offer: pc.localDescription,
+            session_id: sessionId
+          });
+        }
       } catch (err) {
         console.error('Negotiation error:', err);
       } finally {
@@ -239,221 +177,138 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     return pc;
   }, [socket, sessionId, cleanupPeerConnection]);
 
-  // Get user media with OPTIMIZED constraints
-  const startLocalStream = useCallback(async (video = true, audio = true) => {
+  // Get camera stream - direct, no filter processing
+  const getLocalStream = useCallback(async () => {
     try {
-      // Stop any existing stream first
-      if (localStreamRef.current) {
-        cleanupStream(localStreamRef.current);
-        localStreamRef.current = null;
-      }
-      cleanupFilterProcessor();
-
-      // Use performance-optimized constraints
       const mode = performanceModeRef.current;
       const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
+      const constraints = getMediaConstraints(settings);
       
-      const constraints = {
-        video: video ? {
-          ...settings.video,
-          facingMode: 'user'
-        } : false,
-        audio: audio ? {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } : false
-      };
-
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Store ref for cleanup
       localStreamRef.current = stream;
-
+      
       if (mountedRef.current) {
         setLocalStream(stream);
-        setIsVideoEnabled(video && stream.getVideoTracks().length > 0);
-        setIsAudioEnabled(audio && stream.getAudioTracks().length > 0);
       }
-
-      // Display stream locally for preview
+      
+      // Set local video
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-
+      
       return stream;
     } catch (err) {
-      console.error('Error accessing media devices:', err);
-      
-      if (!mountedRef.current) return null;
-      
-      if (err.name === 'NotAllowedError') {
-        setError('Camera/microphone access denied.');
-      } else if (err.name === 'NotFoundError') {
-        setError('No camera or microphone found.');
-      } else if (err.name === 'NotReadableError') {
-        setError('Camera/microphone is already in use.');
-      } else {
-        setError('Could not access camera/microphone.');
-      }
+      console.error('Camera error:', err);
+      setError('Camera access failed');
       throw err;
     }
-  }, [cleanupFilterProcessor]);
+  }, []);
 
-  // Start the call with OPTIMIZED video
+  // Start the call
   const startCall = useCallback(async () => {
+    if (!socket || !sessionId) {
+      console.warn('Cannot start call: missing socket or sessionId');
+      return;
+    }
+
     try {
-      setError(null);
       setConnectionState('connecting');
+      setError(null);
+
+      // Get camera stream
+      const stream = await getLocalStream();
       
-      const stream = await startLocalStream(true, true);
-      if (!stream) return;
+      // Create peer connection
+      const pc = createPeerConnection();
       
-      // Get video track
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        // Create hidden video element for filter processing
-        if (!hiddenVideoRef.current) {
-          hiddenVideoRef.current = document.createElement('video');
-          hiddenVideoRef.current.muted = true;
-          hiddenVideoRef.current.playsInline = true;
+      // Add tracks to peer connection
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
+
+      // Apply bitrate constraints
+      const settings = PERFORMANCE_MODES[performanceModeRef.current] || PERFORMANCE_MODES.balanced;
+      await applyBitrateConstraints(pc, settings.bitrate);
+
+      // Set connection timeout
+      connectionTimeout.current = setTimeout(() => {
+        if (mountedRef.current && connectionState !== 'connected') {
+          setError('Connection timeout');
+          setConnectionState('failed');
         }
-        hiddenVideoRef.current.srcObject = stream;
-        await hiddenVideoRef.current.play();
-        
-        // Initialize filter processor (may use CSS-only in performance mode)
-        const processedStream = await initFilterProcessor(hiddenVideoRef.current, stream);
-        
-        const pc = createPeerConnection();
-
-        // Add tracks to peer connection
-        processedStream.getTracks().forEach(track => {
-          pc.addTrack(track, processedStream);
-        });
-
-        // Apply bitrate constraints for performance
-        await applyBitrateConstraints(pc, performanceModeRef.current);
-
-        // Create and send offer
-        makingOffer.current = true;
-        const offer = await pc.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true
-        });
-        await pc.setLocalDescription(offer);
-
-        socket?.emit('webrtc_offer', {
-          offer: pc.localDescription.toJSON(),
-          session_id: sessionId
-        });
-
-        // Set connection timeout
-        connectionTimeout.current = setTimeout(() => {
-          if (peerConnection.current?.connectionState !== 'connected') {
-            setError('Connection timeout. Please try again.');
-            setConnectionState('failed');
-          }
-        }, CONNECTION_TIMEOUT);
-      }
+      }, CONNECTION_TIMEOUT);
 
     } catch (err) {
-      console.error('Error starting call:', err);
-      if (!error) {
-        setError('Failed to start video call');
-      }
+      console.error('Start call error:', err);
+      setError(err.message || 'Failed to start call');
       setConnectionState('failed');
-    } finally {
-      makingOffer.current = false;
     }
-  }, [socket, sessionId, startLocalStream, createPeerConnection, initFilterProcessor, error]);
+  }, [socket, sessionId, getLocalStream, createPeerConnection, connectionState]);
 
   // Handle incoming offer
   const handleOffer = useCallback(async (offer) => {
+    if (!peerConnection.current) {
+      const pc = createPeerConnection();
+      
+      // Get local stream if not already present
+      if (!localStreamRef.current) {
+        const stream = await getLocalStream();
+        stream.getTracks().forEach(track => {
+          pc.addTrack(track, stream);
+        });
+      }
+    }
+
+    const pc = peerConnection.current;
+    if (!pc) return;
+
     try {
-      const pc = peerConnection.current;
-      
       const offerCollision = makingOffer.current || 
-        (pc?.signalingState !== 'stable' && pc?.signalingState !== 'have-local-offer');
-      
-      const polite = isPolite();
-      ignoreOffer.current = !polite && offerCollision;
+        (pc.signalingState !== 'stable' && pc.signalingState !== 'have-local-offer');
+
+      ignoreOffer.current = !isPolite() && offerCollision;
       
       if (ignoreOffer.current) {
-        console.log('Ignoring colliding offer (impolite peer)');
         return;
       }
 
-      setError(null);
-      setConnectionState('connecting');
+      isSettingRemoteAnswerPending.current = true;
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      isSettingRemoteAnswerPending.current = false;
 
-      // Ensure we have local stream
-      let stream = localStream;
-      if (!stream) {
-        stream = await startLocalStream(true, true);
-      }
-
-      // Process video with face filter
-      const videoEl = document.createElement('video');
-      videoEl.srcObject = stream;
-      videoEl.muted = true;
-      await videoEl.play();
-      
-      const processedStream = await initFilterProcessor(videoEl, stream);
-
-      // Create or get peer connection
-      let connection = pc;
-      if (!connection) {
-        connection = createPeerConnection();
-        processedStream.getTracks().forEach(track => {
-          connection.addTrack(track, processedStream);
-        });
-      }
-
-      // Handle rollback if needed
-      if (connection.signalingState !== 'stable') {
-        await Promise.all([
-          connection.setLocalDescription({ type: 'rollback' }),
-          connection.setRemoteDescription(new RTCSessionDescription(offer))
-        ]);
-      } else {
-        await connection.setRemoteDescription(new RTCSessionDescription(offer));
-      }
-
-      // Process any queued ICE candidates
-      while (pendingCandidates.current.length > 0) {
-        const candidate = pendingCandidates.current.shift();
+      // Process pending ICE candidates
+      for (const candidate of pendingCandidates.current) {
         try {
-          await connection.addIceCandidate(new RTCIceCandidate(candidate));
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-          console.warn('Error adding queued ICE candidate:', e);
+          // Ignore
         }
       }
-      
-      // Create and send answer
-      const answer = await connection.createAnswer();
-      await connection.setLocalDescription(answer);
+      pendingCandidates.current = [];
 
-      socket?.emit('webrtc_answer', {
-        answer: connection.localDescription.toJSON(),
-        session_id: sessionId
-      });
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
 
+      if (socket && sessionId) {
+        socket.emit('webrtc_answer', {
+          answer: pc.localDescription,
+          session_id: sessionId
+        });
+      }
     } catch (err) {
-      console.error('Error handling offer:', err);
-      setError('Failed to answer video call');
-      setConnectionState('failed');
+      console.error('Handle offer error:', err);
     }
-  }, [socket, sessionId, localStream, startLocalStream, createPeerConnection, initFilterProcessor, isPolite]);
+  }, [socket, sessionId, isPolite, createPeerConnection, getLocalStream]);
 
   // Handle incoming answer
   const handleAnswer = useCallback(async (answer) => {
-    try {
-      const pc = peerConnection.current;
-      if (!pc) {
-        console.warn('No peer connection for answer');
-        return;
-      }
+    const pc = peerConnection.current;
+    if (!pc) return;
 
+    try {
       if (pc.signalingState === 'stable') {
-        console.log('Connection already stable, ignoring answer');
         return;
       }
 
@@ -461,123 +316,88 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
       isSettingRemoteAnswerPending.current = false;
 
-      // Process any queued ICE candidates
-      while (pendingCandidates.current.length > 0) {
-        const candidate = pendingCandidates.current.shift();
+      // Process pending ICE candidates
+      for (const candidate of pendingCandidates.current) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-          console.warn('Error adding queued ICE candidate:', e);
+          // Ignore
         }
       }
+      pendingCandidates.current = [];
     } catch (err) {
-      console.error('Error handling answer:', err);
-      isSettingRemoteAnswerPending.current = false;
+      console.error('Handle answer error:', err);
     }
   }, []);
 
-  // Handle ICE candidate
+  // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (candidate) => {
+    const pc = peerConnection.current;
+    
+    if (!pc || !pc.remoteDescription) {
+      pendingCandidates.current.push(candidate);
+      return;
+    }
+
     try {
-      const pc = peerConnection.current;
-      
-      if (!pc || !candidate) return;
-
-      if (!pc.remoteDescription || isSettingRemoteAnswerPending.current) {
-        console.log('Queuing ICE candidate');
-        pendingCandidates.current.push(candidate);
-        return;
-      }
-
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (err) {
-      if (err.name !== 'InvalidStateError') {
-        console.warn('Error adding ICE candidate:', err);
-      }
+      // Silently ignore
     }
   }, []);
 
-  // Toggle video track
+  // Toggle video
   const toggleVideo = useCallback(() => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoEnabled(videoTrack.enabled);
-      }
+    const stream = localStreamRef.current;
+    if (stream) {
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsVideoEnabled(prev => !prev);
     }
-  }, [localStream]);
+  }, []);
 
-  // Toggle audio track
+  // Toggle audio
   const toggleAudio = useCallback(() => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioEnabled(audioTrack.enabled);
-      }
+    const stream = localStreamRef.current;
+    if (stream) {
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsAudioEnabled(prev => !prev);
     }
-  }, [localStream]);
+  }, []);
 
-  // End call and cleanup
+  // End call
   const endCall = useCallback(() => {
-    // Stop filter processor
-    cleanupFilterProcessor();
-    
-    // Stop local media tracks
+    // Stop local stream
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      cleanupStream(localStreamRef.current);
       localStreamRef.current = null;
     }
     
-    if (mountedRef.current) {
-      setLocalStream(null);
-    }
-
-    // Clear video elements
+    // Clean video elements
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
-
+    
     cleanupPeerConnection();
-
+    
     if (mountedRef.current) {
+      setLocalStream(null);
       setRemoteStream(null);
-      setConnectionState('disconnected');
-      setIsVideoEnabled(false);
-      setIsAudioEnabled(false);
+      setIsVideoEnabled(true);
+      setIsAudioEnabled(true);
       setError(null);
     }
     
     autoStarted.current = false;
     
     socket?.emit('webrtc_end_call', { session_id: sessionId });
-  }, [socket, sessionId, cleanupPeerConnection, cleanupFilterProcessor]);
-
-  // Change filter - update processor and notify partner
-  const changeFilter = useCallback((filterId) => {
-    setCurrentFilter(filterId);
-    
-    // Update the filter processor
-    if (filterProcessor.current) {
-      filterProcessor.current.setFilter(filterId);
-    }
-    
-    // Notify partner of filter change (optional - for UI indicator)
-    socket?.emit('filter_changed', { 
-      filter: filterId,
-      session_id: sessionId 
-    });
-  }, [socket, sessionId]);
-
-  // Get CSS filter style for local preview overlay
-  const getFilterStyle = useCallback((filter) => {
-    const f = getFilter(filter);
-    return f.css;
-  }, []);
+  }, [socket, sessionId, cleanupPeerConnection]);
 
   // Socket event listeners
   useEffect(() => {
@@ -605,13 +425,32 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     };
   }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
 
-  // Reset autoStarted when sessionId changes
+  // Auto-start call when sessionId changes
   useEffect(() => {
+    if (!autoStart || !sessionId || !socket?.connected) return;
+    
+    // Detect session change
     if (sessionId !== currentSessionId.current) {
-      autoStarted.current = false;
       currentSessionId.current = sessionId;
+      autoStarted.current = false;
+      
+      // Clean up previous call
+      if (peerConnection.current) {
+        endCall();
+      }
     }
-  }, [sessionId]);
+    
+    if (!autoStarted.current && partnerId) {
+      autoStarted.current = true;
+      
+      // Delay slightly to ensure socket is ready
+      const timer = setTimeout(() => {
+        startCall();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [autoStart, sessionId, partnerId, socket?.connected, startCall, endCall]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -619,76 +458,26 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     
     return () => {
       mountedRef.current = false;
-      cleanupFilterProcessor();
-      
-      // Clean up local stream
-      if (localStreamRef.current) {
-        cleanupStream(localStreamRef.current);
-        localStreamRef.current = null;
-      }
-      
-      // Clean up hidden video
-      if (hiddenVideoRef.current) {
-        hiddenVideoRef.current.srcObject = null;
-        hiddenVideoRef.current = null;
-      }
-      
-      // Clean up peer connection
-      if (peerConnection.current) {
-        peerConnection.current.close();
-        peerConnection.current = null;
-      }
-      
-      // Clear timeout
-      if (connectionTimeout.current) {
-        clearTimeout(connectionTimeout.current);
-        connectionTimeout.current = null;
-      }
+      endCall();
     };
-  }, [cleanupFilterProcessor]);
-
-  // Auto-start camera and initiate call when matched
-  useEffect(() => {
-    if (autoStart && sessionId && partnerId && !autoStarted.current && !localStream) {
-      autoStarted.current = true;
-      
-      const timer = setTimeout(() => {
-        startCall().catch(err => {
-          console.log('Auto-start video failed:', err.message);
-        });
-      }, 800);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [autoStart, sessionId, partnerId, localStream, startCall]);
+  }, [endCall]);
 
   return {
-    // Stream refs
-    localStream,
-    remoteStream,
     localVideoRef,
     remoteVideoRef,
-    
-    // State
+    localStream,
+    remoteStream,
     isVideoEnabled,
     isAudioEnabled,
     connectionState,
     error,
-    currentFilter,
-    
-    // Performance mode
-    performanceMode,
-    setPerformanceMode,
-    useCSSFilter,
-    perfSettings,
-    
-    // Actions
     startCall,
     endCall,
     toggleVideo,
     toggleAudio,
-    changeFilter,
-    getFilterStyle
+    performanceMode,
+    setPerformanceMode,
+    perfSettings
   };
 };
 

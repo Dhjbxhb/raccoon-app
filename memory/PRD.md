@@ -31,35 +31,39 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
-### Face-Focused Filter System Rebuild (March 30, 2025) ✅
-**Issue:** Filters were incorrect types (weather/environment filters). Filters were not face-focused. Remote user may not see the same filter.
+### Filter System & Stats Removal (March 30, 2025) ✅
+**Changes Made:**
 
-**Fix Applied:**
+1. **Completely removed filter system:**
+   - Deleted `/app/frontend/src/utils/faceFilters.js`
+   - Deleted `/app/frontend/src/utils/videoFilters.js`
+   - Deleted `/app/frontend/src/hooks/useCameraFilters.js`
+   - Deleted `/app/frontend/src/styles/filters.css`
+   - Deleted `/app/frontend/src/components/match/CameraFilters.jsx`
+   - Removed filter state, handlers, UI from Match.js
+   - Removed performance mode button (⚡) from Match.js
+   - Removed swipe-for-filters hint
+   - Removed filter badge display
+   - Simplified useWebRTC to use direct camera stream only
 
-1. **Removed wrong filter types:**
-   - Deleted all weather filters (rain, snow, fog, etc.)
-   - Deleted all background/scene filters
-   - Deleted complex MediaPipe face tracking filters (raccoon mask, big eyes, etc.)
+2. **Removed all stat cards from Profile.js:**
+   - Deleted Sessions, Time Spent, Games Played, Games Won cards
+   - Kept only Premium Subscription Status block
+   - Shows "Premium Member" with time remaining OR "Free Plan"
+   - Clean, premium-focused profile page
 
-2. **New face-focused filter set:**
-   - FREE: None, Beauty (soft skin + brightness), Warm Glow (face tone enhancement)
-   - PREMIUM: Cool (blue tone), Vintage (soft sepia), B&W, Soft Glow, Neon (edge glow), Dreamy (cinematic blur)
+3. **Simplified codebase:**
+   - useWebRTC.js now ~350 lines (was ~700 lines)
+   - Match.js now ~600 lines (was ~1000 lines)
+   - No canvas processing pipeline
+   - Direct camera stream to WebRTC
+   - Better stability and performance
 
-3. **Video pipeline fixed:**
-   - camera → canvas → apply CSS filter + overlay → captureStream → WebRTC
-   - BOTH users now see the SAME filtered video
-   - Filter is applied to outgoing WebRTC stream
-
-4. **Performance optimized:**
-   - Uses CSS filters for GPU acceleration
-   - Canvas processing at configurable FPS (15-30 based on performance mode)
-   - Lightweight overlays (vignette, edge glow) for premium effects
-
-**Files Modified:**
-- `/app/frontend/src/utils/faceFilters.js` - Complete rewrite with 9 face-focused filters
-- `/app/frontend/src/config/performanceConfig.js` - Updated CSS filter map
-- `/app/frontend/src/hooks/useWebRTC.js` - Fixed to always use canvas for consistent output
-- `/app/frontend/src/components/match/CameraFilters.jsx` - Updated comments
+**Result:**
+- Match UI is cleaner: video + games + chat only
+- Profile is premium-focused: subscription status only
+- No filter clutter, no performance toggle
+- Simpler, more stable WebRTC calls
 
 ### Google Auth Redirect Loop Fix (March 30, 2025) ✅
 **Issue:** After successful Google sign-in and redirect back to app, users saw "Checking login status..." briefly before being redirected back to /login. The JWT token was not persisting.

@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, User, Mail, Globe, Calendar, Star, Shield,
-  TrendingUp, Clock, Gamepad2, Trophy, Settings, LogOut, Crown
+  Settings, LogOut, Crown
 } from 'lucide-react';
 import SpaceBackground from '@/components/background/SpaceBackground';
 
@@ -26,7 +26,7 @@ const Profile = () => {
       return;
     }
 
-    // Fetch full user data including stats and premium status
+    // Fetch full user data including premium status
     const fetchFullData = async () => {
       try {
         const response = await fetch(`${API_URL}/api/stats/full`, {
@@ -57,16 +57,15 @@ const Profile = () => {
       }
     };
 
-    // Send heartbeat every 30 seconds
     heartbeatRef.current = setInterval(sendHeartbeat, 30000);
-    sendHeartbeat(); // Send immediately
+    sendHeartbeat();
 
     return () => {
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
       }
     };
-  }, [user, navigate, token]);
+  }, [user, navigate, token, authLoading]);
 
   const handleLogout = () => {
     logout();
@@ -84,28 +83,7 @@ const Profile = () => {
     });
   };
 
-  const formatTimeSpent = (seconds) => {
-    if (!seconds || seconds === 0) return '0m';
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) {
-      const hours = Math.floor(seconds / 3600);
-      const mins = Math.floor((seconds % 3600) / 60);
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
-  };
-
-  // Use fullUserData if available, otherwise fall back to user from context
-  const stats = fullUserData?.stats || {
-    total_sessions: user.total_sessions || 0,
-    total_time_spent: user.total_time_spent || 0,
-    games_played: user.games_played || 0,
-    games_won: user.games_won || 0
-  };
-
+  // Premium status from API or user context
   const premium = fullUserData?.premium || {
     is_premium: user.premium_status || false,
     plan_name: null,
@@ -208,90 +186,88 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Premium Subscription Status - Only for premium users */}
-          {premium.is_premium && !isGuest() && (
-            <div className="p-6 bg-gradient-to-r from-[#7c3aed]/20 to-[#4c1d95]/20 backdrop-blur-xl border border-[#7c3aed]/40 rounded-2xl mb-8" data-testid="premium-status-card">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-2xl flex items-center justify-center">
+          {/* Premium Subscription Status - MAIN FOCUS */}
+          <div 
+            className={`p-6 backdrop-blur-xl border rounded-2xl mb-8 ${
+              premium.is_premium 
+                ? 'bg-gradient-to-r from-[#7c3aed]/20 to-[#4c1d95]/20 border-[#7c3aed]/40' 
+                : 'bg-white/5 border-white/10'
+            }`} 
+            data-testid="premium-status-card"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                  premium.is_premium 
+                    ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' 
+                    : 'bg-white/10'
+                }`}>
+                  {premium.is_premium ? (
                     <Crown size={28} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-yellow-400" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                      {premium.plan_name || 'Premium Member'}
-                    </h3>
-                    {premium.is_lifetime ? (
-                      <p className="text-gray-300">Lifetime access - Never expires!</p>
-                    ) : premium.is_expired ? (
-                      <p className="text-red-400">Subscription expired</p>
-                    ) : (
-                      <p className="text-gray-300">
-                        {premium.time_remaining_formatted}
-                        {premium.expiry_date && (
-                          <span className="text-gray-500 ml-2">
-                            (expires {premium.expiry_date})
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
+                  ) : (
+                    <User size={28} className="text-gray-400" />
+                  )}
                 </div>
-                {premium.days_remaining !== null && premium.days_remaining <= 7 && !premium.is_lifetime && !premium.is_expired && (
-                  <span className="px-4 py-2 bg-orange-500/20 text-orange-400 rounded-full text-sm font-bold animate-pulse">
-                    Renew Soon
-                  </span>
-                )}
+                <div>
+                  {premium.is_premium ? (
+                    <>
+                      <h3 className="text-xl font-bold text-yellow-400" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                        {premium.plan_name || 'Premium Member'}
+                      </h3>
+                      {premium.is_lifetime ? (
+                        <p className="text-gray-300">Lifetime access - Never expires!</p>
+                      ) : premium.is_expired ? (
+                        <p className="text-red-400">Subscription expired</p>
+                      ) : (
+                        <p className="text-gray-300">
+                          {premium.time_remaining_formatted || 'Active'}
+                          {premium.expiry_date && (
+                            <span className="text-gray-500 ml-2">
+                              (expires {premium.expiry_date})
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold text-gray-300" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                        Free Plan
+                      </h3>
+                      <p className="text-gray-500">Upgrade to unlock all features</p>
+                    </>
+                  )}
+                </div>
               </div>
-              {premium.auto_renew && !premium.is_lifetime && (
-                <p className="text-sm text-gray-500 mt-3 flex items-center gap-2">
-                  <Shield size={14} />
-                  Auto-renewal enabled
-                </p>
+              
+              {/* Action Buttons */}
+              {!premium.is_premium && (
+                <button
+                  onClick={() => navigate('/premium')}
+                  className="px-6 py-3 bg-gradient-to-r from-[#7c3aed] to-[#4c1d95] rounded-full text-sm font-bold hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] transition-all"
+                  data-testid="upgrade-btn"
+                >
+                  Upgrade Now
+                </button>
+              )}
+              
+              {premium.is_premium && premium.days_remaining !== null && premium.days_remaining <= 7 && !premium.is_lifetime && !premium.is_expired && (
+                <span className="px-4 py-2 bg-orange-500/20 text-orange-400 rounded-full text-sm font-bold animate-pulse">
+                  Renew Soon
+                </span>
+              )}
+              
+              {premium.is_premium && !premium.is_expired && !premium.is_lifetime && premium.days_remaining > 7 && (
+                <Star size={24} className="text-yellow-400 fill-yellow-400" />
               )}
             </div>
-          )}
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" data-testid="stats-grid">
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl text-center" data-testid="sessions-stat">
-              <div className="w-12 h-12 bg-[#7c3aed]/20 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <TrendingUp size={24} className="text-[#7c3aed]" />
-              </div>
-              <p className="text-3xl font-bold mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {stats.total_sessions}
-              </p>
-              <p className="text-gray-400 text-sm">Sessions</p>
-            </div>
             
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl text-center" data-testid="time-spent-stat">
-              <div className="w-12 h-12 bg-[#10b981]/20 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <Clock size={24} className="text-[#10b981]" />
-              </div>
-              <p className="text-3xl font-bold mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {formatTimeSpent(stats.total_time_spent)}
+            {premium.is_premium && premium.auto_renew && !premium.is_lifetime && (
+              <p className="text-sm text-gray-500 mt-3 flex items-center gap-2">
+                <Shield size={14} />
+                Auto-renewal enabled
               </p>
-              <p className="text-gray-400 text-sm">Time Spent</p>
-            </div>
-            
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl text-center" data-testid="games-played-stat">
-              <div className="w-12 h-12 bg-[#f59e0b]/20 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <Gamepad2 size={24} className="text-[#f59e0b]" />
-              </div>
-              <p className="text-3xl font-bold mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {stats.games_played}
-              </p>
-              <p className="text-gray-400 text-sm">Games Played</p>
-            </div>
-            
-            <div className="p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl text-center" data-testid="games-won-stat">
-              <div className="w-12 h-12 bg-[#ec4899]/20 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <Trophy size={24} className="text-[#ec4899]" />
-              </div>
-              <p className="text-3xl font-bold mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {stats.games_won}
-              </p>
-              <p className="text-gray-400 text-sm">Games Won</p>
-            </div>
+            )}
           </div>
 
           {/* Account Details */}
