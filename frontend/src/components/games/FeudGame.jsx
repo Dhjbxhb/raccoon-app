@@ -9,6 +9,7 @@ import '@/styles/games.css';
  * - Both players see the same game state
  * - Backend is source of truth
  * - Supports reconnection with state restoration
+ * - Mobile-optimized keyboard handling
  */
 const FeudGame = memo(({ 
   isOpen, 
@@ -27,11 +28,13 @@ const FeudGame = memo(({
   const [gameEnded, setGameEnded] = useState(initialGameState?.status === 'finished');
   const [winner, setWinner] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   
   const inputRef = useRef(null);
   const feedbackTimer = useRef(null);
   const mountedRef = useRef(true);
   const socketIdRef = useRef(null);
+  const containerRef = useRef(null);
   
   // Track mount state
   useEffect(() => {
