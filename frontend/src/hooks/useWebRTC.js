@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
-import { getFilter, VideoFilterProcessor } from '@/utils/videoFilters';
+import { getFilter, FaceFilterProcessor } from '@/utils/faceFilters';
 
 /**
  * Production-ready WebRTC Hook with Canvas-Based Filter Processing
@@ -84,27 +84,28 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, []);
 
-  // Initialize filter processor
-  const initFilterProcessor = useCallback((video, originalStream) => {
+  // Initialize filter processor with face tracking
+  const initFilterProcessor = useCallback(async (video, originalStream) => {
     // Create canvas if not exists
     if (!filterCanvasRef.current) {
       filterCanvasRef.current = document.createElement('canvas');
     }
     
-    // Initialize processor
+    // Initialize face filter processor
     if (!filterProcessor.current) {
-      filterProcessor.current = new VideoFilterProcessor();
+      filterProcessor.current = new FaceFilterProcessor();
     }
     
-    filterProcessor.current.init(filterCanvasRef.current);
+    // Initialize with canvas and face mesh
+    await filterProcessor.current.init(filterCanvasRef.current);
     filterProcessor.current.setFilter(currentFilter);
     
-    // Start processing
+    // Start processing with face tracking
     filterProcessor.current.startProcessing(video, () => {
-      // Frame processed callback - could add metrics here
+      // Frame processed callback
     });
     
-    // Get the canvas stream (filtered video)
+    // Get the canvas stream (filtered video with face effects)
     const canvasStream = filterProcessor.current.getCanvasStream(30);
     
     // Combine canvas video with original audio
@@ -260,8 +261,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         videoEl.muted = true;
         await videoEl.play();
         
-        // Initialize filter processor with the video element
-        const processedStream = initFilterProcessor(videoEl, stream);
+        // Initialize face filter processor with the video element
+        const processedStream = await initFilterProcessor(videoEl, stream);
         
         const pc = createPeerConnection();
 
@@ -328,13 +329,13 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         stream = await startLocalStream(true, true);
       }
 
-      // Process video with filter
+      // Process video with face filter
       const videoEl = document.createElement('video');
       videoEl.srcObject = stream;
       videoEl.muted = true;
       await videoEl.play();
       
-      const processedStream = initFilterProcessor(videoEl, stream);
+      const processedStream = await initFilterProcessor(videoEl, stream);
 
       // Create or get peer connection
       let connection = pc;

@@ -19,7 +19,7 @@ import TruthOrDare from '@/components/games/TruthOrDare';
 import UnoGame from '@/components/games/UnoGame';
 import CameraFilters from '@/components/match/CameraFilters';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
-import { VIDEO_FILTERS, getCSSFilter } from '@/utils/videoFilters';
+import { FACE_FILTERS, getFilter as getFaceFilter } from '@/utils/faceFilters';
 import '@/styles/match.css';
 import '@/styles/chat.css';
 import '@/styles/filters.css';
@@ -113,11 +113,11 @@ const Match = () => {
   } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
   const isPremium = user?.premium_status;
-  const filterKeys = Object.keys(VIDEO_FILTERS);
+  const filterKeys = Object.keys(FACE_FILTERS);
   
-  // Get live CSS filter style based on current filter
-  const getLiveFilterStyle = useCallback((filterId) => {
-    return getCSSFilter(filterId);
+  // Get filter info for display
+  const getCurrentFilterInfo = useCallback((filterId) => {
+    return getFaceFilter(filterId);
   }, []);
   
   // ========== RESPONSIVE HANDLER ==========
@@ -339,7 +339,7 @@ const Match = () => {
       }
       
       const newFilterKey = filterKeys[newIndex];
-      const filter = VIDEO_FILTERS[newFilterKey];
+      const filter = FACE_FILTERS[newFilterKey];
       
       if (filter?.premium && !isPremium) {
         toast.info('Premium filter - upgrade to unlock');
@@ -645,7 +645,6 @@ const Match = () => {
             playsInline
             muted
             className="video-panel__video video-panel__video--mirrored"
-            style={{ filter: getLiveFilterStyle(currentFilter) }}
           />
           
           {/* My Label */}
@@ -657,8 +656,8 @@ const Match = () => {
           {/* Active Filter Badge */}
           {currentFilter !== 'none' && (
             <div className="video-panel__filter-badge">
-              <span>{VIDEO_FILTERS[currentFilter]?.icon}</span>
-              <span>{VIDEO_FILTERS[currentFilter]?.name}</span>
+              <span>{FACE_FILTERS[currentFilter]?.icon}</span>
+              <span>{FACE_FILTERS[currentFilter]?.name}</span>
             </div>
           )}
 

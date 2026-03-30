@@ -1,17 +1,18 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Crown, X, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
-import { VIDEO_FILTERS, getOrderedFilters, isFilterFree } from '@/utils/videoFilters';
+import { FACE_FILTERS, getOrderedFilters, isFilterFree } from '@/utils/faceFilters';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/filters.css';
 
 /**
- * CameraFilters - Premium Face-Focused Camera Filter Selector
+ * CameraFilters - Real Face Filter Selector (Snapchat/TikTok Style)
  * 
  * RULES:
- * - First 3 filters (None, Beauty, Warm) are FREE
+ * - First 3 filters (None, Beauty, Cute Face) are FREE
  * - All other filters require Premium
- * - Filters are visible to both users (processed via canvas)
+ * - Filters use MediaPipe face tracking
+ * - Filters are visible to both users (processed via canvas + WebRTC)
  * - Swipe/drag to navigate, tap to select
  */
 const CameraFilters = ({
@@ -196,7 +197,7 @@ const CameraFilters = ({
   if (!visible) return null;
   
   const visibleFilters = getVisibleIndices();
-  const currentFilterData = filters[currentIndex] || VIDEO_FILTERS.none;
+  const currentFilterData = filters[currentIndex] || FACE_FILTERS.none;
   const dragOffset = isDragging ? touchDelta * 0.4 : 0;
   const isLocked = currentFilterData.premium && !isPremium;
   
@@ -332,7 +333,7 @@ const CameraFilters = ({
       {!compact && (
         <div className="camera-filters__dots">
           {filterIds.map((id, idx) => {
-            const filter = VIDEO_FILTERS[id];
+            const filter = FACE_FILTERS[id];
             const dotLocked = filter?.premium && !isPremium;
             const dotFree = !filter?.premium && id !== 'none';
             return (
