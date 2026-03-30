@@ -31,6 +31,44 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Complete UNO Rewrite + Family Feud Mobile Fix (March 30, 2025) ✅
+**Full Implementation Completed:**
+
+1. **UnoGame.jsx - Complete Rewrite:**
+   - Backend-controlled multiplayer (100% server authority)
+   - Desktop layout: Opponent cards (top) → Discard/Draw pile (center) → My hand (bottom)
+   - Mobile layout: Same with horizontal scroll for hand
+   - Turn indicator with green glow for active player
+   - Playable cards highlighted with white border + glow
+   - Draw pile clickable with pulse animation when no valid moves
+   - Color picker modal for wild cards
+   - UNO call button with urgent pulse when must call
+   - Special card effect notifications (skip, reverse, +2, +4)
+   - Win/lose screen with play again option
+   - All data-testid attributes for testing
+
+2. **FeudGame.jsx - Mobile Keyboard Fix:**
+   - Uses visualViewport API to detect keyboard
+   - When keyboard visible: score bar hides, padding/fonts reduced
+   - Question and answer board stay visible above keyboard
+   - Input fixed at bottom with safe-area-inset-bottom for iOS
+   - Smooth adaptive layout transitions
+
+3. **Match.js - Game Mode Transitions:**
+   - Videos shrink to mini previews (top-right corner)
+   - Game takes full screen focus with animation
+   - Game mode controls (Report/Skip) remain accessible
+   - Bottom bar and chat hide during games
+   - Clean state reset on match change
+
+4. **match.css - Enhanced Styles:**
+   - .game-fullscreen-container with fade-in animation
+   - .video-panel--mini with proper sizing (mobile/tablet/desktop)
+   - .game-mode-controls floating buttons during games
+   - Slide-in animations for mini videos
+
+**Testing Status:** All frontend components verified via Playwright + code review (iteration_13)
+
 ### Complete UNO Game System Rebuild (March 30, 2025) ✅
 **Issue:** UNO button was small, unreliable, game flow unclear, UI not premium enough.
 
