@@ -84,8 +84,13 @@ const Match = () => {
   
   // ========== GAME STATE MANAGEMENT ==========
   // Single source of truth for active game
-  const [activeGame, setActiveGame] = useState(null); // null | 'feud' | 'truthordare'
+  const [activeGame, setActiveGame] = useState(null); // null | 'feud' | 'truthordare' | 'uno'
   const [gameSessionId, setGameSessionId] = useState(null);
+  
+  // Store actual game state from backend for each game type
+  const [todGameState, setTodGameState] = useState(null);
+  const [feudGameState, setFeudGameState] = useState(null);
+  const [unoGameState, setUnoGameState] = useState(null);
   
   // Premium prompt modal state
   const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
@@ -138,6 +143,9 @@ const Match = () => {
   const resetAllGameState = useCallback(() => {
     setActiveGame(null);
     setGameSessionId(null);
+    setTodGameState(null);
+    setFeudGameState(null);
+    setUnoGameState(null);
     setShowCameraFilters(false);
     setMessageInput('');
     setSessionDuration(0);
@@ -191,6 +199,10 @@ const Match = () => {
       // Both players receive this - open game UI for both
       setActiveGame('feud');
       setGameSessionId(sessionId);
+      // Store the initial game state
+      if (data.game_state) {
+        setFeudGameState(data.game_state);
+      }
     };
     
     const handleTodStarted = (data) => {
@@ -199,6 +211,10 @@ const Match = () => {
       // Both players receive this - open game UI for both
       setActiveGame('truthordare');
       setGameSessionId(sessionId);
+      // Store the initial game state
+      if (data.game_state) {
+        setTodGameState(data.game_state);
+      }
     };
     
     const handleUnoStarted = (data) => {
@@ -207,6 +223,10 @@ const Match = () => {
       // Both players receive this - open UNO game UI for both
       setActiveGame('uno');
       setGameSessionId(sessionId);
+      // Store the initial game state
+      if (data.game_state) {
+        setUnoGameState(data.game_state);
+      }
     };
     
     // ===== GAME END =====
@@ -214,6 +234,7 @@ const Match = () => {
       if (activeGame === 'feud') {
         setActiveGame(null);
         setGameSessionId(null);
+        setFeudGameState(null);
       }
     };
     
@@ -221,6 +242,7 @@ const Match = () => {
       if (activeGame === 'truthordare') {
         setActiveGame(null);
         setGameSessionId(null);
+        setTodGameState(null);
       }
     };
     
@@ -228,6 +250,7 @@ const Match = () => {
       if (activeGame === 'uno') {
         setActiveGame(null);
         setGameSessionId(null);
+        setUnoGameState(null);
       }
     };
     
@@ -764,6 +787,7 @@ const Match = () => {
                 myUserId={user?.user_id || user?.guest_id}
                 partnerUsername={partner?.username || 'Stranger'}
                 sessionId={sessionId}
+                initialGameState={feudGameState}
               />
             </div>
           )}
@@ -778,6 +802,7 @@ const Match = () => {
                 partnerUsername={partner?.username || 'Stranger'}
                 sessionId={sessionId}
                 isMobile={isMobile}
+                initialGameState={todGameState}
               />
             </div>
           )}
@@ -792,6 +817,7 @@ const Match = () => {
                 partnerUsername={partner?.username || 'Stranger'}
                 sessionId={sessionId}
                 isMobile={isMobile}
+                initialGameState={unoGameState}
               />
             </div>
           )}
