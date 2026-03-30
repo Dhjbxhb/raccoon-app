@@ -30,7 +30,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, user, loading: authLoading } = useAuth();
+  const { login, user, loading: authLoading, finishAuthCheck } = useAuth();
   
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
@@ -48,14 +48,18 @@ const Login = () => {
     }
     
     syncDone.current = true;
-    console.log('=== SYNCING FIREBASE USER WITH BACKEND ===');
+    
+    // User-requested debug logs
+    console.log('=== FIREBASE USER DETECTED ===');
+    console.log('Firebase user detected', firebaseUser);
     console.log('Email:', firebaseUser.email);
     console.log('UID:', firebaseUser.uid);
+    console.log('Provider:', firebaseUser.providerData?.[0]?.providerId);
     
     try {
       // Get fresh ID token
       const idToken = await firebaseUser.getIdToken(true);
-      console.log('Got Firebase ID token, calling backend...');
+      console.log('Got Firebase ID token, calling /api/auth/google...');
       
       // Call backend
       const response = await axios.post(`${API_URL}/auth/google`, {
@@ -67,42 +71,66 @@ const Login = () => {
         browser_locale: getBrowserLocale()
       });
       
+      // User-requested debug logs
       console.log('=== BACKEND RESPONSE ===');
-      console.log('Token received:', response.data.token ? 'YES' : 'NO');
+      console.log('Token received from backend', response.data.token);
       console.log('User:', response.data.user?.username);
       
       if (!response.data.token) {
-        console.error('No token in response!');
+        console.error('ERROR: No token in backend response!');
         syncDone.current = false;
         toast.error('Login failed - no token');
+        setCheckingRedirect(false);
+        setSocialLoading(null);
         return false;
       }
       
-      // CRITICAL: Save JWT to localStorage
-      console.log('Saving JWT to localStorage...');
+      // CRITICAL STEP 1: Save JWT to localStorage BEFORE anything else
+      console.log('STEP 1: Saving JWT to localStorage...');
       localStorage.setItem(TOKEN_KEY, response.data.token);
-      console.log('JWT SAVED:', localStorage.getItem(TOKEN_KEY) ? 'YES' : 'NO');
       
-      // Update auth context
-      console.log('Updating auth context...');
+      // Verify save was successful
+      const savedToken = localStorage.getItem(TOKEN_KEY);
+      console.log('Token saved to localStorage');
+      console.log('Verification - Token in localStorage:', savedToken ? 'YES (length: ' + savedToken.length + ')' : 'NO');
+      
+      if (!savedToken) {
+        console.error('CRITICAL ERROR: Failed to save token to localStorage!');
+        syncDone.current = false;
+        toast.error('Login failed - storage error');
+        setCheckingRedirect(false);
+        setSocialLoading(null);
+        return false;
+      }
+      
+      // CRITICAL STEP 2: Update auth context
+      console.log('STEP 2: Updating auth context...');
+      console.log('User state set');
       login(response.data.token, response.data.user);
       
-      // Clear pending flags
+      // CRITICAL STEP 3: Clear pending flags AFTER success
+      console.log('STEP 3: Clearing Google auth pending flags...');
       clearGoogleAuthPending();
       
       // Show success
       toast.success(`Welcome, ${response.data.user.username}!`);
       
-      // Redirect
+      // CRITICAL STEP 4: Redirect ONLY after everything is saved
       const destination = response.data.user.age_verified ? '/dashboard' : '/verify-age';
-      console.log('Redirecting to:', destination);
-      navigate(destination, { replace: true });
+      console.log('STEP 4: Redirecting to:', destination);
+      
+      // Small delay to ensure state is propagated
+      setTimeout(() => {
+        navigate(destination, { replace: true });
+      }, 100);
       
       return true;
     } catch (error) {
       console.error('Backend sync error:', error.response?.data || error.message);
       syncDone.current = false;
       clearGoogleAuthPending();
+      setCheckingRedirect(false);
+      setSocialLoading(null);
       toast.error(getErrorMessage(error));
       return false;
     }
@@ -112,13 +140,15 @@ const Login = () => {
   useEffect(() => {
     const checkGoogleRedirect = async () => {
       console.log('=== LOGIN PAGE MOUNTED ===');
+      console.log('authLoading:', authLoading);
+      console.log('checkingRedirect:', checkingRedirect);
       
       // Already logged in?
       const existingToken = localStorage.getItem(TOKEN_KEY);
-      console.log('Existing token:', existingToken ? 'YES' : 'NO');
+      console.log('Existing token in localStorage:', existingToken ? 'YES' : 'NO');
       
       if (existingToken && user) {
-        console.log('Already logged in, redirecting...');
+        console.log('Already logged in with token AND user, redirecting...');
         navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
         setCheckingRedirect(false);
         return;
@@ -126,43 +156,55 @@ const Login = () => {
       
       // Check if returning from Google redirect
       const wasPending = isGoogleAuthPending();
-      console.log('Google auth pending:', wasPending);
+      console.log('Google auth pending flag:', wasPending);
       
       if (wasPending) {
+        console.log('=== HANDLING GOOGLE REDIRECT ===');
         setSocialLoading('google');
         
         try {
-          console.log('Handling Google redirect...');
+          console.log('Step 1: Calling handleGoogleRedirect()...');
           const firebaseUser = await handleGoogleRedirect();
           
           if (firebaseUser) {
-            console.log('Firebase user found:', firebaseUser.email);
+            console.log('Step 2: Firebase user found from redirect');
+            console.log('Firebase user detected', firebaseUser);
             await syncWithBackend(firebaseUser);
           } else {
-            console.log('No Firebase user from redirect');
+            console.log('No Firebase user from redirect - redirect may have failed');
             setSocialLoading(null);
             setCheckingRedirect(false);
+            // Signal AuthContext that Google auth check is done (no user found)
+            if (finishAuthCheck) finishAuthCheck();
           }
         } catch (error) {
           console.error('Google redirect error:', error);
           setSocialLoading(null);
           setCheckingRedirect(false);
+          // Signal AuthContext that Google auth check is done (error)
+          if (finishAuthCheck) finishAuthCheck();
           
           if (error.code === 'auth/unauthorized-domain') {
             toast.error('Domain not authorized in Firebase Console');
           } else {
-            toast.error('Google login failed');
+            toast.error('Google login failed: ' + (error.message || 'Unknown error'));
           }
         }
       } else {
+        console.log('No pending Google auth, showing login form');
         setCheckingRedirect(false);
+        // Signal AuthContext that there was no pending auth to handle
+        if (finishAuthCheck) finishAuthCheck();
       }
     };
     
-    if (!authLoading) {
+    // Only run once authLoading is resolved OR if there's pending Google auth
+    // This ensures we don't wait forever if AuthContext is waiting for us
+    const pendingAuth = isGoogleAuthPending();
+    if (!authLoading || pendingAuth) {
       checkGoogleRedirect();
     }
-  }, [authLoading, user, navigate, syncWithBackend]);
+  }, [authLoading, user, navigate, syncWithBackend, finishAuthCheck]);
 
   // Form handlers
   const handleFieldChange = useCallback((field, value) => {

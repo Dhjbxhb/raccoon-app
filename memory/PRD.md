@@ -31,6 +31,36 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Google Auth Redirect Loop Fix (March 30, 2025) ✅
+**Issue:** After successful Google sign-in and redirect back to app, users saw "Checking login status..." briefly before being redirected back to /login. The JWT token was not persisting.
+
+**Root Cause:** Race condition between AuthContext setting `loading=false` with `user=null` and Login.js completing the Google redirect flow. ProtectedRoute would see `!user` and redirect to /login before the token was saved.
+
+**Fix Applied:**
+
+1. **AuthContext.js:**
+   - Added `isGoogleAuthPending()` check during initialization
+   - If no token but Google auth pending: keeps `loading=true` and waits
+   - Added `finishAuthCheck()` method for Login.js to signal when done
+
+2. **Login.js:**
+   - Step-by-step token saving with verification:
+     - STEP 1: Save JWT to localStorage
+     - STEP 2: Verify save was successful
+     - STEP 3: Update auth context via `login()`
+     - STEP 4: Clear pending flags
+     - STEP 5: Redirect after 100ms delay
+   - Calls `finishAuthCheck()` when redirect handling completes (success or fail)
+   - Added user-requested debug logs:
+     - `console.log('Firebase user detected', user)`
+     - `console.log('Token received from backend', token)`
+     - `console.log('Token saved to localStorage')`
+     - `console.log('User state set')`
+
+**Files Modified:**
+- `/app/frontend/src/contexts/AuthContext.js`
+- `/app/frontend/src/pages/Login.js`
+
 ### Performance Optimization (March 30, 2025) ✅
 **Task:** Maximum code-level performance optimization without paid services.
 

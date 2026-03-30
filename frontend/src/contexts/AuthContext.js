@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { isTokenValid, TOKEN_KEY } from '@/utils/auth';
 
@@ -6,12 +6,28 @@ const AuthContext = createContext();
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
+// Check if Google auth is pending (redirect in progress)
+const isGoogleAuthPending = () => {
+  const pending = localStorage.getItem('googleAuthPending') === 'true';
+  const timestamp = localStorage.getItem('googleAuthTimestamp');
+  
+  // Stale if older than 5 minutes
+  if (pending && timestamp && Date.now() - parseInt(timestamp) > 5 * 60 * 1000) {
+    localStorage.removeItem('googleAuthPending');
+    localStorage.removeItem('googleAuthTimestamp');
+    return false;
+  }
+  
+  return pending;
+};
+
 export const AuthProvider = ({ children }) => {
   // Initialize state from localStorage immediately
   const [token, setToken] = useState(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     console.log('=== AUTH CONTEXT INIT ===');
     console.log('Stored token:', storedToken ? 'EXISTS (' + storedToken.substring(0, 20) + '...)' : 'NULL');
+    console.log('Google auth pending:', isGoogleAuthPending());
     
     if (storedToken && isTokenValid(storedToken)) {
       console.log('Token is valid');
@@ -27,8 +43,10 @@ export const AuthProvider = ({ children }) => {
   });
   
   const [user, setUser] = useState(null);
+  // CRITICAL: If Google auth is pending, keep loading=true until Login.js handles it
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const authCheckDone = useRef(false);
 
   // Fetch user data from backend using JWT token
   const fetchCurrentUser = useCallback(async () => {
@@ -37,6 +55,14 @@ export const AuthProvider = ({ children }) => {
     // Get token from localStorage (source of truth)
     const currentToken = localStorage.getItem(TOKEN_KEY);
     console.log('Token from localStorage:', currentToken ? 'EXISTS' : 'NULL');
+    
+    // CRITICAL: If Google auth is pending, DON'T set loading=false yet
+    // Let Login.js handle the redirect result first
+    if (!currentToken && isGoogleAuthPending()) {
+      console.log('No token but Google auth pending - waiting for redirect handler');
+      // Keep loading=true, Login.js will handle auth
+      return;
+    }
     
     if (!currentToken) {
       console.log('No token, user is not logged in');
@@ -85,6 +111,8 @@ export const AuthProvider = ({ children }) => {
 
   // Fetch user on mount
   useEffect(() => {
+    if (authCheckDone.current) return;
+    authCheckDone.current = true;
     fetchCurrentUser();
   }, [fetchCurrentUser]);
 
@@ -96,6 +124,12 @@ export const AuthProvider = ({ children }) => {
       await fetchCurrentUser();
     }
   }, [fetchCurrentUser]);
+
+  // Called by Login.js when Google auth redirect is handled (success or fail)
+  const finishAuthCheck = useCallback(() => {
+    console.log('=== AUTH CHECK FINISHED ===');
+    setLoading(false);
+  }, []);
 
   // Login - save token and user data
   const login = useCallback((newToken, userData) => {
@@ -121,7 +155,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     setLoading(false);
     
-    console.log('Login complete');
+    console.log('Login complete - user state updated');
   }, []);
 
   // Guest login via backend
@@ -180,7 +214,8 @@ export const AuthProvider = ({ children }) => {
     error,
     isGuest,
     isAuthenticated,
-    refreshUser
+    refreshUser,
+    finishAuthCheck
   };
 
   return (
