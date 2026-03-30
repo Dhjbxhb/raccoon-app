@@ -8,7 +8,7 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Loader2, Trophy, 
-  Sparkles, Filter, X, MessageCircle, Crown
+  Sparkles, Filter, X, MessageCircle, Crown, Zap
 } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
@@ -20,6 +20,7 @@ import UnoGame from '@/components/games/UnoGame';
 import CameraFilters from '@/components/match/CameraFilters';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import { FACE_FILTERS, getFilter as getFaceFilter } from '@/utils/faceFilters';
+import { PERFORMANCE_MODES, getCSSFilter } from '@/config/performanceConfig';
 import '@/styles/match.css';
 import '@/styles/chat.css';
 import '@/styles/filters.css';
@@ -109,7 +110,11 @@ const Match = () => {
     currentFilter,
     endCall,
     changeFilter,
-    getFilterStyle
+    getFilterStyle,
+    performanceMode,
+    setPerformanceMode,
+    useCSSFilter,
+    perfSettings
   } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
   const isPremium = user?.premium_status;
@@ -645,6 +650,7 @@ const Match = () => {
             playsInline
             muted
             className="video-panel__video video-panel__video--mirrored"
+            style={useCSSFilter && currentFilter !== 'none' ? { filter: getCSSFilter(currentFilter) } : undefined}
           />
           
           {/* My Label */}
@@ -691,6 +697,22 @@ const Match = () => {
               ← Swipe for filters →
             </div>
           )}
+          
+          {/* Performance Mode Indicator */}
+          <button
+            onClick={() => {
+              const modes = ['high', 'balanced', 'performance', 'low'];
+              const currentIndex = modes.indexOf(performanceMode);
+              const nextIndex = (currentIndex + 1) % modes.length;
+              setPerformanceMode(modes[nextIndex]);
+              toast.info(`Performance: ${PERFORMANCE_MODES[modes[nextIndex]].name}`);
+            }}
+            className="absolute bottom-2 right-2 p-2 bg-black/50 rounded-lg hover:bg-black/70 transition-all z-10"
+            title={`Performance Mode: ${perfSettings?.name || 'Balanced'}`}
+            data-testid="performance-mode-toggle"
+          >
+            <Zap size={16} className={performanceMode === 'high' ? 'text-yellow-400' : performanceMode === 'low' ? 'text-red-400' : 'text-green-400'} />
+          </button>
 
           {/* ===== GAME OVERLAY ZONE (MY SIDE ONLY) ===== */}
           {/* Games overlay my video panel - stranger always visible */}

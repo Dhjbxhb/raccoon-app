@@ -1,22 +1,32 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
 import { getFilter, FaceFilterProcessor } from '@/utils/faceFilters';
+import { 
+  getAutoPerformanceMode, 
+  PERFORMANCE_MODES, 
+  applyBitrateConstraints,
+  cleanupStream,
+  getCSSFilter,
+  canUseCSSFilter,
+  throttle
+} from '@/config/performanceConfig';
 
 /**
- * Production-ready WebRTC Hook with Canvas-Based Filter Processing
+ * OPTIMIZED WebRTC Hook with Performance Mode Support
  * 
- * CRITICAL: Filters are applied via canvas processing, so the filtered
- * video is sent to the remote peer (both users see the filter).
- * 
- * Features:
- * - Canvas-based video filter processing
- * - Filtered stream sent to remote peer
- * - Polite peer pattern for connection
- * - ICE candidate queuing
- * - Auto-start on match
- * - Connection state monitoring
+ * Optimizations:
+ * - Auto performance mode detection
+ * - Bitrate control based on device capabilities
+ * - CSS filters for GPU acceleration when possible
+ * - Reduced canvas processing in performance mode
+ * - Memory leak prevention
+ * - Throttled state updates
  */
 export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
+  // Performance mode state
+  const [performanceMode, setPerformanceMode] = useState(() => getAutoPerformanceMode());
+  const performanceModeRef = useRef(performanceMode);
+  
   // State
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
@@ -25,6 +35,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const [connectionState, setConnectionState] = useState('disconnected');
   const [error, setError] = useState(null);
   const [currentFilter, setCurrentFilter] = useState('none');
+  const [useCSSFilter, setUseCSSFilter] = useState(true);
   
   // Refs
   const peerConnection = useRef(null);
@@ -47,6 +58,17 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   const mountedRef = useRef(true);
   const socketIdRef = useRef(null);
   const localStreamRef = useRef(null);
+  const hiddenVideoRef = useRef(null); // Hidden video for filter processing
+
+  // Get current performance settings
+  const perfSettings = useMemo(() => {
+    return PERFORMANCE_MODES[performanceMode] || PERFORMANCE_MODES.balanced;
+  }, [performanceMode]);
+
+  // Update performance mode ref
+  useEffect(() => {
+    performanceModeRef.current = performanceMode;
+  }, [performanceMode]);
 
   // Determine if this peer is "polite" (receiver) or "impolite" (offerer)
   const isPolite = useCallback(() => {
@@ -79,36 +101,51 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       filterProcessor.current = null;
     }
     if (filteredStream.current) {
-      filteredStream.current.getTracks().forEach(track => track.stop());
+      cleanupStream(filteredStream.current);
       filteredStream.current = null;
+    }
+    if (hiddenVideoRef.current) {
+      hiddenVideoRef.current.srcObject = null;
+      hiddenVideoRef.current = null;
     }
   }, []);
 
-  // Initialize filter processor with face tracking
+  // Initialize filter processor with face tracking (or CSS-only mode)
   const initFilterProcessor = useCallback(async (video, originalStream) => {
-    // Create canvas if not exists
+    const mode = performanceModeRef.current;
+    const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
+    
+    // Check if we can use CSS-only filter (GPU accelerated)
+    const shouldUseCSSOnly = canUseCSSFilter(currentFilter, mode);
+    setUseCSSFilter(shouldUseCSSOnly);
+    
+    // In CSS-only mode, just return the original stream
+    if (shouldUseCSSOnly || currentFilter === 'none') {
+      filteredStream.current = originalStream;
+      return originalStream;
+    }
+    
+    // Face tracking mode (canvas processing)
     if (!filterCanvasRef.current) {
       filterCanvasRef.current = document.createElement('canvas');
     }
     
-    // Initialize face filter processor
     if (!filterProcessor.current) {
       filterProcessor.current = new FaceFilterProcessor();
     }
     
-    // Initialize with canvas and face mesh
+    // Initialize with performance-optimized FPS
     await filterProcessor.current.init(filterCanvasRef.current);
     filterProcessor.current.setFilter(currentFilter);
+    filterProcessor.current.targetFPS = settings.filterFPS;
     
-    // Start processing with face tracking
-    filterProcessor.current.startProcessing(video, () => {
-      // Frame processed callback
-    });
+    // Start processing
+    filterProcessor.current.startProcessing(video, () => {});
     
-    // Get the canvas stream (filtered video with face effects)
-    const canvasStream = filterProcessor.current.getCanvasStream(30);
+    // Get canvas stream with optimized FPS
+    const canvasStream = filterProcessor.current.getCanvasStream(settings.filterFPS);
     
-    // Combine canvas video with original audio
+    // Combine with audio
     const audioTracks = originalStream.getAudioTracks();
     const newStream = new MediaStream([
       ...canvasStream.getVideoTracks(),
@@ -198,19 +235,31 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     return pc;
   }, [socket, sessionId, cleanupPeerConnection]);
 
-  // Get user media with proper constraints
+  // Get user media with OPTIMIZED constraints
   const startLocalStream = useCallback(async (video = true, audio = true) => {
     try {
       // Stop any existing stream first
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
+        cleanupStream(localStreamRef.current);
         localStreamRef.current = null;
       }
       cleanupFilterProcessor();
 
-      const constraints = getMediaConstraints();
-      if (!video) constraints.video = false;
-      if (!audio) constraints.audio = false;
+      // Use performance-optimized constraints
+      const mode = performanceModeRef.current;
+      const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
+      
+      const constraints = {
+        video: video ? {
+          ...settings.video,
+          facingMode: 'user'
+        } : false,
+        audio: audio ? {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } : false
+      };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
@@ -221,7 +270,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         setIsAudioEnabled(audio && stream.getAudioTracks().length > 0);
       }
 
-      // Display unfiltered stream locally for preview
+      // Display stream locally for preview
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
@@ -233,43 +282,51 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       if (!mountedRef.current) return null;
       
       if (err.name === 'NotAllowedError') {
-        setError('Camera/microphone access denied. Please grant permissions and try again.');
+        setError('Camera/microphone access denied.');
       } else if (err.name === 'NotFoundError') {
-        setError('No camera or microphone found. Please connect a device.');
+        setError('No camera or microphone found.');
       } else if (err.name === 'NotReadableError') {
-        setError('Camera/microphone is already in use by another application.');
+        setError('Camera/microphone is already in use.');
       } else {
-        setError('Could not access camera/microphone. Please check permissions.');
+        setError('Could not access camera/microphone.');
       }
       throw err;
     }
   }, [cleanupFilterProcessor]);
 
-  // Start the call with filtered video
+  // Start the call with OPTIMIZED video
   const startCall = useCallback(async () => {
     try {
       setError(null);
       setConnectionState('connecting');
       
       const stream = await startLocalStream(true, true);
+      if (!stream) return;
       
-      // Wait for video to be ready
+      // Get video track
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
-        const videoEl = document.createElement('video');
-        videoEl.srcObject = stream;
-        videoEl.muted = true;
-        await videoEl.play();
+        // Create hidden video element for filter processing
+        if (!hiddenVideoRef.current) {
+          hiddenVideoRef.current = document.createElement('video');
+          hiddenVideoRef.current.muted = true;
+          hiddenVideoRef.current.playsInline = true;
+        }
+        hiddenVideoRef.current.srcObject = stream;
+        await hiddenVideoRef.current.play();
         
-        // Initialize face filter processor with the video element
-        const processedStream = await initFilterProcessor(videoEl, stream);
+        // Initialize filter processor (may use CSS-only in performance mode)
+        const processedStream = await initFilterProcessor(hiddenVideoRef.current, stream);
         
         const pc = createPeerConnection();
 
-        // Add filtered tracks to peer connection
+        // Add tracks to peer connection
         processedStream.getTracks().forEach(track => {
           pc.addTrack(track, processedStream);
         });
+
+        // Apply bitrate constraints for performance
+        await applyBitrateConstraints(pc, performanceModeRef.current);
 
         // Create and send offer
         makingOffer.current = true;
@@ -560,16 +617,25 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       mountedRef.current = false;
       cleanupFilterProcessor();
       
+      // Clean up local stream
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
+        cleanupStream(localStreamRef.current);
         localStreamRef.current = null;
       }
       
+      // Clean up hidden video
+      if (hiddenVideoRef.current) {
+        hiddenVideoRef.current.srcObject = null;
+        hiddenVideoRef.current = null;
+      }
+      
+      // Clean up peer connection
       if (peerConnection.current) {
         peerConnection.current.close();
         peerConnection.current = null;
       }
       
+      // Clear timeout
       if (connectionTimeout.current) {
         clearTimeout(connectionTimeout.current);
         connectionTimeout.current = null;
@@ -605,6 +671,12 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     connectionState,
     error,
     currentFilter,
+    
+    // Performance mode
+    performanceMode,
+    setPerformanceMode,
+    useCSSFilter,
+    perfSettings,
     
     // Actions
     startCall,

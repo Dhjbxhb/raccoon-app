@@ -314,6 +314,12 @@ export class FaceFilterProcessor {
     this.targetFPS = 30;
     this.frameInterval = 1000 / this.targetFPS;
     
+    // Reduce FaceMesh calls - process every Nth frame
+    this.faceMeshFrameSkip = 2; // Process face every 2 frames
+    this.frameCount = 0;
+    this.lastFaceMeshTime = 0;
+    this.faceMeshInterval = 50; // Min 50ms between face mesh calls
+    
     // Cached overlay images
     this.overlayImages = {};
   }
@@ -371,13 +377,14 @@ export class FaceFilterProcessor {
     }
   }
 
-  // Main processing loop
+  // Main processing loop with OPTIMIZED frame handling
   async startProcessing(video, onFrame) {
     if (this.isProcessing) return;
     
     this.isProcessing = true;
     this.videoElement = video;
     this.onFrameCallback = onFrame;
+    this.frameCount = 0;
 
     const processFrame = async (timestamp) => {
       if (!this.isProcessing) return;
@@ -386,8 +393,9 @@ export class FaceFilterProcessor {
       const elapsed = timestamp - this.lastFrameTime;
       if (elapsed >= this.frameInterval) {
         this.lastFrameTime = timestamp;
+        this.frameCount++;
         
-        await this.processVideoFrame();
+        await this.processVideoFrame(timestamp);
         this.onFrameCallback?.();
       }
 
@@ -397,7 +405,7 @@ export class FaceFilterProcessor {
     this.animationFrame = requestAnimationFrame(processFrame);
   }
 
-  async processVideoFrame() {
+  async processVideoFrame(timestamp) {
     if (!this.canvas || !this.ctx || !this.videoElement) return;
 
     const video = this.videoElement;
@@ -417,8 +425,14 @@ export class FaceFilterProcessor {
     // If no filter, just return
     if (this.currentFilter === 'none') return;
 
-    // Send frame to face mesh for processing (async)
-    if (this.faceMesh && this.isInitialized) {
+    // OPTIMIZATION: Only call FaceMesh every Nth frame and with minimum interval
+    const shouldProcessFace = this.faceMesh && 
+                              this.isInitialized && 
+                              (this.frameCount % this.faceMeshFrameSkip === 0) &&
+                              (timestamp - this.lastFaceMeshTime >= this.faceMeshInterval);
+    
+    if (shouldProcessFace) {
+      this.lastFaceMeshTime = timestamp;
       try {
         await this.faceMesh.send({ image: video });
       } catch (e) {
@@ -426,7 +440,7 @@ export class FaceFilterProcessor {
       }
     }
 
-    // Apply filter effects based on landmarks
+    // Apply filter effects based on cached landmarks
     const filter = getFilter(this.currentFilter);
     
     if (this.landmarks) {
