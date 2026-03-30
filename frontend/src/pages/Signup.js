@@ -12,7 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, signInAnonymousUser, getGoogleRedirectResult } from '@/services/firebase.service';
+import { isFirebaseReady, signInWithGoogle, handleGoogleRedirect, clearGoogleAuthPending, isGoogleAuthPending } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
   getErrorMessage,
@@ -54,13 +54,21 @@ const Signup = () => {
   // Handle Google redirect result on page load
   useEffect(() => {
     const handleRedirectResult = async () => {
-      if (!firebaseReady) return;
+      if (!firebaseReady || !isGoogleAuthPending()) return;
       
       try {
         setSocialLoading('google');
-        const userData = await getGoogleRedirectResult();
-        if (userData) {
-          await syncSocialAuth(userData);
+        const firebaseUser = await handleGoogleRedirect();
+        if (firebaseUser) {
+          const idToken = await firebaseUser.getIdToken(true);
+          await syncSocialAuth({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            provider: 'google',
+            idToken: idToken
+          });
         }
       } catch (error) {
         console.error('Google redirect error:', error);

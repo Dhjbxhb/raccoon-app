@@ -14,7 +14,8 @@ let auth = null;
 let googleProvider = null;
 let initDone = false;
 let authStateListeners = [];
-let lastKnownUser = null; // Cache the last auth state
+let authStateResolved = false;
+let currentFirebaseUser = null;
 
 // Initialize synchronously
 if (isFirebaseConfigured()) {
@@ -39,12 +40,12 @@ if (isFirebaseConfigured()) {
     
     // Set up global auth state listener
     onAuthStateChanged(auth, (user) => {
-      console.log('=== AUTH STATE CHANGED ===');
+      console.log('=== FIREBASE AUTH STATE CHANGED ===');
       console.log('User:', user ? user.email : 'null');
-      console.log('Is anonymous:', user?.isAnonymous);
+      console.log('Provider:', user?.providerData?.[0]?.providerId || 'none');
       
-      // Cache the user for late subscribers
-      lastKnownUser = user;
+      currentFirebaseUser = user;
+      authStateResolved = true;
       
       // Notify all listeners
       authStateListeners.forEach(listener => {
@@ -61,18 +62,37 @@ if (isFirebaseConfigured()) {
   }
 }
 
-// Add auth state listener - immediately calls with cached user if available
+// Wait for auth state to be resolved
+export const waitForAuthState = () => {
+  return new Promise((resolve) => {
+    if (authStateResolved) {
+      resolve(currentFirebaseUser);
+      return;
+    }
+    
+    const checkInterval = setInterval(() => {
+      if (authStateResolved) {
+        clearInterval(checkInterval);
+        resolve(currentFirebaseUser);
+      }
+    }, 100);
+    
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      resolve(currentFirebaseUser);
+    }, 5000);
+  });
+};
+
+// Add auth state listener
 export const addAuthStateListener = (callback) => {
   authStateListeners.push(callback);
   
-  // Immediately fire with cached user if we already have one
-  if (lastKnownUser !== null) {
-    console.log('Firing listener immediately with cached user:', lastKnownUser?.email);
-    try {
-      callback(lastKnownUser);
-    } catch (e) {
-      console.error('Auth listener immediate fire error:', e);
-    }
+  // If auth state is already resolved, fire immediately
+  if (authStateResolved && currentFirebaseUser) {
+    console.log('Auth already resolved, firing listener with:', currentFirebaseUser?.email);
+    setTimeout(() => callback(currentFirebaseUser), 0);
   }
   
   // Return unsubscribe function
@@ -87,82 +107,75 @@ export const signInWithGoogle = async () => {
     throw new Error('Firebase not initialized');
   }
   
-  console.log('Starting Google redirect...');
-  // Use localStorage instead of sessionStorage - survives cross-origin redirects
+  console.log('=== STARTING GOOGLE REDIRECT ===');
   localStorage.setItem('googleAuthPending', 'true');
   localStorage.setItem('googleAuthTimestamp', Date.now().toString());
   
   await signInWithRedirect(auth, googleProvider);
 };
 
-// Handle redirect result  
-export const getGoogleRedirectResult = async () => {
-  if (!auth) return null;
+// Handle redirect result - MUST be called on page load
+export const handleGoogleRedirect = async () => {
+  if (!auth) {
+    console.log('Auth not initialized');
+    return null;
+  }
+  
+  const wasPending = localStorage.getItem('googleAuthPending') === 'true';
+  const timestamp = localStorage.getItem('googleAuthTimestamp');
+  
+  console.log('=== CHECKING GOOGLE REDIRECT ===');
+  console.log('Was pending:', wasPending);
+  console.log('Timestamp:', timestamp);
+  
+  // Check if stale
+  if (timestamp && Date.now() - parseInt(timestamp) > 5 * 60 * 1000) {
+    console.log('Auth pending flag is stale, clearing');
+    clearGoogleAuthPending();
+    return null;
+  }
+  
+  if (!wasPending) {
+    console.log('No pending redirect');
+    return null;
+  }
   
   try {
-    const wasPending = localStorage.getItem('googleAuthPending');
-    const timestamp = localStorage.getItem('googleAuthTimestamp');
-    console.log('Checking redirect, pending:', wasPending, 'timestamp:', timestamp);
-    
-    // Clear the pending flag if it's stale (older than 5 minutes)
-    if (timestamp && Date.now() - parseInt(timestamp) > 5 * 60 * 1000) {
-      console.log('Auth pending flag is stale, clearing');
-      localStorage.removeItem('googleAuthPending');
-      localStorage.removeItem('googleAuthTimestamp');
-      return null;
-    }
-    
-    // First try getRedirectResult
+    // Try getRedirectResult first
+    console.log('Calling getRedirectResult...');
     const result = await getRedirectResult(auth);
-    console.log('getRedirectResult:', result ? 'found user: ' + result.user?.email : 'null');
-    
-    // Clear pending flags on success
-    localStorage.removeItem('googleAuthPending');
-    localStorage.removeItem('googleAuthTimestamp');
     
     if (result?.user) {
-      return await extractUserData(result.user);
+      console.log('=== GOT USER FROM getRedirectResult ===');
+      console.log('Email:', result.user.email);
+      clearGoogleAuthPending();
+      return result.user;
     }
     
-    // Fallback: check currentUser
-    if (auth.currentUser && !auth.currentUser.isAnonymous) {
-      console.log('Using currentUser fallback:', auth.currentUser.email);
-      return await extractUserData(auth.currentUser);
+    console.log('getRedirectResult returned null, waiting for auth state...');
+    
+    // Wait for auth state to resolve
+    const user = await waitForAuthState();
+    
+    if (user && !user.isAnonymous) {
+      const isGoogleUser = user.providerData?.some(p => p.providerId === 'google.com');
+      if (isGoogleUser) {
+        console.log('=== GOT USER FROM AUTH STATE ===');
+        console.log('Email:', user.email);
+        clearGoogleAuthPending();
+        return user;
+      }
     }
     
+    console.log('No Google user found');
+    clearGoogleAuthPending();
     return null;
+    
   } catch (error) {
-    console.error('getRedirectResult error:', error);
-    localStorage.removeItem('googleAuthPending');
-    localStorage.removeItem('googleAuthTimestamp');
+    console.error('handleGoogleRedirect error:', error);
+    clearGoogleAuthPending();
     throw error;
   }
-};
-
-// Extract user data helper
-const extractUserData = async (user) => {
-  const idToken = await user.getIdToken(true);
-  return {
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName,
-    photoURL: user.photoURL,
-    provider: 'google',
-    idToken: idToken,
-  };
-};
-
-// Get current user if available
-export const getCurrentUser = async () => {
-  if (!auth || !auth.currentUser || auth.currentUser.isAnonymous) {
-    return null;
-  }
-  return await extractUserData(auth.currentUser);
-};
-
-// Get cached Firebase user (synchronous)
-export const getCachedFirebaseUser = () => {
-  return lastKnownUser;
 };
 
 // Sign Out
@@ -182,11 +195,8 @@ export const isGoogleAuthPending = () => {
   const pending = localStorage.getItem('googleAuthPending') === 'true';
   const timestamp = localStorage.getItem('googleAuthTimestamp');
   
-  // Consider stale if older than 5 minutes
   if (pending && timestamp && Date.now() - parseInt(timestamp) > 5 * 60 * 1000) {
-    console.log('Google auth pending flag is stale, clearing');
-    localStorage.removeItem('googleAuthPending');
-    localStorage.removeItem('googleAuthTimestamp');
+    clearGoogleAuthPending();
     return false;
   }
   
@@ -197,6 +207,11 @@ export const isGoogleAuthPending = () => {
 export const clearGoogleAuthPending = () => {
   localStorage.removeItem('googleAuthPending');
   localStorage.removeItem('googleAuthTimestamp');
+};
+
+// Get current user
+export const getCurrentUser = () => {
+  return auth?.currentUser || currentFirebaseUser;
 };
 
 export { auth };
