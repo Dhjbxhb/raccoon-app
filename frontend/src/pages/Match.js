@@ -413,7 +413,15 @@ const Match = () => {
   // ========== GAME CONTROL FUNCTIONS ==========
   // Start game - emits to backend, waits for confirmation
   const startGame = useCallback((gameType) => {
+    console.log('=== START GAME CLICKED ===');
+    console.log('gameType:', gameType);
+    console.log('isPremium:', isPremium);
+    console.log('isGameActive:', isGameActive);
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    console.log('sessionId:', sessionId);
+    
     if (!isPremium) {
+      console.log('BLOCKED: User is not premium');
       const gameNames = {
         'feud': 'Raccoon Feud',
         'truthordare': 'Truth or Dare',
@@ -425,12 +433,14 @@ const Match = () => {
     
     // Prevent starting another game
     if (isGameActive) {
+      console.log('BLOCKED: Another game is already active');
       toast.info('Please close the current game first');
       return;
     }
     
     // Emit to backend - backend will send game_started to BOTH players
     if (socket && sessionId) {
+      console.log('EMITTING game start event for:', gameType);
       if (gameType === 'feud') {
         socket.emit('start_feud_game');
       } else if (gameType === 'truthordare') {
@@ -438,6 +448,11 @@ const Match = () => {
       } else if (gameType === 'uno') {
         socket.emit('start_uno_game');
       }
+      toast.info(`Starting ${gameType === 'feud' ? 'Raccoon Feud' : gameType === 'truthordare' ? 'Truth or Dare' : 'UNO'}...`);
+    } else {
+      console.log('BLOCKED: socket or sessionId missing');
+      console.log('socket:', !!socket, 'sessionId:', sessionId);
+      toast.error('Cannot start game - connection issue');
     }
     // DO NOT set activeGame here - wait for backend confirmation
   }, [isPremium, isGameActive, sessionId, socket, showPremiumModal]);
@@ -459,11 +474,17 @@ const Match = () => {
   
   // Toggle game with conflict prevention
   const toggleGame = useCallback((gameType) => {
+    console.log('=== TOGGLE GAME ===');
+    console.log('gameType:', gameType);
+    console.log('activeGame:', activeGame);
+    
     if (activeGame === gameType) {
       // Close current game
+      console.log('Closing current game');
       closeGame();
     } else {
       // Start new game (closes any existing first)
+      console.log('Starting new game');
       startGame(gameType);
     }
   }, [activeGame, closeGame, startGame]);

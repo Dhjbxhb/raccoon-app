@@ -296,8 +296,14 @@ const UnoGame = memo(({
   
   // Start game
   const startGame = useCallback(() => {
-    if (!socket) return;
+    console.log('=== UNO START GAME ===');
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    if (!socket) {
+      console.log('BLOCKED: No socket connection');
+      return;
+    }
     socket.emit('start_uno_game');
+    console.log('EMITTED: start_uno_game');
   }, [socket]);
   
   // Play card

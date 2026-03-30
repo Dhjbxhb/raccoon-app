@@ -123,14 +123,32 @@ const TruthOrDare = memo(({
   }, [initialGameState]);
   
   const startGame = useCallback(() => {
-    if (!socket) return;
+    console.log('=== TOD START GAME ===');
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    if (!socket) {
+      console.log('BLOCKED: No socket connection');
+      return;
+    }
     socket.emit('start_tod_game');
+    console.log('EMITTED: start_tod_game');
   }, [socket]);
   
   const spinBottle = useCallback(() => {
-    if (!socket || isSpinning) return;
+    console.log('=== SPIN BOTTLE CLICKED ===');
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    console.log('isSpinning:', isSpinning);
+    
+    if (!socket) {
+      console.log('BLOCKED: No socket connection');
+      return;
+    }
+    if (isSpinning) {
+      console.log('BLOCKED: Already spinning');
+      return;
+    }
     setIsSpinning(true);
     socket.emit('tod_spin_bottle');
+    console.log('EMITTED: tod_spin_bottle');
   }, [socket, isSpinning]);
   
   const chooseTruthOrDare = useCallback((choice) => {

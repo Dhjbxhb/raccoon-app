@@ -155,8 +155,14 @@ const FeudGame = memo(({
   }, [isMyTurn]);
   
   const startGame = useCallback(() => {
-    if (!socket) return;
+    console.log('=== FEUD START GAME ===');
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    if (!socket) {
+      console.log('BLOCKED: No socket connection');
+      return;
+    }
     socket.emit('start_feud_game');
+    console.log('EMITTED: start_feud_game');
   }, [socket]);
   
   const submitGuess = useCallback(() => {
