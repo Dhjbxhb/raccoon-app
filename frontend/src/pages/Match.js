@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
@@ -34,11 +34,11 @@ const RACCOON_FACTS = [
 /**
  * Match Page - Live video matching with games integration
  * 
- * CRITICAL RULES:
- * 1. VIDEO PRIORITY: Both video feeds must always remain visible
- * 2. GAME OVERLAY: Games appear ONLY over MY video panel
- * 3. CONFLICT PREVENTION: Only one game can run at a time
- * 4. STATE RESET: All game state resets on skip/disconnect/match change
+ * RULES:
+ * 1. Games overlay the main UI while keeping small camera previews
+ * 2. Only one game can run at a time
+ * 3. All game state resets on skip/disconnect/match change
+ * 4. UNO button must be prominent and responsive
  */
 const Match = () => {
   const navigate = useNavigate();
@@ -55,7 +55,7 @@ const Match = () => {
     endSession,
     setAutoRejoin
   } = useMatching(socket);
-  const { messages, partnerTyping, sendMessage, retryMessage, startTyping, stopTyping, clearMessages, fetchHistory, MessageStatus } = useChat(socket, sessionId, user?.user_id || user?.guest_id);
+  const { messages, partnerTyping, sendMessage, retryMessage, startTyping, stopTyping, clearMessages, MessageStatus } = useChat(socket, sessionId, user?.user_id || user?.guest_id);
   
   // Form states
   const [messageInput, setMessageInput] = useState('');
@@ -68,6 +68,9 @@ const Match = () => {
   const [matchingFilters, setMatchingFilters] = useState({ gender: 'any', country: 'ANY' });
   const [showChat, setShowChat] = useState(true);
   
+  // Game loading states
+  const [gameLoading, setGameLoading] = useState(null); // 'uno' | 'feud' | 'truthordare' | null
+  
   // Responsive state
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   
@@ -77,11 +80,10 @@ const Match = () => {
   const previousSessionRef = useRef(null);
   
   // ========== GAME STATE MANAGEMENT ==========
-  // Single source of truth for active game
-  const [activeGame, setActiveGame] = useState(null); // null | 'feud' | 'truthordare' | 'uno'
+  const [activeGame, setActiveGame] = useState(null);
   const [gameSessionId, setGameSessionId] = useState(null);
   
-  // Store actual game state from backend for each game type
+  // Store actual game state from backend
   const [todGameState, setTodGameState] = useState(null);
   const [feudGameState, setFeudGameState] = useState(null);
   const [unoGameState, setUnoGameState] = useState(null);
@@ -100,7 +102,7 @@ const Match = () => {
   const [sessionDuration, setSessionDuration] = useState(0);
   const sessionStartRef = useRef(null);
 
-  // WebRTC hook - AUTO START when matched (direct camera stream, no filters)
+  // WebRTC hook
   const {
     localVideoRef,
     remoteVideoRef,
@@ -113,9 +115,7 @@ const Match = () => {
   
   // ========== RESPONSIVE HANDLER ==========
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -127,22 +127,18 @@ const Match = () => {
     setTodGameState(null);
     setFeudGameState(null);
     setUnoGameState(null);
+    setGameLoading(null);
     setMessageInput('');
     setSessionDuration(0);
     if (clearMessages) clearMessages();
   }, [clearMessages]);
   
   // ========== SESSION CHANGE DETECTION ==========
-  // Reset ALL state when match changes
   useEffect(() => {
-    // Detect session change (new match or disconnect)
     if (sessionId !== previousSessionRef.current) {
-      // Session changed - full reset
       resetAllGameState();
       previousSessionRef.current = sessionId;
     }
-    
-    // Also reset when leaving matched state
     if (state !== 'matched') {
       resetAllGameState();
     }
@@ -159,51 +155,36 @@ const Match = () => {
     navigate('/premium');
   }, [navigate]);
 
-  // ========== SOCKET EVENT CLEANUP ==========
-  // Listen for game events to sync between players and clean up properly
+  // ========== SOCKET EVENT HANDLERS ==========
   useEffect(() => {
-    if (!socket) {
-      console.log('=== GAME SOCKET LISTENER: No socket available ===');
-      return;
-    }
+    if (!socket) return;
     
-    console.log('=== REGISTERING GAME SOCKET LISTENERS ===');
-    console.log('Socket ID:', socket.id);
-    console.log('Socket connected:', socket.connected);
-    
-    // ===== GAME START SYNC =====
-    // When partner starts a game, open it for both players
+    // Game start handlers
     const handleFeudStarted = (data) => {
-      console.log('=== FEUD_GAME_STARTED EVENT RECEIVED ===');
-      console.log('Data:', JSON.stringify(data));
+      console.log('=== FEUD_GAME_STARTED ===');
+      setGameLoading(null);
       setActiveGame('feud');
       setGameSessionId(sessionId);
-      if (data.game_state) {
-        setFeudGameState(data.game_state);
-      }
+      if (data.game_state) setFeudGameState(data.game_state);
     };
     
     const handleTodStarted = (data) => {
-      console.log('=== TOD_GAME_STARTED EVENT RECEIVED ===');
-      console.log('Data:', JSON.stringify(data));
+      console.log('=== TOD_GAME_STARTED ===');
+      setGameLoading(null);
       setActiveGame('truthordare');
       setGameSessionId(sessionId);
-      if (data.game_state) {
-        setTodGameState(data.game_state);
-      }
+      if (data.game_state) setTodGameState(data.game_state);
     };
     
     const handleUnoStarted = (data) => {
-      console.log('=== UNO_GAME_STARTED EVENT RECEIVED ===');
-      console.log('Data:', JSON.stringify(data));
+      console.log('=== UNO_GAME_STARTED ===');
+      setGameLoading(null);
       setActiveGame('uno');
       setGameSessionId(sessionId);
-      if (data.game_state) {
-        setUnoGameState(data.game_state);
-      }
+      if (data.game_state) setUnoGameState(data.game_state);
     };
     
-    // ===== GAME END =====
+    // Game end handlers
     const handleFeudEnded = () => {
       if (activeGame === 'feud') {
         setActiveGame(null);
@@ -228,46 +209,30 @@ const Match = () => {
       }
     };
     
-    const handleMatchEnded = () => {
-      resetAllGameState();
-    };
+    const handleMatchEnded = () => resetAllGameState();
+    const handlePartnerDisconnected = () => resetAllGameState();
     
-    const handlePartnerDisconnected = () => {
-      resetAllGameState();
-    };
-    
-    // Handle premium required events (games, etc)
     const handlePremiumRequired = (data) => {
-      console.log('=== PREMIUM_REQUIRED EVENT ===');
-      console.log('Data:', JSON.stringify(data));
+      setGameLoading(null);
       const featureName = data.game || data.feature || 'This feature';
       showPremiumModal(featureName);
     };
     
-    // Handle generic errors from backend
     const handleError = (data) => {
-      console.log('=== ERROR EVENT FROM BACKEND ===');
-      console.log('Data:', JSON.stringify(data));
+      setGameLoading(null);
       toast.error(data.message || 'An error occurred');
     };
     
-    // Handle session restoration with active game
     const handleSessionRestored = (data) => {
-      if (data.active_game && data.active_game.game_type) {
-        if (data.active_game.game_type === 'feud') {
-          setActiveGame('feud');
-          setGameSessionId(sessionId);
-        } else if (data.active_game.game_type === 'tod') {
-          setActiveGame('truthordare');
-          setGameSessionId(sessionId);
-        } else if (data.active_game.game_type === 'uno') {
-          setActiveGame('uno');
-          setGameSessionId(sessionId);
-        }
+      if (data.active_game?.game_type) {
+        const type = data.active_game.game_type;
+        if (type === 'feud') setActiveGame('feud');
+        else if (type === 'tod') setActiveGame('truthordare');
+        else if (type === 'uno') setActiveGame('uno');
+        setGameSessionId(sessionId);
       }
     };
     
-    // Register event handlers
     socket.on('feud_game_started', handleFeudStarted);
     socket.on('tod_game_started', handleTodStarted);
     socket.on('uno_game_started', handleUnoStarted);
@@ -280,10 +245,7 @@ const Match = () => {
     socket.on('session_restored', handleSessionRestored);
     socket.on('error', handleError);
     
-    console.log('=== GAME SOCKET LISTENERS REGISTERED ===');
-    
     return () => {
-      console.log('=== CLEANING UP GAME SOCKET LISTENERS ===');
       socket.off('feud_game_started', handleFeudStarted);
       socket.off('tod_game_started', handleTodStarted);
       socket.off('uno_game_started', handleUnoStarted);
@@ -305,11 +267,7 @@ const Match = () => {
       const interval = setInterval(() => {
         setSessionDuration(Math.floor((Date.now() - sessionStartRef.current) / 1000));
       }, 1000);
-      return () => {
-        clearInterval(interval);
-        setSessionDuration(0);
-        sessionStartRef.current = null;
-      };
+      return () => clearInterval(interval);
     }
   }, [state, partner]);
 
@@ -324,14 +282,14 @@ const Match = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-start matching when idle
+  // Auto-start matching
   useEffect(() => {
     if (state === 'idle' && user) {
       startMatching(matchingFilters.gender, matchingFilters.country);
     }
   }, [state, user, matchingFilters, startMatching]);
 
-  // Rotate raccoon facts during search
+  // Rotate raccoon facts
   useEffect(() => {
     if (state !== 'searching') return;
     const interval = setInterval(() => {
@@ -369,84 +327,73 @@ const Match = () => {
   };
 
   // ========== GAME CONTROL FUNCTIONS ==========
-  // Start game - emits to backend, waits for confirmation
   const startGame = useCallback((gameType) => {
-    console.log('=== START GAME CLICKED ===');
-    console.log('gameType:', gameType);
-    console.log('isPremium:', isPremium);
-    console.log('isGameActive:', isGameActive);
-    console.log('socket:', socket ? 'connected' : 'disconnected');
-    console.log('sessionId:', sessionId);
+    console.log('=== START GAME ===', gameType);
     
     if (!isPremium) {
-      console.log('BLOCKED: User is not premium');
-      const gameNames = {
-        'feud': 'Raccoon Feud',
-        'truthordare': 'Truth or Dare',
-        'uno': 'UNO'
-      };
+      const gameNames = { 'feud': 'Raccoon Feud', 'truthordare': 'Truth or Dare', 'uno': 'UNO' };
       showPremiumModal(gameNames[gameType] || gameType);
       return;
     }
     
     if (isGameActive) {
-      console.log('BLOCKED: Another game is already active');
       toast.info('Please close the current game first');
       return;
     }
     
-    if (socket && sessionId) {
-      console.log('EMITTING game start event for:', gameType);
-      if (gameType === 'feud') {
-        socket.emit('start_feud_game');
-      } else if (gameType === 'truthordare') {
-        socket.emit('start_tod_game');
-      } else if (gameType === 'uno') {
-        socket.emit('start_uno_game');
-      }
-      toast.info(`Starting ${gameType === 'feud' ? 'Raccoon Feud' : gameType === 'truthordare' ? 'Truth or Dare' : 'UNO'}...`);
-    } else {
-      console.log('BLOCKED: socket or sessionId missing');
-      toast.error('Cannot start game - connection issue');
-    }
-  }, [isPremium, isGameActive, sessionId, socket, showPremiumModal]);
-  
-  // Close game
-  const closeGame = useCallback(() => {
-    if (socket && activeGame) {
-      if (activeGame === 'feud') {
-        socket.emit('end_feud_game');
-      } else if (activeGame === 'truthordare') {
-        socket.emit('end_tod_game');
-      } else if (activeGame === 'uno') {
-        socket.emit('end_uno_game');
-      }
-    }
-    setActiveGame(null);
-    setGameSessionId(null);
-  }, [socket, activeGame]);
-  
-  // Toggle game
-  const toggleGame = useCallback((gameType) => {
-    console.log('=== TOGGLE GAME CLICKED ===');
-    console.log('gameType:', gameType);
-    console.log('activeGame:', activeGame);
-    console.log('state:', state);
-    
     if (state !== 'matched') {
-      console.log('BLOCKED: Not in matched state');
-      toast.error('You must be matched with someone to play games');
+      toast.error('You must be matched to play games');
       return;
     }
     
+    if (!socket || !sessionId) {
+      toast.error('Connection issue - please try again');
+      return;
+    }
+    
+    // Set loading state for visual feedback
+    setGameLoading(gameType);
+    
+    // Emit game start event
+    const eventMap = {
+      'feud': 'start_feud_game',
+      'truthordare': 'start_tod_game',
+      'uno': 'start_uno_game'
+    };
+    
+    socket.emit(eventMap[gameType]);
+    console.log('EMITTED:', eventMap[gameType]);
+    
+    // Timeout for loading state
+    setTimeout(() => {
+      if (gameLoading === gameType) {
+        setGameLoading(null);
+      }
+    }, 5000);
+    
+  }, [isPremium, isGameActive, state, socket, sessionId, showPremiumModal, gameLoading]);
+  
+  const closeGame = useCallback(() => {
+    if (socket && activeGame) {
+      const eventMap = {
+        'feud': 'end_feud_game',
+        'truthordare': 'end_tod_game',
+        'uno': 'end_uno_game'
+      };
+      socket.emit(eventMap[activeGame]);
+    }
+    setActiveGame(null);
+    setGameSessionId(null);
+    setGameLoading(null);
+  }, [socket, activeGame]);
+  
+  const toggleGame = useCallback((gameType) => {
     if (activeGame === gameType) {
-      console.log('Closing current game');
       closeGame();
     } else {
-      console.log('Starting new game:', gameType);
       startGame(gameType);
     }
-  }, [activeGame, closeGame, startGame, state]);
+  }, [activeGame, closeGame, startGame]);
 
   // ========== SKIP LOGIC ==========
   const handleSkip = useCallback(() => {
@@ -457,7 +404,6 @@ const Match = () => {
     toast.info('Finding next match...', { duration: 1500 });
   }, [isSkipping, endCall, skipMatch, resetAllGameState]);
 
-  // Block user
   const handleBlock = useCallback(() => {
     if (window.confirm('Block this user? You won\'t be matched again.')) {
       resetAllGameState();
@@ -467,7 +413,6 @@ const Match = () => {
     }
   }, [endCall, blockUser, resetAllGameState]);
 
-  // Handle back navigation
   const handleBackToDashboard = useCallback(() => {
     setAutoRejoin(false);
     resetAllGameState();
@@ -494,7 +439,6 @@ const Match = () => {
   if (state === 'searching') {
     return (
       <div className="match-container">
-        {/* Background */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-[#050508] via-[#0a0510] to-[#1a0a2e]/40" />
           <div 
@@ -503,23 +447,19 @@ const Match = () => {
           />
         </div>
 
-        {/* Nav buttons */}
         <button 
           onClick={() => navigate('/dashboard')} 
           className="absolute top-4 left-4 p-3 hover:bg-white/10 rounded-full z-20"
-          data-testid="back-from-search"
         >
           <ArrowLeft size={20} className="text-white/60" />
         </button>
         <button 
           onClick={() => setShowFilters(true)} 
           className="absolute top-4 right-4 p-3 hover:bg-white/10 rounded-full z-20"
-          data-testid="open-filters-search"
         >
           <Filter size={20} className="text-white/60" />
         </button>
 
-        {/* Filters Modal */}
         <MatchingFilters
           isOpen={showFilters}
           onClose={() => setShowFilters(false)}
@@ -529,7 +469,6 @@ const Match = () => {
           initialFilters={matchingFilters}
         />
 
-        {/* Search UI */}
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
           <div className="w-32 h-32 mx-auto mb-8 rounded-full overflow-hidden bg-[#7c3aed]/20 animate-pulse">
             <img 
@@ -555,28 +494,30 @@ const Match = () => {
 
   // ========== MATCHED STATE ==========
   return (
-    <div className="match-container" data-testid="match-page">
-      {/* ===== TOP BAR ===== */}
-      <MatchTopBar
-        partner={partner}
-        sessionDuration={sessionDuration}
-        onReport={() => setShowReportModal(true)}
-        onSkip={handleSkip}
-        onBack={handleBackToDashboard}
-        isSearching={state === 'searching'}
-        isSkipping={isSkipping}
-      />
+    <div className={`match-container ${isGameActive ? 'match-container--game-mode' : ''}`} data-testid="match-page">
+      
+      {/* ===== TOP BAR (hidden during games on mobile) ===== */}
+      {(!isGameActive || !isMobile) && (
+        <MatchTopBar
+          partner={partner}
+          sessionDuration={sessionDuration}
+          onReport={() => setShowReportModal(true)}
+          onSkip={handleSkip}
+          onBack={handleBackToDashboard}
+          isSearching={state === 'searching'}
+          isSkipping={isSkipping}
+        />
+      )}
 
-      {/* ===== VIDEO AREA ===== */}
-      <div className="match-videos">
+      {/* ===== MAIN VIDEO AREA ===== */}
+      <div className={`match-videos ${isGameActive ? 'match-videos--game-mode' : ''}`}>
         
-        {/* LOCAL VIDEO PANEL (Me) */}
+        {/* LOCAL VIDEO PANEL */}
         <div 
           ref={localPanelRef}
-          className="video-panel video-panel--local"
+          className={`video-panel video-panel--local ${isGameActive ? 'video-panel--mini' : ''}`}
           data-testid="local-video-panel"
         >
-          {/* My Video - Direct camera stream */}
           <video
             ref={localVideoRef}
             autoPlay
@@ -585,64 +526,19 @@ const Match = () => {
             className="video-panel__video video-panel__video--mirrored"
           />
           
-          {/* My Label */}
-          <div className="video-panel__label video-panel__label--top-left">
-            <div className="video-panel__indicator bg-green-500" />
-            <span>You</span>
-          </div>
-
-          {/* ===== GAME OVERLAY ZONE (MY SIDE ONLY) ===== */}
-          {showFeud && (
-            <div className="game-container game-container--feud">
-              <FeudGame
-                isOpen={showFeud}
-                onClose={closeGame}
-                socket={socket}
-                myUserId={user?.user_id || user?.guest_id}
-                partnerUsername={partner?.username || 'Stranger'}
-                sessionId={sessionId}
-                initialGameState={feudGameState}
-              />
-            </div>
-          )}
-          
-          {showTruthOrDare && (
-            <div className="game-container game-container--tod">
-              <TruthOrDare
-                isOpen={showTruthOrDare}
-                onClose={closeGame}
-                socket={socket}
-                myUserId={user?.user_id || user?.guest_id}
-                partnerUsername={partner?.username || 'Stranger'}
-                sessionId={sessionId}
-                isMobile={isMobile}
-                initialGameState={todGameState}
-              />
-            </div>
-          )}
-          
-          {showUno && (
-            <div className="game-container game-container--uno">
-              <UnoGame
-                isOpen={showUno}
-                onClose={closeGame}
-                socket={socket}
-                myUserId={user?.user_id || user?.guest_id}
-                partnerUsername={partner?.username || 'Stranger'}
-                sessionId={sessionId}
-                isMobile={isMobile}
-                initialGameState={unoGameState}
-              />
+          {!isGameActive && (
+            <div className="video-panel__label video-panel__label--top-left">
+              <div className="video-panel__indicator bg-green-500" />
+              <span>You</span>
             </div>
           )}
         </div>
 
-        {/* REMOTE VIDEO PANEL (Stranger) - ALWAYS VISIBLE */}
+        {/* REMOTE VIDEO PANEL */}
         <div 
-          className="video-panel video-panel--remote"
+          className={`video-panel video-panel--remote ${isGameActive ? 'video-panel--mini video-panel--mini-remote' : ''}`}
           data-testid="remote-video-panel"
         >
-          {/* Stranger Video */}
           <video
             ref={remoteVideoRef}
             autoPlay
@@ -650,13 +546,10 @@ const Match = () => {
             className="video-panel__video"
           />
           
-          {/* Connecting Placeholder */}
-          {!remoteStream && (
+          {!remoteStream && !isGameActive && (
             <div className="video-panel__placeholder">
               <div className="video-panel__placeholder-content">
-                <div className="video-panel__placeholder-avatar">
-                  <Loader2 size={32} className="video-panel__spinner" />
-                </div>
+                <Loader2 size={32} className="video-panel__spinner" />
                 <p className="video-panel__placeholder-text">
                   Connecting to {partner?.username}...
                 </p>
@@ -664,112 +557,168 @@ const Match = () => {
             </div>
           )}
 
-          {/* Stranger Label */}
-          <div className="video-panel__label video-panel__label--top-right">
-            <div className="video-panel__indicator bg-blue-500" />
-            <span>{partner?.username || 'Stranger'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== BOTTOM ACTION BAR ===== */}
-      <div className={`match-bottombar ${isGameActive ? 'match-bottombar--game-active' : ''}`}>
-        <div className="match-bottombar__content">
-          {/* Game Buttons */}
-          <div className="match-bottombar__games">
-            <div className="match-bottombar__game-btns">
-              {/* Matching Filters */}
-              <button
-                onClick={() => setShowFilters(true)}
-                className="match-bottombar__game-btn"
-                data-testid="filters-btn"
-              >
-                <Filter size={12} />
-                <span className="hidden xs:inline">Filters</span>
-              </button>
-              
-              {/* Raccoon Feud */}
-              <button
-                onClick={() => toggleGame('feud')}
-                disabled={activeGame && activeGame !== 'feud'}
-                className={`match-bottombar__game-btn ${showFeud ? 'match-bottombar__game-btn--active' : ''} ${activeGame && activeGame !== 'feud' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                data-testid="feud-btn"
-              >
-                <Trophy size={12} />
-                <span>Feud</span>
-                {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
-              </button>
-
-              {/* Truth or Dare */}
-              <button
-                onClick={() => toggleGame('truthordare')}
-                disabled={activeGame && activeGame !== 'truthordare'}
-                className={`match-bottombar__game-btn ${showTruthOrDare ? 'match-bottombar__game-btn--active' : ''} ${activeGame && activeGame !== 'truthordare' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                data-testid="tod-btn"
-              >
-                <Sparkles size={12} />
-                <span>T/D</span>
-                {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
-              </button>
-              
-              {/* UNO */}
-              <button
-                onClick={() => toggleGame('uno')}
-                disabled={activeGame && activeGame !== 'uno'}
-                className={`match-bottombar__game-btn ${showUno ? 'match-bottombar__game-btn--active' : ''} ${activeGame && activeGame !== 'uno' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                data-testid="uno-btn"
-              >
-                <span style={{ fontSize: '12px' }}>🎴</span>
-                <span>UNO</span>
-                {!isPremium && <span className="text-yellow-400 text-[10px]">👑</span>}
-              </button>
+          {!isGameActive && (
+            <div className="video-panel__label video-panel__label--top-right">
+              <div className="video-panel__indicator bg-blue-500" />
+              <span>{partner?.username || 'Stranger'}</span>
             </div>
-
-            {/* Active Game Indicator */}
-            {isGameActive && (
-              <div className="match-bottombar__active-game">
-                <span className="text-xs text-[#ffd700]/80">
-                  {showFeud ? '🦝 Feud' : showTruthOrDare ? '🍾 T/D' : '🎴 UNO'}
-                </span>
-              </div>
-            )}
-
-            {/* Chat Toggle */}
-            <button
-              onClick={() => setShowChat(!showChat)}
-              className={`match-bottombar__chat-toggle ${showChat ? 'match-bottombar__chat-toggle--active' : ''}`}
-              data-testid="chat-toggle"
-            >
-              <MessageCircle size={16} />
-            </button>
-          </div>
-
-          {/* Chat Input */}
-          {showChat && (
-            <form onSubmit={handleSendMessage} className="match-bottombar__chat">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={handleInputChange}
-                placeholder="Type a message..."
-                className="match-bottombar__input"
-                data-testid="message-input"
-              />
-              <button
-                type="submit"
-                disabled={!messageInput.trim()}
-                className="match-bottombar__send"
-                data-testid="send-button"
-              >
-                <MessageCircle size={16} />
-              </button>
-            </form>
           )}
         </div>
       </div>
 
+      {/* ===== GAME OVERLAY (Full screen when active) ===== */}
+      {showFeud && (
+        <div className="game-fullscreen-container">
+          <FeudGame
+            isOpen={showFeud}
+            onClose={closeGame}
+            socket={socket}
+            myUserId={user?.user_id || user?.guest_id}
+            partnerUsername={partner?.username || 'Stranger'}
+            sessionId={sessionId}
+            initialGameState={feudGameState}
+          />
+        </div>
+      )}
+      
+      {showTruthOrDare && (
+        <div className="game-fullscreen-container">
+          <TruthOrDare
+            isOpen={showTruthOrDare}
+            onClose={closeGame}
+            socket={socket}
+            myUserId={user?.user_id || user?.guest_id}
+            partnerUsername={partner?.username || 'Stranger'}
+            sessionId={sessionId}
+            isMobile={isMobile}
+            initialGameState={todGameState}
+          />
+        </div>
+      )}
+      
+      {showUno && (
+        <div className="game-fullscreen-container">
+          <UnoGame
+            isOpen={showUno}
+            onClose={closeGame}
+            socket={socket}
+            myUserId={user?.user_id || user?.guest_id}
+            partnerUsername={partner?.username || 'Stranger'}
+            sessionId={sessionId}
+            isMobile={isMobile}
+            initialGameState={unoGameState}
+          />
+        </div>
+      )}
+
+      {/* ===== BOTTOM ACTION BAR (hidden during games) ===== */}
+      {!isGameActive && (
+        <div className="match-bottombar">
+          <div className="match-bottombar__content">
+            {/* Game Buttons - More Prominent */}
+            <div className="match-bottombar__games">
+              <div className="match-bottombar__game-btns">
+                {/* Matching Filters */}
+                <button
+                  onClick={() => setShowFilters(true)}
+                  className="match-bottombar__game-btn match-bottombar__game-btn--filter"
+                  data-testid="filters-btn"
+                >
+                  <Filter size={14} />
+                </button>
+                
+                {/* UNO - PROMINENT BUTTON */}
+                <button
+                  onClick={() => toggleGame('uno')}
+                  disabled={gameLoading === 'uno'}
+                  className={`match-bottombar__game-btn match-bottombar__game-btn--uno ${gameLoading === 'uno' ? 'match-bottombar__game-btn--loading' : ''}`}
+                  data-testid="uno-btn"
+                >
+                  {gameLoading === 'uno' ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <span className="match-bottombar__game-icon">🎴</span>
+                      <span className="match-bottombar__game-label">UNO</span>
+                    </>
+                  )}
+                  {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}
+                </button>
+                
+                {/* Raccoon Feud */}
+                <button
+                  onClick={() => toggleGame('feud')}
+                  disabled={gameLoading === 'feud'}
+                  className={`match-bottombar__game-btn match-bottombar__game-btn--feud ${gameLoading === 'feud' ? 'match-bottombar__game-btn--loading' : ''}`}
+                  data-testid="feud-btn"
+                >
+                  {gameLoading === 'feud' ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Trophy size={14} />
+                      <span className="match-bottombar__game-label">Feud</span>
+                    </>
+                  )}
+                  {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}
+                </button>
+
+                {/* Truth or Dare */}
+                <button
+                  onClick={() => toggleGame('truthordare')}
+                  disabled={gameLoading === 'truthordare'}
+                  className={`match-bottombar__game-btn match-bottombar__game-btn--tod ${gameLoading === 'truthordare' ? 'match-bottombar__game-btn--loading' : ''}`}
+                  data-testid="tod-btn"
+                >
+                  {gameLoading === 'truthordare' ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles size={14} />
+                      <span className="match-bottombar__game-label">T/D</span>
+                    </>
+                  )}
+                  {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}
+                </button>
+              </div>
+
+              {/* Chat Toggle */}
+              <button
+                onClick={() => setShowChat(!showChat)}
+                className={`match-bottombar__chat-toggle ${showChat ? 'match-bottombar__chat-toggle--active' : ''}`}
+                data-testid="chat-toggle"
+              >
+                <MessageCircle size={16} />
+              </button>
+            </div>
+
+            {/* Chat Input */}
+            {showChat && (
+              <form onSubmit={handleSendMessage} className="match-bottombar__chat">
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={handleInputChange}
+                  placeholder="Type a message..."
+                  className="match-bottombar__input"
+                  data-testid="message-input"
+                />
+                <button
+                  type="submit"
+                  disabled={!messageInput.trim()}
+                  className="match-bottombar__send"
+                  data-testid="send-button"
+                >
+                  <MessageCircle size={16} />
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ===== CHAT PANEL ===== */}
-      {showChat && (
+      {showChat && !isGameActive && (
         <ChatPanel
           messages={messages}
           partnerTyping={partnerTyping}
@@ -781,7 +730,7 @@ const Match = () => {
           currentUserId={user?.user_id || user?.guest_id}
           isExpanded={showChat}
           onToggle={() => setShowChat(!showChat)}
-          isMobile={window.innerWidth < 1024}
+          isMobile={isMobile}
           MessageStatus={MessageStatus}
         />
       )}
@@ -805,7 +754,6 @@ const Match = () => {
         />
       )}
 
-      {/* Premium Prompt Modal */}
       <PremiumPromptModal
         isOpen={showPremiumPrompt}
         onClose={() => setShowPremiumPrompt(false)}
