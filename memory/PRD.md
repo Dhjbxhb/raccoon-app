@@ -31,6 +31,90 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Google Auth Flow Complete Rewrite (March 30, 2025) ✅
+**Problem:** Google login showing "Signing in with Google..." then redirecting back to login page.
+
+**Root Cause:**
+- `signInWithPopup` blocked by COOP headers on preview domain
+- `getRedirectResult()` returning `null` after redirect
+- Race condition: `onAuthStateChanged` fires before Login.js subscribes
+- Protected pages redirecting to login before auth state loads
+
+**Complete Solution Implemented:**
+
+1. **firebase.service.js** - Caching + Immediate Callback:
+   - Added `lastKnownUser` cache for auth state
+   - `addAuthStateListener` immediately fires with cached user if available
+   - Uses `localStorage` for pending flags (survives cross-origin)
+   - 5-minute staleness check on pending auth
+
+2. **Login.js** - Full Rewrite:
+   - `syncWithBackend()` function: Firebase user → Backend `/api/auth/google` → JWT → localStorage
+   - Multi-layer auth capture: listener + getRedirectResult + getCurrentUser + currentUser fallback
+   - 2-second wait for Firebase auth state restoration
+   - Uses `syncDone.current` ref to prevent duplicate syncs
+
+3. **Dashboard.js, Profile.js, Match.js** - Loading Guards:
+   - All pages now wait for `authLoading` before checking user
+   - Prevents premature redirect to login
+
+4. **AuthContext.js** - localStorage as Source of Truth:
+   - Initializes token from localStorage on mount
+   - All auth checks use localStorage first, not Firebase state
+   - `isAuthenticated()` validates localStorage token
+
+**Auth Rule (MUST FOLLOW):**
+```javascript
+const token = localStorage.getItem(TOKEN_KEY);
+if (token) → user is authenticated
+else → redirect to login
+```
+
+**Tested Flow:**
+1. ✅ Guest login → JWT saved → redirected to verify-age
+2. ✅ Age verification → redirected to dashboard
+3. ✅ Page refresh → stays on dashboard (JWT persists)
+4. ✅ Backend `/api/auth/google` endpoint returns valid JWT
+5. ✅ Google users saved to MongoDB
+
+**For Google Login to Work:**
+Add `realtime-raccoon.preview.emergentagent.com` to Firebase Console:
+Authentication → Settings → Authorized domains
+
+### Firebase Google Auth Redirect Fix (March 29, 2025) ✅
+**Problem:** After Google redirect, `getRedirectResult()` returns `null` due to cross-origin state persistence issues.
+
+**Root Cause:** 
+- Firebase's `getRedirectResult()` is unreliable across domains
+- `sessionStorage` doesn't persist across cross-origin redirects
+- Auth state needed to be caught via `onAuthStateChanged` listener
+
+**Solution Implemented:**
+1. **Login.js** - Multi-layer auth state capture:
+   - Subscribes to `addAuthStateListener` to catch Firebase user after redirect
+   - Falls back to `getRedirectResult()` 
+   - Falls back to `getCurrentUser()`
+   - 1.5s timeout to allow async auth state restoration
+   - Uses `handled` flag to prevent duplicate sync calls
+
+2. **firebase.service.js** - Enhanced:
+   - Switched from `sessionStorage` to `localStorage` for `googleAuthPending` flag
+   - Added `googleAuthTimestamp` for 5-minute staleness check
+   - Added `clearGoogleAuthPending()` export function
+   - Global `onAuthStateChanged` listener broadcasts to registered callbacks
+
+**Flow After Fix:**
+1. User clicks "Continue with Google"
+2. `localStorage.googleAuthPending = true` + timestamp set
+3. User redirects to Google, authenticates
+4. User returns to app at /login
+5. `Login.js` detects pending auth via `isGoogleAuthPending()`
+6. Subscribes to `addAuthStateListener`
+7. Firebase restores auth state, triggers `onAuthStateChanged`
+8. `handleFirebaseUser()` extracts ID token, calls `syncWithBackend()`
+9. Backend `/api/auth/google` verifies token, returns JWT
+10. Frontend stores JWT, navigates to dashboard
+
 ### Login Persistence Fix (COMPLETE) ✅
 **Problem:** After Google login, user was redirected back to login page. Auth state was not being saved.
 

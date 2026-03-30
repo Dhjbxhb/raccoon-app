@@ -2,56 +2,31 @@ import { initializeApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  signInAnonymously as firebaseSignInAnonymously,
-  signOut as firebaseSignOut,
-  browserLocalPersistence,
-  setPersistence
+  onAuthStateChanged,
+  signOut as firebaseSignOut
 } from 'firebase/auth';
 import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
 
-// Initialize Firebase
 let app = null;
 let auth = null;
 let googleProvider = null;
-let initPromise = null;
 let initDone = false;
+let authStateListeners = [];
+let lastKnownUser = null; // Cache the last auth state
 
-// Initialize on module load if configured
-const initFirebase = async () => {
-  if (initDone) return true;
-  
-  if (!isFirebaseConfigured()) {
-    console.log('Firebase not configured');
-    return false;
-  }
-  
+// Initialize synchronously
+if (isFirebaseConfigured()) {
   try {
-    console.log('=== INITIALIZING FIREBASE ===');
-    
-    // Check if already initialized
     if (getApps().length === 0) {
       app = initializeApp(firebaseConfig);
-      console.log('Firebase app created');
     } else {
       app = getApps()[0];
-      console.log('Firebase app already exists');
     }
     
     auth = getAuth(app);
-    console.log('Auth object created');
     
-    // Set persistence to LOCAL
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-      console.log('Auth persistence set to LOCAL');
-    } catch (e) {
-      console.log('Persistence already set or error:', e.message);
-    }
-    
-    // Configure Google Provider
     googleProvider = new GoogleAuthProvider();
     googleProvider.addScope('email');
     googleProvider.addScope('profile');
@@ -60,141 +35,134 @@ const initFirebase = async () => {
     });
     
     initDone = true;
-    console.log('=== FIREBASE READY ===');
+    console.log('Firebase initialized');
     
-    return true;
+    // Set up global auth state listener
+    onAuthStateChanged(auth, (user) => {
+      console.log('=== AUTH STATE CHANGED ===');
+      console.log('User:', user ? user.email : 'null');
+      console.log('Is anonymous:', user?.isAnonymous);
+      
+      // Cache the user for late subscribers
+      lastKnownUser = user;
+      
+      // Notify all listeners
+      authStateListeners.forEach(listener => {
+        try {
+          listener(user);
+        } catch (e) {
+          console.error('Auth listener error:', e);
+        }
+      });
+    });
+    
   } catch (error) {
-    console.error('=== FIREBASE INIT ERROR ===', error);
-    return false;
+    console.error('Firebase init error:', error);
   }
+}
+
+// Add auth state listener - immediately calls with cached user if available
+export const addAuthStateListener = (callback) => {
+  authStateListeners.push(callback);
+  
+  // Immediately fire with cached user if we already have one
+  if (lastKnownUser !== null) {
+    console.log('Firing listener immediately with cached user:', lastKnownUser?.email);
+    try {
+      callback(lastKnownUser);
+    } catch (e) {
+      console.error('Auth listener immediate fire error:', e);
+    }
+  }
+  
+  // Return unsubscribe function
+  return () => {
+    authStateListeners = authStateListeners.filter(l => l !== callback);
+  };
 };
 
-// Start initialization immediately
-initPromise = initFirebase();
-
-// Google Sign In - Try popup first, fall back to redirect
+// Google Sign In
 export const signInWithGoogle = async () => {
-  await initPromise;
-  
   if (!auth || !googleProvider) {
     throw new Error('Firebase not initialized');
   }
   
-  console.log('=== STARTING GOOGLE SIGN-IN ===');
+  console.log('Starting Google redirect...');
+  // Use localStorage instead of sessionStorage - survives cross-origin redirects
+  localStorage.setItem('googleAuthPending', 'true');
+  localStorage.setItem('googleAuthTimestamp', Date.now().toString());
   
-  // Try popup first (works better in most cases)
-  try {
-    console.log('Trying popup...');
-    const result = await signInWithPopup(auth, googleProvider);
-    
-    if (result && result.user) {
-      console.log('=== POPUP SUCCESS ===');
-      console.log('User:', result.user.email);
-      
-      const idToken = await result.user.getIdToken(true);
-      
-      return {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        photoURL: result.user.photoURL,
-        provider: 'google',
-        idToken: idToken,
-      };
-    }
-  } catch (popupError) {
-    console.log('Popup failed:', popupError.code, popupError.message);
-    
-    // If popup blocked or failed, try redirect
-    if (popupError.code === 'auth/popup-blocked' || 
-        popupError.code === 'auth/popup-closed-by-user' ||
-        popupError.code === 'auth/cancelled-popup-request') {
-      console.log('Falling back to redirect...');
-      await signInWithRedirect(auth, googleProvider);
-      return null; // Page will redirect
-    }
-    
-    // For other errors, throw
-    throw popupError;
-  }
+  await signInWithRedirect(auth, googleProvider);
 };
 
-// Handle redirect result after returning from Google
+// Handle redirect result  
 export const getGoogleRedirectResult = async () => {
-  await initPromise;
-  
-  if (!auth) {
-    console.log('Firebase auth not initialized');
-    return null;
-  }
+  if (!auth) return null;
   
   try {
-    console.log('=== CHECKING REDIRECT RESULT ===');
-    console.log('Current user:', auth.currentUser?.email || 'none');
+    const wasPending = localStorage.getItem('googleAuthPending');
+    const timestamp = localStorage.getItem('googleAuthTimestamp');
+    console.log('Checking redirect, pending:', wasPending, 'timestamp:', timestamp);
     
+    // Clear the pending flag if it's stale (older than 5 minutes)
+    if (timestamp && Date.now() - parseInt(timestamp) > 5 * 60 * 1000) {
+      console.log('Auth pending flag is stale, clearing');
+      localStorage.removeItem('googleAuthPending');
+      localStorage.removeItem('googleAuthTimestamp');
+      return null;
+    }
+    
+    // First try getRedirectResult
     const result = await getRedirectResult(auth);
+    console.log('getRedirectResult:', result ? 'found user: ' + result.user?.email : 'null');
     
-    if (result && result.user) {
-      console.log('=== REDIRECT RESULT FOUND ===');
-      console.log('User:', result.user.email);
-      
-      const idToken = await result.user.getIdToken(true);
-      
-      return {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        photoURL: result.user.photoURL,
-        provider: 'google',
-        idToken: idToken,
-      };
+    // Clear pending flags on success
+    localStorage.removeItem('googleAuthPending');
+    localStorage.removeItem('googleAuthTimestamp');
+    
+    if (result?.user) {
+      return await extractUserData(result.user);
     }
     
-    // Check current user as fallback
+    // Fallback: check currentUser
     if (auth.currentUser && !auth.currentUser.isAnonymous) {
-      console.log('=== FOUND CURRENT USER ===');
-      console.log('User:', auth.currentUser.email);
-      
-      const idToken = await auth.currentUser.getIdToken(true);
-      
-      return {
-        uid: auth.currentUser.uid,
-        email: auth.currentUser.email,
-        displayName: auth.currentUser.displayName,
-        photoURL: auth.currentUser.photoURL,
-        provider: 'google',
-        idToken: idToken,
-      };
+      console.log('Using currentUser fallback:', auth.currentUser.email);
+      return await extractUserData(auth.currentUser);
     }
     
-    console.log('No redirect result and no current user');
     return null;
   } catch (error) {
-    console.error('=== REDIRECT ERROR ===', error.code, error.message);
+    console.error('getRedirectResult error:', error);
+    localStorage.removeItem('googleAuthPending');
+    localStorage.removeItem('googleAuthTimestamp');
     throw error;
   }
 };
 
-// Anonymous Sign In
-export const signInAnonymousUser = async () => {
-  await initPromise;
-  
-  if (!auth) {
-    throw new Error('Firebase not initialized');
-  }
-  
-  const result = await firebaseSignInAnonymously(auth);
-  const idToken = await result.user.getIdToken();
-  
+// Extract user data helper
+const extractUserData = async (user) => {
+  const idToken = await user.getIdToken(true);
   return {
-    uid: result.user.uid,
-    email: null,
-    displayName: null,
-    photoURL: null,
-    provider: 'anonymous',
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+    provider: 'google',
     idToken: idToken,
-    isAnonymous: true
   };
+};
+
+// Get current user if available
+export const getCurrentUser = async () => {
+  if (!auth || !auth.currentUser || auth.currentUser.isAnonymous) {
+    return null;
+  }
+  return await extractUserData(auth.currentUser);
+};
+
+// Get cached Firebase user (synchronous)
+export const getCachedFirebaseUser = () => {
+  return lastKnownUser;
 };
 
 // Sign Out
@@ -209,11 +177,26 @@ export const isFirebaseReady = () => {
   return initDone && !!auth && !!googleProvider;
 };
 
-// Wait for Firebase to be ready
-export const waitForFirebase = async () => {
-  await initPromise;
-  return isFirebaseReady();
+// Check if redirect is pending
+export const isGoogleAuthPending = () => {
+  const pending = localStorage.getItem('googleAuthPending') === 'true';
+  const timestamp = localStorage.getItem('googleAuthTimestamp');
+  
+  // Consider stale if older than 5 minutes
+  if (pending && timestamp && Date.now() - parseInt(timestamp) > 5 * 60 * 1000) {
+    console.log('Google auth pending flag is stale, clearing');
+    localStorage.removeItem('googleAuthPending');
+    localStorage.removeItem('googleAuthTimestamp');
+    return false;
+  }
+  
+  return pending;
 };
 
-// Export auth for direct access
+// Clear pending flags
+export const clearGoogleAuthPending = () => {
+  localStorage.removeItem('googleAuthPending');
+  localStorage.removeItem('googleAuthTimestamp');
+};
+
 export { auth };

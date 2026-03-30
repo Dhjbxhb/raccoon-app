@@ -45,7 +45,7 @@ const RACCOON_FACTS = [
  */
 const Match = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { socket, connected } = useSocket();
   const { 
     state, 
@@ -356,8 +356,10 @@ const Match = () => {
 
   // Navigation effects
   useEffect(() => {
+    // Wait for auth to load before redirecting
+    if (authLoading) return;
     if (!user) navigate('/login');
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   // Scroll to latest message
   useEffect(() => {

@@ -12,12 +12,15 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, logout, isGuest, token, refreshUser } = useAuth();
+  const { user, logout, isGuest, token, refreshUser, loading: authLoading } = useAuth();
   const [fullUserData, setFullUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const heartbeatRef = useRef(null);
 
   useEffect(() => {
+    // Wait for auth to load
+    if (authLoading) return;
+    
     if (!user) {
       navigate('/login');
       return;

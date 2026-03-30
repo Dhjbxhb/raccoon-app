@@ -11,7 +11,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, logout, isGuest, token } = useAuth();
+  const { user, logout, isGuest, token, loading } = useAuth();
   const [stats, setStats] = useState(null);
   const heartbeatRef = useRef(null);
 
@@ -105,6 +105,19 @@ const Dashboard = () => {
     const hours = Math.floor((seconds % 86400) / 3600);
     return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
   };
+
+  // Wait for auth to load before checking user
+  if (loading) {
+    return (
+      <div className="min-h-screen text-white relative flex items-center justify-center">
+        <SpaceBackground intensity="minimal" showNebula={true} showShootingStars={true} />
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="w-8 h-8 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-gray-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     navigate('/login');
