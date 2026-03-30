@@ -143,6 +143,11 @@ export const useChat = (socket, sessionId, currentUserId) => {
   const handleMessageConfirmed = useCallback((message) => {
     if (!mountedRef.current) return;
     
+    console.log('=== MESSAGE CONFIRMED ===');
+    console.log('message_id:', message.message_id);
+    console.log('temp_id:', message.temp_id);
+    console.log('content:', message.content?.substring(0, 30));
+    
     // Update the pending message with confirmed data
     updatePendingMessage(message.temp_id, {
       ...message,
@@ -154,8 +159,17 @@ export const useChat = (socket, sessionId, currentUserId) => {
   const handleReceiveMessage = useCallback((message) => {
     if (!mountedRef.current) return;
     
+    console.log('=== RECEIVE MESSAGE ===');
+    console.log('message_id:', message.message_id);
+    console.log('sender_id:', message.sender_id);
+    console.log('currentUserId:', currentUserId);
+    console.log('content:', message.content?.substring(0, 30));
+    
     // Don't add if this is our own message (handled by message_confirmed)
-    if (message.sender_id === currentUserId) return;
+    if (message.sender_id === currentUserId) {
+      console.log('Skipping own message (already handled by confirmed)');
+      return;
+    }
     
     addMessage({
       ...message,
@@ -181,10 +195,18 @@ export const useChat = (socket, sessionId, currentUserId) => {
   const handleChatHistory = useCallback((data) => {
     if (!mountedRef.current) return;
     
+    console.log('=== CHAT HISTORY RECEIVED ===');
+    console.log('session_id:', data.session_id);
+    console.log('current sessionId:', sessionId);
+    console.log('message count:', data.messages?.length || 0);
+    
     const { messages: historyMessages, session_id } = data;
     
     // Only apply if for current session
-    if (session_id !== sessionId) return;
+    if (session_id !== sessionId) {
+      console.log('Ignoring history for different session');
+      return;
+    }
     
     if (historyMessages && Array.isArray(historyMessages)) {
       setMessagesMap(prev => {
@@ -200,6 +222,7 @@ export const useChat = (socket, sessionId, currentUserId) => {
           }
         });
         
+        console.log('Messages after history merge:', newMap.size);
         return newMap;
       });
     }
@@ -290,7 +313,15 @@ export const useChat = (socket, sessionId, currentUserId) => {
 
   // ========== SEND MESSAGE ==========
   const sendMessage = useCallback((content) => {
-    if (!socket || !content.trim() || !sessionId) return;
+    console.log('=== SEND MESSAGE ===');
+    console.log('socket:', socket ? 'connected' : 'disconnected');
+    console.log('sessionId:', sessionId);
+    console.log('content:', content?.substring(0, 50));
+    
+    if (!socket || !content.trim() || !sessionId) {
+      console.log('BLOCKED: Missing socket, content, or sessionId');
+      return;
+    }
     
     const trimmedContent = content.trim();
     const tempId = generateUUID();
@@ -307,6 +338,8 @@ export const useChat = (socket, sessionId, currentUserId) => {
       session_id: sessionId
     };
     
+    console.log('Adding optimistic message:', tempId);
+    
     // Add to state immediately (optimistic)
     addMessage(optimisticMessage);
     
@@ -317,6 +350,7 @@ export const useChat = (socket, sessionId, currentUserId) => {
     });
     
     // Emit to server
+    console.log('Emitting send_message to server');
     socket.emit('send_message', {
       content: trimmedContent,
       temp_id: tempId,
@@ -326,6 +360,7 @@ export const useChat = (socket, sessionId, currentUserId) => {
     // Set timeout for failure detection (10 seconds)
     setTimeout(() => {
       if (pendingMessagesRef.current.has(tempId)) {
+        console.log('Message timeout:', tempId);
         updatePendingMessage(tempId, {
           status: MessageStatus.FAILED,
           error: 'Message timeout'

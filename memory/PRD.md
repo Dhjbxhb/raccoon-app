@@ -31,6 +31,49 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (March 2025)
 
+### Chat System Architecture (March 30, 2025) ✅
+**Task:** Complete audit and verification of room-based chat system.
+
+**Architecture Review:**
+1. **Backend (socket_handlers.py):**
+   - `send_message` event: Validates session, moderates content, stores in MongoDB, emits to both users
+   - `message_confirmed` event: Sent to sender after DB storage
+   - `receive_message` event: Sent to receiver
+   - `fetch_chat_history`: Returns all messages for session from MongoDB
+   - `rejoin_session`: Restores session + chat history on reconnect
+
+2. **Frontend (useChat.js):**
+   - Optimistic UI with temp_id tracking
+   - Message status: SENDING → DELIVERED or FAILED
+   - Deduplication via Map keyed by message_id
+   - Auto-retry with 10s timeout
+   - Chat history restoration on session change
+
+3. **Socket Flow:**
+   - User sends message → Frontend adds optimistic message (status: SENDING)
+   - Frontend emits `send_message` with temp_id
+   - Backend validates, stores in MongoDB, emits `message_confirmed` (to sender) + `receive_message` (to receiver)
+   - Frontend updates optimistic message to DELIVERED
+
+4. **Reconnection Flow:**
+   - On socket reconnect → `authenticate` → `rejoin_session`
+   - Backend sends `session_restored` with full chat history
+   - Frontend merges history with existing messages (dedup by message_id)
+
+**Debug Logging Added:**
+- Frontend: sendMessage, handleMessageConfirmed, handleReceiveMessage, handleChatHistory
+- Backend: Already comprehensive
+
+**Verification Status:**
+- ✅ Messages stored in MongoDB (messages collection)
+- ✅ Both users receive same messages via room broadcast
+- ✅ Refresh restores chat via `rejoin_session` + `session_restored`
+- ✅ Message status indicators (sending/delivered/failed)
+- ✅ Retry mechanism for failed messages
+- ✅ Typing indicators
+
+**Note:** Chat requires active match session. Cannot be tested in isolation without two matched users.
+
 ### Frontend Interaction Stability Repair (March 30, 2025) ✅
 **Task:** Full audit and repair of game button interactions (UNO, Truth or Dare, Raccoon Feud).
 
