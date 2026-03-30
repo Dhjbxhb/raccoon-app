@@ -566,6 +566,35 @@ const Match = () => {
         </div>
       </div>
 
+      {/* ===== GAME MODE CONTROLS (Report/Skip during games) ===== */}
+      {isGameActive && (
+        <div className="game-mode-controls">
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="game-mode-controls__btn game-mode-controls__btn--report"
+            data-testid="game-mode-report"
+          >
+            <span>⚠️</span>
+            {!isMobile && <span>Report</span>}
+          </button>
+          <button
+            onClick={handleSkip}
+            disabled={isSkipping}
+            className="game-mode-controls__btn game-mode-controls__btn--skip"
+            data-testid="game-mode-skip"
+          >
+            {isSkipping ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <>
+                <span>→</span>
+                <span>Skip</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* ===== GAME OVERLAY (Full screen when active) ===== */}
       {showFeud && (
         <div className="game-fullscreen-container">

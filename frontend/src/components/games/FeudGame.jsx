@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { X, Send, Trophy, CheckCircle, XCircle, Zap, Clock } from 'lucide-react';
-import '@/styles/games.css';
 
 /**
  * FeudGame - Multiplayer Raccoon Feud with real-time backend sync
@@ -8,8 +7,8 @@ import '@/styles/games.css';
  * Features:
  * - Both players see the same game state
  * - Backend is source of truth
- * - Supports reconnection with state restoration
- * - Mobile-optimized keyboard handling
+ * - Mobile-optimized with keyboard handling
+ * - Input field stays visible when keyboard opens
  */
 const FeudGame = memo(({ 
   isOpen, 
@@ -28,13 +27,32 @@ const FeudGame = memo(({
   const [gameEnded, setGameEnded] = useState(initialGameState?.status === 'finished');
   const [winner, setWinner] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   
   const inputRef = useRef(null);
   const feedbackTimer = useRef(null);
   const mountedRef = useRef(true);
   const socketIdRef = useRef(null);
   const containerRef = useRef(null);
+  
+  // Detect keyboard visibility on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      // On mobile, viewport height decreases when keyboard appears
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const windowHeight = window.innerHeight;
+      const keyboardOpen = viewportHeight < windowHeight * 0.75;
+      setKeyboardVisible(keyboardOpen);
+    };
+    
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+      return () => window.visualViewport.removeEventListener('resize', handleResize);
+    }
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Track mount state
   useEffect(() => {
@@ -48,24 +66,19 @@ const FeudGame = memo(({
   // Socket event handlers
   useEffect(() => {
     if (!socket) {
-      console.log('=== FEUD: No socket available ===');
+      console.log('[FEUD] No socket');
       return;
     }
     
-    console.log('=== FEUD: Registering socket listeners ===');
-    console.log('Socket ID:', socket.id);
-    console.log('Socket connected:', socket.connected);
-    
-    // Prevent duplicate listeners
     if (socketIdRef.current === socket.id) {
-      console.log('=== FEUD: Socket listeners already registered ===');
       return;
     }
     socketIdRef.current = socket.id;
     
+    console.log('[FEUD] Registering socket listeners');
+    
     const handleGameStarted = (data) => {
-      console.log('=== FEUD: feud_game_started received ===');
-      console.log('Data:', JSON.stringify(data));
+      console.log('[FEUD] Game started', data);
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setIsMyTurn(data.game_state.current_player === myUserId);
@@ -74,7 +87,7 @@ const FeudGame = memo(({
     };
     
     const handleGuessResult = (data) => {
-      console.log('=== FEUD: feud_guess_result received ===');
+      console.log('[FEUD] Guess result', data);
       if (!mountedRef.current) return;
       
       if (data.correct) {
@@ -115,7 +128,7 @@ const FeudGame = memo(({
     };
     
     const handleGameEnded = (data) => {
-      console.log('=== FEUD: feud_game_ended received ===');
+      console.log('[FEUD] Game ended', data);
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setGameEnded(true);
@@ -128,7 +141,7 @@ const FeudGame = memo(({
     };
     
     const handleError = (data) => {
-      console.error('=== FEUD ERROR ===:', data.message);
+      console.error('[FEUD] Error:', data.message);
       if (!mountedRef.current) return;
       setFeedback({ type: 'error', message: data.message });
       setIsSubmitting(false);
@@ -139,10 +152,7 @@ const FeudGame = memo(({
     socket.on('feud_game_ended', handleGameEnded);
     socket.on('feud_error', handleError);
     
-    console.log('=== FEUD: Socket listeners registered ===');
-    
     return () => {
-      console.log('=== FEUD: Cleaning up socket listeners ===');
       socket.off('feud_game_started', handleGameStarted);
       socket.off('feud_guess_result', handleGuessResult);
       socket.off('feud_game_ended', handleGameEnded);
@@ -168,38 +178,17 @@ const FeudGame = memo(({
     }
   }, [initialGameState, myUserId]);
   
-  // Focus input on my turn
-  useEffect(() => {
-    if (isMyTurn && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isMyTurn]);
-  
   const startGame = useCallback(() => {
-    console.log('=== FEUD START GAME ===');
-    console.log('socket:', socket ? 'connected' : 'disconnected');
-    if (!socket) {
-      console.log('BLOCKED: No socket connection');
-      return;
-    }
+    if (!socket) return;
     socket.emit('start_feud_game');
-    console.log('EMITTED: start_feud_game');
+    console.log('[FEUD] Emitted: start_feud_game');
   }, [socket]);
   
   const submitGuess = useCallback(() => {
-    console.log('=== FEUD SUBMIT GUESS ===');
-    console.log('socket:', socket ? 'connected' : 'disconnected');
-    console.log('guess:', guess);
-    console.log('isMyTurn:', isMyTurn);
-    console.log('isSubmitting:', isSubmitting);
-    
-    if (!socket || !guess.trim() || !isMyTurn || isSubmitting) {
-      console.log('BLOCKED: Missing socket, guess, not my turn, or already submitting');
-      return;
-    }
+    if (!socket || !guess.trim() || !isMyTurn || isSubmitting) return;
     setIsSubmitting(true);
     socket.emit('feud_guess', { guess: guess.trim() });
-    console.log('EMITTED: feud_guess', { guess: guess.trim() });
+    console.log('[FEUD] Emitted: feud_guess', guess.trim());
     setGuess('');
   }, [socket, guess, isMyTurn, isSubmitting]);
   
@@ -238,39 +227,110 @@ const FeudGame = memo(({
   const totalQ = gameState?.total_questions || 5;
   
   return (
-    <div className="game-overlay game-overlay--feud" data-testid="feud-game-overlay">
-      {/* Header */}
-      <div className="game-header feud-header">
-        <div className="game-header__title">
-          <span className="game-header__icon">🦝</span>
-          <span className="game-header__name feud-header__name">Raccoon Feud</span>
+    <div 
+      ref={containerRef}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'linear-gradient(135deg, #1a237e, #0d1442)',
+        overflow: 'hidden',
+        zIndex: 25,
+        borderRadius: 'inherit'
+      }}
+      data-testid="feud-game-overlay"
+    >
+      {/* Header - Compact */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: keyboardVisible ? '0.5rem 0.75rem' : '0.75rem 1rem',
+        background: 'linear-gradient(90deg, rgba(255, 215, 0, 0.15), rgba(255, 140, 0, 0.1))',
+        borderBottom: '1px solid rgba(255, 215, 0, 0.3)',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: keyboardVisible ? '1rem' : '1.5rem' }}>🦝</span>
+          <span style={{ fontWeight: 700, color: '#ffd700', fontSize: keyboardVisible ? '0.875rem' : '1rem' }}>
+            Raccoon Feud
+          </span>
         </div>
-        <div className="game-header__actions">
-          <div className="flex items-center gap-1 px-2.5 py-1 bg-[#ffd700]/20 rounded-full">
-            <Trophy size={14} className="text-[#ffd700]" />
-            <span className="text-[#ffd700] font-bold">{myScore}</span>
-            <span className="text-gray-500 text-sm">-</span>
-            <span className="text-white font-bold">{partnerScore}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* Score display */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+            padding: '0.25rem 0.625rem',
+            background: 'rgba(255, 215, 0, 0.2)',
+            borderRadius: '2rem'
+          }}>
+            <Trophy size={12} style={{ color: '#ffd700' }} />
+            <span style={{ color: '#ffd700', fontWeight: 700, fontSize: '0.875rem' }}>{myScore}</span>
+            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem' }}>-</span>
+            <span style={{ color: 'white', fontWeight: 700, fontSize: '0.875rem' }}>{partnerScore}</span>
           </div>
-          <button onClick={handleClose} className="game-close-btn">
-            <X size={16} />
+          <button 
+            onClick={handleClose}
+            style={{
+              width: '1.75rem',
+              height: '1.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '50%',
+              color: 'rgba(255,255,255,0.7)',
+              cursor: 'pointer'
+            }}
+          >
+            <X size={14} />
           </button>
         </div>
       </div>
       
-      {/* Content */}
-      <div className="game-content">
+      {/* Content Area - Scrollable */}
+      <div style={{
+        flex: 1,
+        overflow: 'auto',
+        padding: keyboardVisible ? '0.5rem' : '0.75rem',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0
+      }}>
         {/* No game yet - Start screen */}
-        {!gameState && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-6xl mb-4 animate-bounce">🦝</div>
-            <h4 className="text-2xl font-bold text-white mb-2">Raccoon Feud!</h4>
-            <p className="text-gray-400 text-sm mb-1">Survey Says...</p>
-            <p className="text-[#ffd700]/70 text-xs mb-6">Play against {partnerUsername}!</p>
-            
+        {!gameState && !gameEnded && (
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '4rem', marginBottom: '1rem', animation: 'bounce 1s infinite' }}>🦝</div>
+            <h4 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', marginBottom: '0.5rem' }}>
+              Raccoon Feud!
+            </h4>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+              Play against {partnerUsername}!
+            </p>
             <button
               onClick={startGame}
-              className="px-8 py-3 bg-gradient-to-r from-[#ffd700] to-[#ff8c00] text-[#1a237e] font-bold rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(255,215,0,0.4)]"
+              style={{
+                padding: '0.875rem 2rem',
+                background: 'linear-gradient(135deg, #ffd700, #ff8c00)',
+                border: 'none',
+                borderRadius: '0.875rem',
+                color: '#1a237e',
+                fontWeight: 700,
+                fontSize: '1rem',
+                cursor: 'pointer',
+                boxShadow: '0 4px 24px rgba(255, 215, 0, 0.4)'
+              }}
               data-testid="start-feud-btn"
             >
               Start Game
@@ -280,36 +340,75 @@ const FeudGame = memo(({
         
         {/* Game ended - Results */}
         {gameEnded && winner && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-5xl mb-4">
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>
               {winner.isTie ? '🤝' : winner.isMe ? '🎉' : '😢'}
             </div>
-            <h4 className="text-2xl font-bold text-white mb-2">
+            <h4 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', marginBottom: '0.5rem' }}>
               {winner.isTie ? "It's a Tie!" : winner.isMe ? 'You Won!' : `${winner.username} Wins!`}
             </h4>
             
-            <div className="flex items-center gap-8 my-6">
-              <div className={`text-center p-4 rounded-xl ${myScore >= partnerScore ? 'bg-[#ffd700]/20 border border-[#ffd700]/50' : 'bg-white/5'}`}>
-                <div className="text-3xl font-bold text-[#ffd700] mb-1">{myScore}</div>
-                <div className="text-sm text-gray-400">You</div>
+            <div style={{
+              display: 'flex',
+              gap: '2rem',
+              margin: '1.5rem 0'
+            }}>
+              <div style={{
+                textAlign: 'center',
+                padding: '0.75rem 1.25rem',
+                borderRadius: '0.75rem',
+                background: myScore >= partnerScore ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255,255,255,0.05)',
+                border: myScore >= partnerScore ? '1px solid rgba(255, 215, 0, 0.4)' : '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#ffd700' }}>{myScore}</div>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>You</div>
               </div>
-              <div className="text-2xl text-gray-500">vs</div>
-              <div className={`text-center p-4 rounded-xl ${partnerScore >= myScore ? 'bg-[#ffd700]/20 border border-[#ffd700]/50' : 'bg-white/5'}`}>
-                <div className="text-3xl font-bold text-[#ffd700] mb-1">{partnerScore}</div>
-                <div className="text-sm text-gray-400">{partnerUsername}</div>
+              <div style={{ alignSelf: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '1.25rem' }}>vs</div>
+              <div style={{
+                textAlign: 'center',
+                padding: '0.75rem 1.25rem',
+                borderRadius: '0.75rem',
+                background: partnerScore >= myScore ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255,255,255,0.05)',
+                border: partnerScore >= myScore ? '1px solid rgba(255, 215, 0, 0.4)' : '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#ffd700' }}>{partnerScore}</div>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{partnerUsername}</div>
               </div>
             </div>
             
-            <div className="flex gap-3">
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 onClick={playAgain}
-                className="px-6 py-2 bg-gradient-to-r from-[#ffd700] to-[#ff8c00] text-[#1a237e] font-bold rounded-xl hover:scale-105 transition-all"
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  background: 'linear-gradient(135deg, #ffd700, #ff8c00)',
+                  border: 'none',
+                  borderRadius: '0.625rem',
+                  color: '#1a237e',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
               >
                 Play Again
               </button>
               <button
                 onClick={handleClose}
-                className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all"
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '0.625rem',
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
               >
                 Close
               </button>
@@ -319,118 +418,268 @@ const FeudGame = memo(({
         
         {/* Active game */}
         {gameState && !gameEnded && (
-          <div className="space-y-3">
-            {/* Progress */}
-            <div className="flex items-center justify-between text-xs text-gray-400">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* Progress + Turn indicator */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.75rem',
+              color: 'rgba(255,255,255,0.5)'
+            }}>
               <span>Q{qNum}/{totalQ}</span>
-              <span className={isMyTurn ? 'text-[#ffd700]' : 'text-gray-500'}>
+              <span style={{ 
+                color: isMyTurn ? '#ffd700' : 'rgba(255,255,255,0.5)',
+                fontWeight: isMyTurn ? 600 : 400
+              }}>
                 {isMyTurn ? '🎯 Your turn!' : `⏳ ${partnerUsername}'s turn`}
               </span>
             </div>
             
-            {/* Score bar */}
-            <div className="game-score-bar">
-              <div className="game-score-player">
-                <div className={`game-score-value ${isMyTurn ? 'text-[#ffd700]' : ''}`}>{myScore}</div>
-                <div className="game-score-label">You</div>
-                <div className="feud-strikes mt-1 justify-center">
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className={`feud-strike ${i < myStrikes ? 'feud-strike--active' : ''}`} />
-                  ))}
+            {/* Score bar - Compact when keyboard visible */}
+            {!keyboardVisible && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.5rem 0.75rem',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '0.75rem'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: isMyTurn ? '#ffd700' : 'white' }}>{myScore}</div>
+                  <div style={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.5)' }}>You</div>
+                  <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem', justifyContent: 'center' }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{
+                        width: '0.5rem',
+                        height: '0.5rem',
+                        borderRadius: '50%',
+                        background: i < myStrikes ? '#ef4444' : 'rgba(255,255,255,0.2)'
+                      }} />
+                    ))}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <Trophy size={16} style={{ color: '#ffd700', marginBottom: '0.25rem' }} />
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>vs</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: !isMyTurn ? '#ffd700' : 'white' }}>{partnerScore}</div>
+                  <div style={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.5)' }}>{partnerUsername}</div>
+                  <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem', justifyContent: 'center' }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{
+                        width: '0.5rem',
+                        height: '0.5rem',
+                        borderRadius: '50%',
+                        background: i < partnerStrikes ? '#ef4444' : 'rgba(255,255,255,0.2)'
+                      }} />
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="game-score-vs">
-                <Trophy size={18} className="text-[#ffd700] mx-auto mb-1" />
-                vs
-              </div>
-              <div className="game-score-player">
-                <div className={`game-score-value ${!isMyTurn ? 'text-[#ffd700]' : ''}`}>{partnerScore}</div>
-                <div className="game-score-label">{partnerUsername}</div>
-                <div className="feud-strikes mt-1 justify-center">
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className={`feud-strike ${i < partnerStrikes ? 'feud-strike--active' : ''}`} />
-                  ))}
-                </div>
-              </div>
-            </div>
+            )}
             
-            {/* Question */}
+            {/* Question - Always visible */}
             {currentQ && (
-              <>
-                <div className="feud-question">
-                  <div className="feud-question__category">{currentQ.category}</div>
-                  <div className="feud-question__text">{currentQ.question}</div>
+              <div style={{
+                padding: keyboardVisible ? '0.5rem 0.75rem' : '0.75rem 1rem',
+                background: 'rgba(255, 215, 0, 0.1)',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                borderRadius: '0.75rem'
+              }}>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '0.125rem 0.5rem',
+                  background: 'rgba(255, 215, 0, 0.2)',
+                  borderRadius: '1rem',
+                  fontSize: '0.625rem',
+                  color: '#ffd700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.375rem'
+                }}>
+                  {currentQ.category}
                 </div>
-                
-                {/* Answer board */}
-                <div className="feud-answers">
-                  {currentQ.answers.map((ans, idx) => (
-                    <div
-                      key={idx}
-                      className={`feud-answer ${ans.revealed ? 'feud-answer--revealed' : ''} ${revealingIdx === idx ? 'feud-answer--revealing' : ''}`}
-                    >
-                      <span className="feud-answer__text">
-                        {ans.revealed ? ans.answer : `${idx + 1}. ???`}
-                      </span>
-                      <span className="feud-answer__points">
-                        {ans.revealed ? ans.points : '??'}
-                      </span>
-                    </div>
-                  ))}
+                <div style={{
+                  color: 'white',
+                  fontSize: keyboardVisible ? '0.875rem' : '0.9375rem',
+                  fontWeight: 500,
+                  textAlign: 'center',
+                  lineHeight: 1.4
+                }}>
+                  {currentQ.question}
                 </div>
-              </>
+              </div>
+            )}
+            
+            {/* Answer board - Compact when keyboard visible */}
+            {currentQ && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: keyboardVisible ? '0.25rem' : '0.375rem'
+              }}>
+                {currentQ.answers.map((ans, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: keyboardVisible ? '0.375rem 0.625rem' : '0.5rem 0.75rem',
+                      background: ans.revealed 
+                        ? revealingIdx === idx 
+                          ? 'rgba(255, 215, 0, 0.35)' 
+                          : 'rgba(255, 215, 0, 0.15)'
+                        : 'rgba(255,255,255,0.05)',
+                      border: ans.revealed
+                        ? revealingIdx === idx
+                          ? '1px solid #ffd700'
+                          : '1px solid rgba(255, 215, 0, 0.4)'
+                        : '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '0.5rem',
+                      transition: 'all 0.3s ease',
+                      transform: revealingIdx === idx ? 'scale(1.02)' : 'none'
+                    }}
+                  >
+                    <span style={{
+                      fontSize: keyboardVisible ? '0.8125rem' : '0.875rem',
+                      fontWeight: 500,
+                      color: ans.revealed ? 'white' : 'rgba(255,255,255,0.4)'
+                    }}>
+                      {ans.revealed ? ans.answer : `${idx + 1}. ???`}
+                    </span>
+                    <span style={{
+                      padding: '0.125rem 0.5rem',
+                      background: ans.revealed ? 'rgba(255, 215, 0, 0.25)' : 'rgba(255,255,255,0.1)',
+                      borderRadius: '0.375rem',
+                      fontSize: keyboardVisible ? '0.75rem' : '0.8125rem',
+                      fontWeight: 700,
+                      color: ans.revealed ? '#ffd700' : 'rgba(255,255,255,0.3)'
+                    }}>
+                      {ans.revealed ? ans.points : '??'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
             
             {/* Steal indicator */}
             {gameState?.is_steal_attempt && (
-              <div className="feud-steal">
-                <Zap size={16} className="inline mr-1" /> STEAL ATTEMPT!
-              </div>
-            )}
-            
-            {/* Input */}
-            <div className="feud-input">
-              <input
-                ref={inputRef}
-                type="text"
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={!isMyTurn || isSubmitting}
-                placeholder={isMyTurn ? "Type your answer..." : "Waiting..."}
-                className="feud-input__field"
-                data-testid="feud-guess-input"
-              />
-              <button
-                onClick={submitGuess}
-                disabled={!isMyTurn || !guess.trim() || isSubmitting}
-                className="feud-input__submit"
-                data-testid="feud-submit-btn"
-              >
-                {isSubmitting ? <Clock size={18} className="animate-spin" /> : <Send size={18} />}
-              </button>
-            </div>
-            
-            {/* Feedback */}
-            {feedback && feedback.type !== 'error' && (
-              <div className={`feud-feedback ${feedback.type === 'correct' ? 'feud-feedback--correct' : 'feud-feedback--strike'}`}>
-                {feedback.type === 'correct' ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <CheckCircle size={16} />
-                    {feedback.isMe ? 'You got it!' : `${feedback.player} got it!`} +{feedback.points}
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <XCircle size={16} />
-                    {feedback.isMe ? 'Strike!' : `${feedback.player} missed!`}
-                    {feedback.stealChance && ' STEAL CHANCE!'}
-                  </span>
-                )}
+              <div style={{
+                textAlign: 'center',
+                padding: '0.5rem 0.75rem',
+                background: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                borderRadius: '0.5rem',
+                color: '#f59e0b',
+                fontWeight: 700,
+                fontSize: '0.875rem',
+                animation: 'pulse 1.5s infinite'
+              }}>
+                <Zap size={14} style={{ display: 'inline', marginRight: '0.375rem' }} />
+                STEAL ATTEMPT!
               </div>
             )}
           </div>
         )}
       </div>
+      
+      {/* Input area - Fixed at bottom, always visible */}
+      {gameState && !gameEnded && (
+        <div style={{
+          padding: '0.625rem 0.75rem',
+          paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))',
+          background: 'rgba(0,0,0,0.4)',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={guess}
+              onChange={(e) => setGuess(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={!isMyTurn || isSubmitting}
+              placeholder={isMyTurn ? "Type your answer..." : "Waiting..."}
+              style={{
+                flex: 1,
+                padding: '0.75rem 1rem',
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                borderRadius: '0.625rem',
+                color: 'white',
+                fontSize: '1rem',
+                outline: 'none'
+              }}
+              data-testid="feud-guess-input"
+            />
+            <button
+              onClick={submitGuess}
+              disabled={!isMyTurn || !guess.trim() || isSubmitting}
+              style={{
+                padding: '0 1rem',
+                background: isMyTurn && guess.trim() ? '#ffd700' : 'rgba(255,255,255,0.2)',
+                border: 'none',
+                borderRadius: '0.625rem',
+                color: isMyTurn && guess.trim() ? '#1a237e' : 'rgba(255,255,255,0.4)',
+                fontWeight: 700,
+                cursor: isMyTurn && guess.trim() ? 'pointer' : 'not-allowed'
+              }}
+              data-testid="feud-submit-btn"
+            >
+              {isSubmitting ? <Clock size={18} className="animate-spin" /> : <Send size={18} />}
+            </button>
+          </div>
+          
+          {/* Feedback toast */}
+          {feedback && feedback.type !== 'error' && (
+            <div style={{
+              marginTop: '0.5rem',
+              textAlign: 'center',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.5rem',
+              background: feedback.type === 'correct' 
+                ? 'rgba(34, 197, 94, 0.2)' 
+                : 'rgba(239, 68, 68, 0.2)',
+              border: feedback.type === 'correct'
+                ? '1px solid rgba(34, 197, 94, 0.4)'
+                : '1px solid rgba(239, 68, 68, 0.4)',
+              color: feedback.type === 'correct' ? '#22c55e' : '#ef4444',
+              fontWeight: 600,
+              fontSize: '0.875rem'
+            }}>
+              {feedback.type === 'correct' ? (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem' }}>
+                  <CheckCircle size={16} />
+                  {feedback.isMe ? 'You got it!' : `${feedback.player} got it!`} +{feedback.points}
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem' }}>
+                  <XCircle size={16} />
+                  {feedback.isMe ? 'Strike!' : `${feedback.player} missed!`}
+                  {feedback.stealChance && ' STEAL CHANCE!'}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Animations */}
+      <style>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
     </div>
   );
 });
