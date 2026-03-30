@@ -174,23 +174,36 @@ const Match = () => {
   // ========== SOCKET EVENT CLEANUP ==========
   // Listen for game events to sync between players and clean up properly
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('=== GAME SOCKET LISTENER: No socket available ===');
+      return;
+    }
+    
+    console.log('=== REGISTERING GAME SOCKET LISTENERS ===');
+    console.log('Socket ID:', socket.id);
+    console.log('Socket connected:', socket.connected);
     
     // ===== GAME START SYNC =====
     // When partner starts a game, open it for both players
     const handleFeudStarted = (data) => {
+      console.log('=== FEUD_GAME_STARTED EVENT RECEIVED ===');
+      console.log('Data:', JSON.stringify(data));
       // Both players receive this - open game UI for both
       setActiveGame('feud');
       setGameSessionId(sessionId);
     };
     
     const handleTodStarted = (data) => {
+      console.log('=== TOD_GAME_STARTED EVENT RECEIVED ===');
+      console.log('Data:', JSON.stringify(data));
       // Both players receive this - open game UI for both
       setActiveGame('truthordare');
       setGameSessionId(sessionId);
     };
     
     const handleUnoStarted = (data) => {
+      console.log('=== UNO_GAME_STARTED EVENT RECEIVED ===');
+      console.log('Data:', JSON.stringify(data));
       // Both players receive this - open UNO game UI for both
       setActiveGame('uno');
       setGameSessionId(sessionId);
@@ -228,6 +241,8 @@ const Match = () => {
     
     // Handle premium feature blocks from backend
     const handlePremiumFilterBlocked = (data) => {
+      console.log('=== PREMIUM_FILTER_BLOCKED EVENT ===');
+      console.log('Data:', JSON.stringify(data));
       if (data.warnings && data.warnings.length > 0) {
         // Show toast for downgraded filters
         toast.info(
@@ -242,8 +257,17 @@ const Match = () => {
     
     // Handle premium required events (games, etc)
     const handlePremiumRequired = (data) => {
+      console.log('=== PREMIUM_REQUIRED EVENT ===');
+      console.log('Data:', JSON.stringify(data));
       const featureName = data.game || data.feature || 'This feature';
       showPremiumModal(featureName);
+    };
+    
+    // Handle generic errors from backend
+    const handleError = (data) => {
+      console.log('=== ERROR EVENT FROM BACKEND ===');
+      console.log('Data:', JSON.stringify(data));
+      toast.error(data.message || 'An error occurred');
     };
     
     // Handle session restoration with active game
@@ -274,8 +298,12 @@ const Match = () => {
     socket.on('premium_filter_blocked', handlePremiumFilterBlocked);
     socket.on('premium_required', handlePremiumRequired);
     socket.on('session_restored', handleSessionRestored);
+    socket.on('error', handleError);
+    
+    console.log('=== GAME SOCKET LISTENERS REGISTERED ===');
     
     return () => {
+      console.log('=== CLEANING UP GAME SOCKET LISTENERS ===');
       socket.off('feud_game_started', handleFeudStarted);
       socket.off('tod_game_started', handleTodStarted);
       socket.off('uno_game_started', handleUnoStarted);
@@ -287,6 +315,7 @@ const Match = () => {
       socket.off('premium_filter_blocked', handlePremiumFilterBlocked);
       socket.off('premium_required', handlePremiumRequired);
       socket.off('session_restored', handleSessionRestored);
+      socket.off('error', handleError);
     };
   }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal]);
 
@@ -479,9 +508,19 @@ const Match = () => {
   
   // Toggle game with conflict prevention
   const toggleGame = useCallback((gameType) => {
-    console.log('=== TOGGLE GAME ===');
+    console.log('=== TOGGLE GAME CLICKED ===');
     console.log('gameType:', gameType);
     console.log('activeGame:', activeGame);
+    console.log('state:', state);
+    console.log('partner:', partner?.username || 'none');
+    console.log('sessionId:', sessionId);
+    console.log('socket connected:', socket?.connected);
+    
+    if (state !== 'matched') {
+      console.log('BLOCKED: Not in matched state');
+      toast.error('You must be matched with someone to play games');
+      return;
+    }
     
     if (activeGame === gameType) {
       // Close current game
@@ -489,10 +528,10 @@ const Match = () => {
       closeGame();
     } else {
       // Start new game (closes any existing first)
-      console.log('Starting new game');
+      console.log('Starting new game:', gameType);
       startGame(gameType);
     }
-  }, [activeGame, closeGame, startGame]);
+  }, [activeGame, closeGame, startGame, state, partner, sessionId, socket]);
 
   // ========== SKIP LOGIC ==========
   const handleSkip = useCallback(() => {

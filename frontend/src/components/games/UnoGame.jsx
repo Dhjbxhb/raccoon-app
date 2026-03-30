@@ -186,12 +186,24 @@ const UnoGame = memo(({
   
   // Socket event handlers
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('=== UNO: No socket available ===');
+      return;
+    }
     
-    if (socketIdRef.current === socket.id) return;
+    console.log('=== UNO: Registering socket listeners ===');
+    console.log('Socket ID:', socket.id);
+    console.log('Socket connected:', socket.connected);
+    
+    if (socketIdRef.current === socket.id) {
+      console.log('=== UNO: Socket listeners already registered ===');
+      return;
+    }
     socketIdRef.current = socket.id;
     
     const handleGameStarted = (data) => {
+      console.log('=== UNO: uno_game_started received ===');
+      console.log('Data:', JSON.stringify(data));
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setGameEnded(false);
@@ -200,6 +212,7 @@ const UnoGame = memo(({
     };
     
     const handleCardPlayed = (data) => {
+      console.log('=== UNO: uno_card_played received ===');
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setLastPlayedCard(data.card);
@@ -226,6 +239,7 @@ const UnoGame = memo(({
     };
     
     const handleCardDrawn = (data) => {
+      console.log('=== UNO: uno_card_drawn received ===');
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       
@@ -235,6 +249,7 @@ const UnoGame = memo(({
     };
     
     const handleUnoCalled = (data) => {
+      console.log('=== UNO: uno_called received ===');
       if (!mountedRef.current) return;
       showNotification(`${data.player_username} called UNO!`, 'success');
       if (data.player_id === myUserId) {
@@ -243,6 +258,7 @@ const UnoGame = memo(({
     };
     
     const handleGameEnded = (data) => {
+      console.log('=== UNO: uno_game_ended received ===');
       if (!mountedRef.current) return;
       setGameEnded(true);
       if (data.winner_id) {
@@ -258,6 +274,7 @@ const UnoGame = memo(({
     };
     
     const handleError = (data) => {
+      console.error('=== UNO ERROR ===:', data.message);
       showNotification(data.message || 'Error', 'error');
     };
     
@@ -268,7 +285,10 @@ const UnoGame = memo(({
     socket.on('uno_game_ended', handleGameEnded);
     socket.on('uno_error', handleError);
     
+    console.log('=== UNO: Socket listeners registered ===');
+    
     return () => {
+      console.log('=== UNO: Cleaning up socket listeners ===');
       socket.off('uno_game_started', handleGameStarted);
       socket.off('uno_card_played', handleCardPlayed);
       socket.off('uno_card_drawn', handleCardDrawn);

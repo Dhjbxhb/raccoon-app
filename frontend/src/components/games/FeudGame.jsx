@@ -44,13 +44,25 @@ const FeudGame = memo(({
   
   // Socket event handlers
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('=== FEUD: No socket available ===');
+      return;
+    }
+    
+    console.log('=== FEUD: Registering socket listeners ===');
+    console.log('Socket ID:', socket.id);
+    console.log('Socket connected:', socket.connected);
     
     // Prevent duplicate listeners
-    if (socketIdRef.current === socket.id) return;
+    if (socketIdRef.current === socket.id) {
+      console.log('=== FEUD: Socket listeners already registered ===');
+      return;
+    }
     socketIdRef.current = socket.id;
     
     const handleGameStarted = (data) => {
+      console.log('=== FEUD: feud_game_started received ===');
+      console.log('Data:', JSON.stringify(data));
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setIsMyTurn(data.game_state.current_player === myUserId);
@@ -59,6 +71,7 @@ const FeudGame = memo(({
     };
     
     const handleGuessResult = (data) => {
+      console.log('=== FEUD: feud_guess_result received ===');
       if (!mountedRef.current) return;
       
       if (data.correct) {
@@ -99,6 +112,7 @@ const FeudGame = memo(({
     };
     
     const handleGameEnded = (data) => {
+      console.log('=== FEUD: feud_game_ended received ===');
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setGameEnded(true);
@@ -111,6 +125,7 @@ const FeudGame = memo(({
     };
     
     const handleError = (data) => {
+      console.error('=== FEUD ERROR ===:', data.message);
       if (!mountedRef.current) return;
       setFeedback({ type: 'error', message: data.message });
       setIsSubmitting(false);
@@ -121,7 +136,10 @@ const FeudGame = memo(({
     socket.on('feud_game_ended', handleGameEnded);
     socket.on('feud_error', handleError);
     
+    console.log('=== FEUD: Socket listeners registered ===');
+    
     return () => {
+      console.log('=== FEUD: Cleaning up socket listeners ===');
       socket.off('feud_game_started', handleGameStarted);
       socket.off('feud_guess_result', handleGuessResult);
       socket.off('feud_game_ended', handleGameEnded);

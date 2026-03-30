@@ -47,13 +47,25 @@ const TruthOrDare = memo(({
   
   // Socket event handlers
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('=== TOD: No socket available ===');
+      return;
+    }
+    
+    console.log('=== TOD: Registering socket listeners ===');
+    console.log('Socket ID:', socket.id);
+    console.log('Socket connected:', socket.connected);
     
     // Prevent duplicate listeners
-    if (socketIdRef.current === socket.id) return;
+    if (socketIdRef.current === socket.id) {
+      console.log('=== TOD: Socket listeners already registered for this socket ===');
+      return;
+    }
     socketIdRef.current = socket.id;
     
     const handleGameStarted = (data) => {
+      console.log('=== TOD: tod_game_started received ===');
+      console.log('Data:', JSON.stringify(data));
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setSpinRotation(data.game_state.spin_rotation || 0);
@@ -61,6 +73,8 @@ const TruthOrDare = memo(({
     };
     
     const handleSpinResult = (data) => {
+      console.log('=== TOD: tod_spin_result received ===');
+      console.log('Data:', JSON.stringify(data));
       if (!mountedRef.current) return;
       // Animate to the backend-determined rotation
       setSpinRotation(data.spin_rotation);
@@ -75,24 +89,28 @@ const TruthOrDare = memo(({
     };
     
     const handleChoiceMade = (data) => {
+      console.log('=== TOD: tod_choice_made received ===');
+      console.log('Data:', JSON.stringify(data));
       if (!mountedRef.current) return;
       // Now includes the auto-generated question!
       setGameState(data.game_state);
     };
     
     const handleRoundComplete = (data) => {
+      console.log('=== TOD: tod_round_complete received ===');
       if (!mountedRef.current) return;
       setGameState(data.game_state);
       setRoundsCompleted(data.rounds_played);
     };
     
     const handleGameEnded = (data) => {
+      console.log('=== TOD: tod_game_ended received ===');
       if (!mountedRef.current) return;
       setGameState(data.game_state);
     };
     
     const handleError = (data) => {
-      console.error('Truth or Dare error:', data.message);
+      console.error('=== TOD ERROR ===:', data.message);
     };
     
     socket.on('tod_game_started', handleGameStarted);
@@ -102,7 +120,10 @@ const TruthOrDare = memo(({
     socket.on('tod_game_ended', handleGameEnded);
     socket.on('tod_error', handleError);
     
+    console.log('=== TOD: Socket listeners registered ===');
+    
     return () => {
+      console.log('=== TOD: Cleaning up socket listeners ===');
       socket.off('tod_game_started', handleGameStarted);
       socket.off('tod_spin_result', handleSpinResult);
       socket.off('tod_choice_made', handleChoiceMade);
