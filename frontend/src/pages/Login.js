@@ -17,8 +17,9 @@ import {
   isFirebaseReady,
   isGoogleAuthPending,
   clearGoogleAuthPending,
-  waitForAuthState,
-  onAuthStateChange
+  waitForAuthReady,
+  subscribeToAuth,
+  getCurrentUser
 } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
@@ -41,7 +42,7 @@ const Login = () => {
   
   // Refs to prevent double execution
   const syncAttempted = useRef(false);
-  const unsubscribeRef = useRef(null);
+  const mounted = useRef(true);
 
   // Sync Firebase user with backend
   const syncWithBackend = useCallback(async (firebaseUser) => {
@@ -52,17 +53,17 @@ const Login = () => {
     }
     syncAttempted.current = true;
     
-    console.log('==========================================');
+    console.log('[LOGIN] ==========================================');
     console.log('[LOGIN] SYNCING WITH BACKEND');
     console.log('[LOGIN] Email:', firebaseUser.email);
     console.log('[LOGIN] UID:', firebaseUser.uid);
-    console.log('==========================================');
+    console.log('[LOGIN] ==========================================');
     
     try {
       // Get Firebase ID token
       console.log('[LOGIN] Getting Firebase ID token...');
       const idToken = await firebaseUser.getIdToken(true);
-      console.log('[LOGIN] Token length:', idToken.length);
+      console.log('[LOGIN] Token obtained, length:', idToken.length);
       
       // Call backend
       console.log('[LOGIN] Calling /api/auth/google...');
@@ -75,7 +76,7 @@ const Login = () => {
         browser_locale: getBrowserLocale()
       });
       
-      console.log('[LOGIN] Backend response received');
+      console.log('[LOGIN] Backend response:');
       console.log('[LOGIN] Token:', response.data.token ? 'YES' : 'NO');
       console.log('[LOGIN] User:', response.data.user?.username);
       
@@ -97,10 +98,10 @@ const Login = () => {
       // Clear pending flags
       clearGoogleAuthPending();
       
-      // Navigate
+      // Success!
       toast.success(`Welcome, ${response.data.user.username}!`);
       const destination = response.data.user.age_verified ? '/dashboard' : '/verify-age';
-      console.log('[LOGIN] Navigating to:', destination);
+      console.log('[LOGIN] SUCCESS! Navigating to:', destination);
       
       navigate(destination, { replace: true });
       return true;
@@ -114,111 +115,104 @@ const Login = () => {
     }
   }, [login, navigate]);
 
-  // Main effect: Handle auth state
+  // Main effect: Check for redirect and handle auth state
   useEffect(() => {
-    console.log('[LOGIN] Component mounted');
+    mounted.current = true;
     
-    // Check if already logged in with our JWT
-    const existingToken = localStorage.getItem(TOKEN_KEY);
-    if (existingToken && user) {
-      console.log('[LOGIN] Already logged in, redirecting');
-      navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
-      setCheckingRedirect(false);
-      return;
-    }
-    
-    // Check if Google auth redirect is pending
-    const wasPending = isGoogleAuthPending();
-    console.log('[LOGIN] Google auth pending:', wasPending);
-    
-    if (!wasPending) {
-      // No pending redirect, just show login form
-      console.log('[LOGIN] No pending auth, showing login form');
-      setCheckingRedirect(false);
-      if (finishAuthCheck) finishAuthCheck();
-      return;
-    }
-    
-    // === PENDING REDIRECT: Wait for Firebase auth state ===
-    console.log('[LOGIN] Processing Google redirect...');
-    setSocialLoading('google');
-    
-    // Subscribe to auth state changes
-    const handleAuthState = async (firebaseUser) => {
-      console.log('[LOGIN] Auth state changed:', firebaseUser?.email || 'null');
+    const handleAuth = async () => {
+      console.log('[LOGIN] ==========================================');
+      console.log('[LOGIN] Component mounted, checking auth...');
+      console.log('[LOGIN] ==========================================');
+      
+      // Check if already logged in with our JWT
+      const existingToken = localStorage.getItem(TOKEN_KEY);
+      if (existingToken && user) {
+        console.log('[LOGIN] Already logged in with JWT, redirecting');
+        navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
+        setCheckingRedirect(false);
+        return;
+      }
+      
+      // Check if Google auth redirect is pending
+      const wasPending = isGoogleAuthPending();
+      console.log('[LOGIN] Google auth pending:', wasPending);
+      
+      if (!wasPending) {
+        // No pending redirect, show login form
+        console.log('[LOGIN] No pending auth, showing login form');
+        setCheckingRedirect(false);
+        if (finishAuthCheck) finishAuthCheck();
+        return;
+      }
+      
+      // === PENDING REDIRECT: Wait for Firebase auth ===
+      console.log('[LOGIN] Processing Google redirect...');
+      setSocialLoading('google');
+      
+      // First, wait for Firebase auth to be ready
+      console.log('[LOGIN] Waiting for Firebase auth...');
+      const firebaseUser = await waitForAuthReady();
+      
+      console.log('[LOGIN] Firebase auth ready');
+      console.log('[LOGIN] User:', firebaseUser?.email || 'NULL');
       
       if (firebaseUser) {
-        // User is logged in! Sync with backend
+        // User exists! Sync with backend
         console.log('[LOGIN] Firebase user found, syncing...');
         const success = await syncWithBackend(firebaseUser);
         
-        if (!success) {
+        if (!success && mounted.current) {
           setSocialLoading(null);
           setCheckingRedirect(false);
           if (finishAuthCheck) finishAuthCheck();
         }
-        // If success, syncWithBackend handles navigation
       } else {
-        // No user after redirect - something went wrong
-        console.log('[LOGIN] No Firebase user after redirect');
-        clearGoogleAuthPending();
-        setSocialLoading(null);
-        setCheckingRedirect(false);
-        if (finishAuthCheck) finishAuthCheck();
-        toast.error('Google login was not completed. Please try again.');
-      }
-      
-      // Unsubscribe after handling
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
-    };
-    
-    // First check if user is already available
-    const checkInitialState = async () => {
-      const firebaseUser = await waitForAuthState();
-      console.log('[LOGIN] Initial auth state:', firebaseUser?.email || 'null');
-      
-      if (firebaseUser) {
-        // User already available, sync immediately
-        await handleAuthState(firebaseUser);
-      } else {
-        // Subscribe to future changes (in case auth state updates later)
-        console.log('[LOGIN] Subscribing to auth state changes...');
-        unsubscribeRef.current = onAuthStateChange((user) => {
-          if (user && isGoogleAuthPending()) {
-            handleAuthState(user);
+        // No user yet - subscribe to auth changes with timeout
+        console.log('[LOGIN] No user yet, subscribing to auth changes...');
+        
+        let timeoutId = null;
+        let unsubscribe = null;
+        
+        const cleanup = () => {
+          if (timeoutId) clearTimeout(timeoutId);
+          if (unsubscribe) unsubscribe();
+        };
+        
+        unsubscribe = subscribeToAuth(async (user) => {
+          console.log('[LOGIN] Auth state changed:', user?.email || 'null');
+          
+          if (user && mounted.current) {
+            cleanup();
+            console.log('[LOGIN] User detected via subscription, syncing...');
+            const success = await syncWithBackend(user);
+            
+            if (!success && mounted.current) {
+              setSocialLoading(null);
+              setCheckingRedirect(false);
+              if (finishAuthCheck) finishAuthCheck();
+            }
           }
         });
         
-        // Set a timeout to prevent infinite waiting
-        setTimeout(() => {
-          if (isGoogleAuthPending() && !syncAttempted.current) {
-            console.log('[LOGIN] Timeout: No user after 5 seconds');
+        // Timeout after 10 seconds
+        timeoutId = setTimeout(() => {
+          if (mounted.current && isGoogleAuthPending()) {
+            console.log('[LOGIN] TIMEOUT: No user after 10 seconds');
+            cleanup();
             clearGoogleAuthPending();
             setSocialLoading(null);
             setCheckingRedirect(false);
             if (finishAuthCheck) finishAuthCheck();
-            toast.error('Google login timed out. Please try again.');
-            
-            if (unsubscribeRef.current) {
-              unsubscribeRef.current();
-              unsubscribeRef.current = null;
-            }
+            toast.error('Google login session expired. Please try again.');
           }
-        }, 5000);
+        }, 10000);
       }
     };
     
-    checkInitialState();
+    handleAuth();
     
-    // Cleanup
     return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
+      mounted.current = false;
     };
   }, [user, navigate, syncWithBackend, finishAuthCheck]);
 
@@ -269,7 +263,9 @@ const Login = () => {
       return;
     }
     
-    console.log('[LOGIN] User clicked Google login');
+    console.log('[LOGIN] ==========================================');
+    console.log('[LOGIN] USER CLICKED GOOGLE LOGIN');
+    console.log('[LOGIN] ==========================================');
     
     setSocialLoading('google');
     syncAttempted.current = false;
@@ -279,7 +275,7 @@ const Login = () => {
       // Page will redirect to Google
     } catch (error) {
       console.error('[LOGIN] Google login error:', error);
-      toast.error('Failed to start Google login');
+      toast.error('Failed to start Google login: ' + error.message);
       setSocialLoading(null);
     }
   };

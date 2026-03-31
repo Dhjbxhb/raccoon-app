@@ -12,7 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, clearGoogleAuthPending, isGoogleAuthPending, waitForAuthState, onAuthStateChange } from '@/services/firebase.service';
+import { isFirebaseReady, signInWithGoogle, clearGoogleAuthPending, isGoogleAuthPending, waitForAuthReady, subscribeToAuth } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
   getErrorMessage,
@@ -56,6 +56,7 @@ const Signup = () => {
     if (!firebaseReady || !isGoogleAuthPending()) return;
     
     let unsubscribe = null;
+    let timeoutId = null;
     
     const handleAuthState = async (firebaseUser) => {
       if (!firebaseUser) return;
@@ -78,31 +79,32 @@ const Signup = () => {
         setSocialLoading(null);
         clearGoogleAuthPending();
         if (unsubscribe) unsubscribe();
+        if (timeoutId) clearTimeout(timeoutId);
       }
     };
     
     // Check if user is already available
     const checkAuth = async () => {
-      const user = await waitForAuthState();
+      const user = await waitForAuthReady();
       if (user) {
         handleAuthState(user);
       } else {
         // Subscribe to future changes
-        unsubscribe = onAuthStateChange((user) => {
+        unsubscribe = subscribeToAuth((user) => {
           if (user && isGoogleAuthPending()) {
             handleAuthState(user);
           }
         });
         
         // Timeout
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           if (isGoogleAuthPending()) {
             clearGoogleAuthPending();
             setSocialLoading(null);
             toast.error('Google signup timed out. Please try again.');
             if (unsubscribe) unsubscribe();
           }
-        }, 5000);
+        }, 10000);
       }
     };
     
@@ -110,6 +112,7 @@ const Signup = () => {
     
     return () => {
       if (unsubscribe) unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [firebaseReady]);
 
