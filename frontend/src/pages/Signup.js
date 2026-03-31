@@ -205,7 +205,7 @@ const Signup = () => {
     }
   };
 
-  // Google signup handler - uses redirect for cross-origin compatibility
+  // Google signup handler - uses popup first, fallback to redirect
   const handleGoogleSignup = async () => {
     if (!firebaseReady) {
       toast.error('Firebase is initializing. Please try again.');
@@ -215,16 +215,29 @@ const Signup = () => {
 
     setSocialLoading('google');
     try {
-      // This will redirect to Google - no return value
-      await signInWithGoogle();
-      // User will be redirected to Google, then back here
-      // The result is handled in the useEffect above
+      // Try popup first (more reliable)
+      const firebaseUser = await signInWithGoogle();
+      
+      // If popup was used, we get user directly
+      if (firebaseUser) {
+        const idToken = await firebaseUser.getIdToken(true);
+        await syncSocialAuth({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+          provider: 'google',
+          idToken: idToken
+        });
+      }
+      // If redirect was used, the page will reload and useEffect handles it
+      
     } catch (error) {
       console.error('Google signup error:', error);
       if (error.code === 'auth/unauthorized-domain') {
         toast.error('This domain is not authorized for Google Sign-In. Please add it to Firebase Console.');
       } else {
-        toast.error('Google signup failed. Please try again.');
+        toast.error('Google signup failed: ' + error.message);
       }
       setSocialLoading(null);
     }

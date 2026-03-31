@@ -13,6 +13,7 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithRedirect,
+  signInWithPopup,
   onAuthStateChanged,
   signOut as firebaseSignOut,
   browserLocalPersistence,
@@ -43,9 +44,19 @@ const initializeFirebase = () => {
   }
   
   console.log('[FIREBASE] Initializing...');
+  console.log('[FIREBASE] Config check:');
+  console.log('[FIREBASE] - projectId:', firebaseConfig.projectId);
+  console.log('[FIREBASE] - authDomain:', firebaseConfig.authDomain);
+  console.log('[FIREBASE] - apiKey:', firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0, 10) + '...' : 'MISSING');
   
   if (!isFirebaseConfigured()) {
     console.error('[FIREBASE] Not configured - missing env vars');
+    console.error('[FIREBASE] Missing values:', {
+      apiKey: !firebaseConfig.apiKey,
+      authDomain: !firebaseConfig.authDomain,
+      projectId: !firebaseConfig.projectId,
+      appId: !firebaseConfig.appId
+    });
     authStateResolved = true;
     return;
   }
@@ -64,6 +75,8 @@ const initializeFirebase = () => {
     // Get auth instance
     auth = getAuth(app);
     console.log('[FIREBASE] Auth obtained');
+    console.log('[FIREBASE] Auth app projectId:', auth.app.options.projectId);
+    console.log('[FIREBASE] Auth app authDomain:', auth.app.options.authDomain);
     
     // Configure Google provider
     googleProvider = new GoogleAuthProvider();
@@ -188,8 +201,8 @@ export const subscribeToAuth = (callback) => {
 };
 
 /**
- * Start Google sign in with redirect
- * CRITICAL: Set persistence BEFORE redirect
+ * Start Google sign in - tries popup first, falls back to redirect
+ * Popup is more reliable as it doesn't require cross-page state persistence
  */
 export const signInWithGoogle = async () => {
   if (!auth || !googleProvider) {
@@ -202,25 +215,39 @@ export const signInWithGoogle = async () => {
   console.log('[FIREBASE] ==========================================');
   
   try {
-    // CRITICAL: Set persistence to LOCAL before redirect
-    // This ensures the auth state survives page reload
+    // CRITICAL: Set persistence to LOCAL
     console.log('[FIREBASE] Setting persistence to browserLocalPersistence...');
     await setPersistence(auth, browserLocalPersistence);
     console.log('[FIREBASE] Persistence set successfully');
     
-    // Set pending flag
-    localStorage.setItem('googleAuthPending', 'true');
-    localStorage.setItem('googleAuthTimestamp', Date.now().toString());
-    console.log('[FIREBASE] Pending flag set');
+    // Try popup first (more reliable)
+    console.log('[FIREBASE] Trying signInWithPopup...');
+    const result = await signInWithPopup(auth, googleProvider);
     
-    // Start redirect
-    console.log('[FIREBASE] Calling signInWithRedirect...');
-    await signInWithRedirect(auth, googleProvider);
+    console.log('[FIREBASE] Popup sign-in successful!');
+    console.log('[FIREBASE] User:', result.user.email);
+    
+    // Return the user directly - no need to wait for redirect
+    return result.user;
     
   } catch (error) {
-    console.error('[FIREBASE] signInWithGoogle error:', error);
-    localStorage.removeItem('googleAuthPending');
-    localStorage.removeItem('googleAuthTimestamp');
+    console.log('[FIREBASE] Popup error:', error.code, error.message);
+    
+    // If popup blocked or failed, fall back to redirect
+    if (error.code === 'auth/popup-blocked' || 
+        error.code === 'auth/popup-closed-by-user' ||
+        error.code === 'auth/cancelled-popup-request') {
+      
+      console.log('[FIREBASE] Falling back to redirect...');
+      
+      // Set pending flag for redirect
+      localStorage.setItem('googleAuthPending', 'true');
+      localStorage.setItem('googleAuthTimestamp', Date.now().toString());
+      
+      await signInWithRedirect(auth, googleProvider);
+      return null; // Will redirect
+    }
+    
     throw error;
   }
 };

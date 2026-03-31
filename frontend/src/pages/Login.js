@@ -271,11 +271,18 @@ const Login = () => {
     syncAttempted.current = false;
     
     try {
-      await signInWithGoogle();
-      // Page will redirect to Google
+      const firebaseUser = await signInWithGoogle();
+      
+      // If popup was used, we get the user directly
+      if (firebaseUser) {
+        console.log('[LOGIN] Got user from popup:', firebaseUser.email);
+        await syncWithBackend(firebaseUser);
+      }
+      // If redirect was used, the page will reload and useEffect will handle it
+      
     } catch (error) {
       console.error('[LOGIN] Google login error:', error);
-      toast.error('Failed to start Google login: ' + error.message);
+      toast.error('Failed to sign in with Google: ' + error.message);
       setSocialLoading(null);
     }
   };
