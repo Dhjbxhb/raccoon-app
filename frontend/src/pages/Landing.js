@@ -110,6 +110,23 @@ const Landing = () => {
       {/* Bottom footer */}
       <div className="absolute bottom-0 left-0 right-0 z-10">
         <div className="flex flex-col items-center pb-6">
+          {/* SEO Content Section */}
+          <div className="max-w-xl text-center mb-6 px-4">
+            <h2 
+              className="text-lg md:text-xl font-semibold text-gray-300 mb-2"
+              style={{ fontFamily: 'Outfit, sans-serif' }}
+            >
+              Random Video Chat – Talk to Strangers Online
+            </h2>
+            <p 
+              className="text-xs md:text-sm text-gray-500 leading-relaxed"
+              style={{ fontFamily: 'Manrope, sans-serif' }}
+            >
+              Raccoon App is a random video chat platform where you can talk to strangers instantly. 
+              If you are looking for an Omegle alternative, this is a fast and simple way to meet new people online.
+            </p>
+          </div>
+          
           {/* Legal links */}
           <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
             <Link to="/terms" className="hover:text-gray-400 transition-colors">Terms</Link>
