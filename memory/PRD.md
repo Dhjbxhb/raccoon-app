@@ -69,6 +69,33 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 **Testing Status:** All frontend components verified via Playwright + code review (iteration_13)
 
+### Firebase Google Auth Redirect Fix (March 31, 2025) ✅
+**Issue:** getRedirectResult() returning null, redirect result being lost
+
+**Root Cause:** Multiple calls to getRedirectResult(), auth state not ready when called
+
+**Fixes Applied:**
+
+1. **firebase.service.js - Complete Rewrite:**
+   - `getRedirectResult()` called ONCE at module load (not inside React components)
+   - Only called when `googleAuthPending` flag exists
+   - Result stored in module-level promise for Login.js to await
+   - Fallback to `auth.currentUser` if redirect result is null
+   - Clear logging at each step for debugging
+
+2. **Login.js - Proper Redirect Handling:**
+   - Uses refs to prevent double execution
+   - Awaits `handleGoogleRedirect()` which returns cached result
+   - Proper error handling with specific Firebase error codes
+   - Shows loading state while processing redirect
+
+**Key Flow:**
+1. User clicks "Continue with Google" → sets `googleAuthPending` flag → redirects to Google
+2. After Google auth, redirects back to app → firebase.service.js module loads
+3. Module sees pending flag → calls `getRedirectResult()` ONCE → stores user
+4. Login.js mounts → calls `handleGoogleRedirect()` → gets cached user → syncs with backend
+5. Backend returns JWT → stored in localStorage → redirects to dashboard
+
 ### Complete UNO Game System Rebuild (March 30, 2025) ✅
 **Issue:** UNO button was small, unreliable, game flow unclear, UI not premium enough.
 
