@@ -17,9 +17,8 @@ import {
   isFirebaseReady,
   isGoogleAuthPending,
   clearGoogleAuthPending,
-  handleGoogleRedirect,
-  isRedirectHandled,
-  getRedirectError
+  waitForAuthState,
+  onAuthStateChange
 } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
@@ -42,7 +41,7 @@ const Login = () => {
   
   // Refs to prevent double execution
   const syncAttempted = useRef(false);
-  const redirectCheckStarted = useRef(false);
+  const unsubscribeRef = useRef(null);
 
   // Sync Firebase user with backend
   const syncWithBackend = useCallback(async (firebaseUser) => {
@@ -54,7 +53,7 @@ const Login = () => {
     syncAttempted.current = true;
     
     console.log('==========================================');
-    console.log('[LOGIN] STEP 3: SYNCING WITH BACKEND');
+    console.log('[LOGIN] SYNCING WITH BACKEND');
     console.log('[LOGIN] Email:', firebaseUser.email);
     console.log('[LOGIN] UID:', firebaseUser.uid);
     console.log('==========================================');
@@ -76,7 +75,7 @@ const Login = () => {
         browser_locale: getBrowserLocale()
       });
       
-      console.log('[LOGIN] STEP 4: BACKEND RESPONSE');
+      console.log('[LOGIN] Backend response received');
       console.log('[LOGIN] Token:', response.data.token ? 'YES' : 'NO');
       console.log('[LOGIN] User:', response.data.user?.username);
       
@@ -88,11 +87,11 @@ const Login = () => {
       }
       
       // Save JWT
-      console.log('[LOGIN] STEP 5: SAVING TOKEN');
+      console.log('[LOGIN] Saving JWT token...');
       localStorage.setItem(TOKEN_KEY, response.data.token);
       
       // Update auth context
-      console.log('[LOGIN] STEP 6: UPDATING AUTH CONTEXT');
+      console.log('[LOGIN] Updating auth context...');
       login(response.data.token, response.data.user);
       
       // Clear pending flags
@@ -101,12 +100,9 @@ const Login = () => {
       // Navigate
       toast.success(`Welcome, ${response.data.user.username}!`);
       const destination = response.data.user.age_verified ? '/dashboard' : '/verify-age';
-      console.log('[LOGIN] STEP 7: NAVIGATING TO:', destination);
+      console.log('[LOGIN] Navigating to:', destination);
       
-      setTimeout(() => {
-        navigate(destination, { replace: true });
-      }, 100);
-      
+      navigate(destination, { replace: true });
       return true;
       
     } catch (error) {
@@ -118,105 +114,112 @@ const Login = () => {
     }
   }, [login, navigate]);
 
-  // Check for redirect on mount - ONCE
+  // Main effect: Handle auth state
   useEffect(() => {
-    const processRedirect = async () => {
-      // Prevent double execution
-      if (redirectCheckStarted.current) {
-        console.log('[LOGIN] Redirect check already started, skipping');
-        return;
-      }
-      redirectCheckStarted.current = true;
+    console.log('[LOGIN] Component mounted');
+    
+    // Check if already logged in with our JWT
+    const existingToken = localStorage.getItem(TOKEN_KEY);
+    if (existingToken && user) {
+      console.log('[LOGIN] Already logged in, redirecting');
+      navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
+      setCheckingRedirect(false);
+      return;
+    }
+    
+    // Check if Google auth redirect is pending
+    const wasPending = isGoogleAuthPending();
+    console.log('[LOGIN] Google auth pending:', wasPending);
+    
+    if (!wasPending) {
+      // No pending redirect, just show login form
+      console.log('[LOGIN] No pending auth, showing login form');
+      setCheckingRedirect(false);
+      if (finishAuthCheck) finishAuthCheck();
+      return;
+    }
+    
+    // === PENDING REDIRECT: Wait for Firebase auth state ===
+    console.log('[LOGIN] Processing Google redirect...');
+    setSocialLoading('google');
+    
+    // Subscribe to auth state changes
+    const handleAuthState = async (firebaseUser) => {
+      console.log('[LOGIN] Auth state changed:', firebaseUser?.email || 'null');
       
-      console.log('==========================================');
-      console.log('[LOGIN] STEP 1: PAGE MOUNTED');
-      console.log('[LOGIN] Timestamp:', new Date().toISOString());
-      console.log('[LOGIN] URL:', window.location.href);
-      console.log('==========================================');
-      
-      // Check if already logged in
-      const existingToken = localStorage.getItem(TOKEN_KEY);
-      if (existingToken && user) {
-        console.log('[LOGIN] Already logged in, redirecting');
-        navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
-        setCheckingRedirect(false);
-        return;
-      }
-      
-      // Check if Google auth is pending
-      const wasPending = isGoogleAuthPending();
-      console.log('[LOGIN] Google auth pending:', wasPending);
-      
-      if (!wasPending) {
-        console.log('[LOGIN] No pending auth, showing login form');
-        setCheckingRedirect(false);
-        if (finishAuthCheck) finishAuthCheck();
-        return;
-      }
-      
-      // Process Google redirect
-      console.log('==========================================');
-      console.log('[LOGIN] STEP 2: PROCESSING GOOGLE REDIRECT');
-      console.log('==========================================');
-      setSocialLoading('google');
-      
-      try {
-        // Wait for redirect result (handled in firebase.service.js)
-        console.log('[LOGIN] Calling handleGoogleRedirect()...');
-        const firebaseUser = await handleGoogleRedirect();
+      if (firebaseUser) {
+        // User is logged in! Sync with backend
+        console.log('[LOGIN] Firebase user found, syncing...');
+        const success = await syncWithBackend(firebaseUser);
         
-        console.log('[LOGIN] handleGoogleRedirect result:', firebaseUser?.email || 'NULL');
-        
-        // Check for redirect error
-        const redirectErr = getRedirectError();
-        if (redirectErr) {
-          console.error('[LOGIN] Redirect error:', redirectErr);
-          throw redirectErr;
-        }
-        
-        if (firebaseUser) {
-          console.log('[LOGIN] Firebase user obtained, syncing with backend...');
-          const success = await syncWithBackend(firebaseUser);
-          
-          if (!success) {
-            console.log('[LOGIN] Sync failed');
-            setSocialLoading(null);
-            setCheckingRedirect(false);
-            if (finishAuthCheck) finishAuthCheck();
-          }
-          // If success, syncWithBackend handles navigation
-        } else {
-          console.log('==========================================');
-          console.log('[LOGIN] REDIRECT RESULT IS NULL');
-          console.log('[LOGIN] Possible causes:');
-          console.log('  1. User cancelled Google login');
-          console.log('  2. Redirect was interrupted');
-          console.log('  3. Auth state was lost');
-          console.log('==========================================');
-          
-          clearGoogleAuthPending();
+        if (!success) {
           setSocialLoading(null);
           setCheckingRedirect(false);
           if (finishAuthCheck) finishAuthCheck();
-          toast.error('Google login was not completed. Please try again.');
         }
-      } catch (error) {
-        console.error('[LOGIN] REDIRECT ERROR:', error);
+        // If success, syncWithBackend handles navigation
+      } else {
+        // No user after redirect - something went wrong
+        console.log('[LOGIN] No Firebase user after redirect');
         clearGoogleAuthPending();
         setSocialLoading(null);
         setCheckingRedirect(false);
         if (finishAuthCheck) finishAuthCheck();
-        
-        if (error.code === 'auth/unauthorized-domain') {
-          toast.error('Domain not authorized in Firebase Console');
-        } else {
-          toast.error('Google login failed: ' + (error.message || 'Unknown error'));
-        }
+        toast.error('Google login was not completed. Please try again.');
+      }
+      
+      // Unsubscribe after handling
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
     };
     
-    // Execute immediately
-    processRedirect();
+    // First check if user is already available
+    const checkInitialState = async () => {
+      const firebaseUser = await waitForAuthState();
+      console.log('[LOGIN] Initial auth state:', firebaseUser?.email || 'null');
+      
+      if (firebaseUser) {
+        // User already available, sync immediately
+        await handleAuthState(firebaseUser);
+      } else {
+        // Subscribe to future changes (in case auth state updates later)
+        console.log('[LOGIN] Subscribing to auth state changes...');
+        unsubscribeRef.current = onAuthStateChange((user) => {
+          if (user && isGoogleAuthPending()) {
+            handleAuthState(user);
+          }
+        });
+        
+        // Set a timeout to prevent infinite waiting
+        setTimeout(() => {
+          if (isGoogleAuthPending() && !syncAttempted.current) {
+            console.log('[LOGIN] Timeout: No user after 5 seconds');
+            clearGoogleAuthPending();
+            setSocialLoading(null);
+            setCheckingRedirect(false);
+            if (finishAuthCheck) finishAuthCheck();
+            toast.error('Google login timed out. Please try again.');
+            
+            if (unsubscribeRef.current) {
+              unsubscribeRef.current();
+              unsubscribeRef.current = null;
+            }
+          }
+        }, 5000);
+      }
+    };
+    
+    checkInitialState();
+    
+    // Cleanup
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, [user, navigate, syncWithBackend, finishAuthCheck]);
 
   // Form handlers
@@ -266,15 +269,10 @@ const Login = () => {
       return;
     }
     
-    console.log('==========================================');
-    console.log('[LOGIN] USER CLICKED GOOGLE LOGIN');
-    console.log('==========================================');
+    console.log('[LOGIN] User clicked Google login');
     
     setSocialLoading('google');
-    
-    // Reset refs for new attempt
     syncAttempted.current = false;
-    redirectCheckStarted.current = false;
     
     try {
       await signInWithGoogle();

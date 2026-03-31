@@ -1,11 +1,8 @@
 /**
- * Firebase Service - Proper Redirect Handling
+ * Firebase Service - Using onAuthStateChanged (NOT getRedirectResult)
  * 
- * KEY RULES:
- * 1. Wait for auth to be ready BEFORE calling getRedirectResult()
- * 2. Call getRedirectResult() EXACTLY ONCE
- * 3. Store result in module-level state
- * 4. Don't let components interfere with redirect handling
+ * getRedirectResult is unreliable - it often returns null even after successful login.
+ * onAuthStateChanged is the reliable way to detect auth state after redirect.
  */
 
 import { initializeApp, getApps } from 'firebase/app';
@@ -13,7 +10,7 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithRedirect,
-  getRedirectResult,
+  onAuthStateChanged,
   signOut as firebaseSignOut
 } from 'firebase/auth';
 import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
@@ -24,16 +21,14 @@ let auth = null;
 let googleProvider = null;
 let initDone = false;
 
-// Redirect result state - CRITICAL
-let redirectResultPromise = null;
-let redirectHandled = false;
-let redirectUser = null;
-let redirectError = null;
+// Auth state tracking
+let currentUser = null;
+let authStateReady = false;
+let authStatePromise = null;
+let authStateResolve = null;
 
 // === INITIALIZATION ===
-console.log('=== FIREBASE SERVICE: Module loading ===');
-console.log('Timestamp:', new Date().toISOString());
-console.log('URL:', typeof window !== 'undefined' ? window.location.href : 'SSR');
+console.log('[FIREBASE] Module loading...');
 
 if (isFirebaseConfigured()) {
   try {
@@ -55,78 +50,40 @@ if (isFirebaseConfigured()) {
     googleProvider.addScope('profile');
     googleProvider.setCustomParameters({ prompt: 'select_account' });
     
-    initDone = true;
+    // Create a promise that resolves when auth state is ready
+    authStatePromise = new Promise((resolve) => {
+      authStateResolve = resolve;
+    });
     
-    // === CRITICAL: Handle redirect result ONCE at module load ===
-    // This must happen synchronously when module loads, before React renders
-    const isPending = localStorage.getItem('googleAuthPending') === 'true';
-    console.log('[FIREBASE] Google auth pending flag:', isPending);
-    
-    if (isPending) {
-      console.log('[FIREBASE] === PROCESSING REDIRECT ===');
-      console.log('[FIREBASE] Calling getRedirectResult() NOW...');
+    // === CRITICAL: Use onAuthStateChanged to detect user ===
+    // This fires immediately with current auth state, and again after redirect completes
+    onAuthStateChanged(auth, (user) => {
+      console.log('[FIREBASE] onAuthStateChanged fired');
+      console.log('[FIREBASE] User:', user ? user.email : 'null');
       
-      // Start the redirect result check immediately
-      redirectResultPromise = new Promise((resolve) => {
-        // Use authStateReady or wait for auth to initialize
-        const checkRedirect = async () => {
-          try {
-            console.log('[FIREBASE] getRedirectResult() starting...');
-            const result = await getRedirectResult(auth);
-            
-            console.log('[FIREBASE] getRedirectResult() completed');
-            console.log('[FIREBASE] Result:', result ? 'HAS RESULT' : 'NULL');
-            
-            if (result && result.user) {
-              console.log('[FIREBASE] User found!');
-              console.log('[FIREBASE] Email:', result.user.email);
-              console.log('[FIREBASE] UID:', result.user.uid);
-              console.log('[FIREBASE] Provider:', result.providerId);
-              redirectUser = result.user;
-              redirectHandled = true;
-              resolve(result.user);
-            } else {
-              console.log('[FIREBASE] No user in redirect result');
-              console.log('[FIREBASE] Checking auth.currentUser...');
-              
-              // Sometimes the user is already signed in via auth state
-              if (auth.currentUser) {
-                console.log('[FIREBASE] Found auth.currentUser:', auth.currentUser.email);
-                redirectUser = auth.currentUser;
-                redirectHandled = true;
-                resolve(auth.currentUser);
-              } else {
-                console.log('[FIREBASE] No user anywhere - redirect may have failed');
-                redirectHandled = true;
-                resolve(null);
-              }
-            }
-          } catch (error) {
-            console.error('[FIREBASE] getRedirectResult() ERROR:', error.code, error.message);
-            redirectError = error;
-            redirectHandled = true;
-            resolve(null);
-          }
-        };
-        
-        // Execute immediately
-        checkRedirect();
-      });
-    } else {
-      console.log('[FIREBASE] No pending redirect, skipping getRedirectResult()');
-      redirectHandled = true;
-      redirectResultPromise = Promise.resolve(null);
-    }
+      currentUser = user;
+      authStateReady = true;
+      
+      // Resolve the promise so Login.js can proceed
+      if (authStateResolve) {
+        authStateResolve(user);
+        authStateResolve = null;
+      }
+    });
     
+    initDone = true;
     console.log('[FIREBASE] Initialization complete');
     
   } catch (error) {
     console.error('[FIREBASE] Init error:', error);
-    redirectHandled = true;
+    authStateReady = true;
+    if (authStateResolve) {
+      authStateResolve(null);
+    }
   }
 } else {
   console.warn('[FIREBASE] Not configured - missing env vars');
-  redirectHandled = true;
+  authStateReady = true;
 }
 
 // ============================================
@@ -134,41 +91,40 @@ if (isFirebaseConfigured()) {
 // ============================================
 
 /**
- * Get the redirect result user
- * Returns: Firebase User or null
+ * Wait for Firebase auth state to be ready
+ * Returns the current user (or null if not logged in)
  */
-export const handleGoogleRedirect = async () => {
-  console.log('[FIREBASE] handleGoogleRedirect() called');
-  console.log('[FIREBASE] redirectHandled:', redirectHandled);
-  console.log('[FIREBASE] redirectUser:', redirectUser?.email || 'null');
+export const waitForAuthState = async () => {
+  console.log('[FIREBASE] waitForAuthState called');
+  console.log('[FIREBASE] authStateReady:', authStateReady);
+  console.log('[FIREBASE] currentUser:', currentUser?.email || 'null');
   
-  if (!auth) {
-    console.error('[FIREBASE] Auth not initialized');
-    return null;
+  if (authStateReady) {
+    return currentUser;
   }
   
-  // Wait for the redirect result promise
-  if (redirectResultPromise) {
-    console.log('[FIREBASE] Awaiting redirectResultPromise...');
-    const user = await redirectResultPromise;
-    console.log('[FIREBASE] Promise resolved:', user?.email || 'null');
+  if (authStatePromise) {
+    console.log('[FIREBASE] Waiting for authStatePromise...');
+    const user = await authStatePromise;
+    console.log('[FIREBASE] authStatePromise resolved:', user?.email || 'null');
     return user;
   }
   
-  // Already have the user
-  if (redirectUser) {
-    console.log('[FIREBASE] Returning cached redirectUser:', redirectUser.email);
-    return redirectUser;
-  }
-  
-  // Check current user as fallback
-  if (auth.currentUser) {
-    console.log('[FIREBASE] Returning auth.currentUser:', auth.currentUser.email);
-    return auth.currentUser;
-  }
-  
-  console.log('[FIREBASE] No user found');
   return null;
+};
+
+/**
+ * Get current Firebase user (synchronous)
+ */
+export const getCurrentUser = () => {
+  return currentUser || auth?.currentUser || null;
+};
+
+/**
+ * Check if auth state has been determined
+ */
+export const isAuthStateReady = () => {
+  return authStateReady;
 };
 
 /**
@@ -182,18 +138,11 @@ export const signInWithGoogle = async () => {
   console.log('[FIREBASE] === STARTING GOOGLE SIGN IN ===');
   console.log('[FIREBASE] Current URL:', window.location.href);
   
-  // Reset state for new sign in
-  redirectHandled = false;
-  redirectUser = null;
-  redirectError = null;
-  redirectResultPromise = null;
-  
   // Set pending flags BEFORE redirect
   localStorage.setItem('googleAuthPending', 'true');
   localStorage.setItem('googleAuthTimestamp', Date.now().toString());
   
-  console.log('[FIREBASE] Pending flags set');
-  console.log('[FIREBASE] Calling signInWithRedirect...');
+  console.log('[FIREBASE] Pending flag set, redirecting to Google...');
   
   // This navigates away from the page
   await signInWithRedirect(auth, googleProvider);
@@ -205,7 +154,7 @@ export const signInWithGoogle = async () => {
 export const signOut = async () => {
   if (auth) {
     await firebaseSignOut(auth);
-    redirectUser = null;
+    currentUser = null;
   }
 };
 
@@ -246,34 +195,13 @@ export const clearGoogleAuthPending = () => {
 };
 
 /**
- * Get current user
+ * Subscribe to auth state changes
+ * Returns unsubscribe function
  */
-export const getCurrentUser = () => {
-  return auth?.currentUser || redirectUser;
-};
-
-/**
- * Wait for redirect handling to complete
- */
-export const waitForRedirectCheck = async () => {
-  if (redirectResultPromise) {
-    return await redirectResultPromise;
-  }
-  return redirectUser;
-};
-
-/**
- * Check if redirect has been handled
- */
-export const isRedirectHandled = () => {
-  return redirectHandled;
-};
-
-/**
- * Get any redirect error
- */
-export const getRedirectError = () => {
-  return redirectError;
+export const onAuthStateChange = (callback) => {
+  if (!auth) return () => {};
+  
+  return onAuthStateChanged(auth, callback);
 };
 
 export { auth };

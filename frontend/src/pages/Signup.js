@@ -12,7 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, handleGoogleRedirect, clearGoogleAuthPending, isGoogleAuthPending } from '@/services/firebase.service';
+import { isFirebaseReady, signInWithGoogle, clearGoogleAuthPending, isGoogleAuthPending, waitForAuthState, onAuthStateChange } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
   getErrorMessage,
@@ -53,36 +53,64 @@ const Signup = () => {
 
   // Handle Google redirect result on page load
   useEffect(() => {
-    const handleRedirectResult = async () => {
-      if (!firebaseReady || !isGoogleAuthPending()) return;
+    if (!firebaseReady || !isGoogleAuthPending()) return;
+    
+    let unsubscribe = null;
+    
+    const handleAuthState = async (firebaseUser) => {
+      if (!firebaseUser) return;
       
       try {
         setSocialLoading('google');
-        const firebaseUser = await handleGoogleRedirect();
-        if (firebaseUser) {
-          const idToken = await firebaseUser.getIdToken(true);
-          await syncSocialAuth({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            provider: 'google',
-            idToken: idToken
-          });
-        }
+        const idToken = await firebaseUser.getIdToken(true);
+        await syncSocialAuth({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+          provider: 'google',
+          idToken: idToken
+        });
       } catch (error) {
         console.error('Google redirect error:', error);
-        if (error.code === 'auth/unauthorized-domain') {
-          toast.error('This domain is not authorized for Google Sign-In.');
-        } else {
-          toast.error('Google signup failed. Please try again.');
-        }
+        toast.error('Google signup failed. Please try again.');
       } finally {
         setSocialLoading(null);
+        clearGoogleAuthPending();
+        if (unsubscribe) unsubscribe();
       }
     };
     
-    handleRedirectResult();
+    // Check if user is already available
+    const checkAuth = async () => {
+      const user = await waitForAuthState();
+      if (user) {
+        handleAuthState(user);
+      } else {
+        // Subscribe to future changes
+        unsubscribe = onAuthStateChange((user) => {
+          if (user && isGoogleAuthPending()) {
+            handleAuthState(user);
+          }
+        });
+        
+        // Timeout
+        setTimeout(() => {
+          if (isGoogleAuthPending()) {
+            clearGoogleAuthPending();
+            setSocialLoading(null);
+            toast.error('Google signup timed out. Please try again.');
+            if (unsubscribe) unsubscribe();
+          }
+        }, 5000);
+      }
+    };
+    
+    checkAuth();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [firebaseReady]);
 
   // Clear field error when user types
