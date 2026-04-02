@@ -169,15 +169,15 @@ const Dashboard = () => {
               Ready to meet someone new?
             </p>
             
-            {/* Main Action Buttons - Side by Side */}
-            <div className="flex items-center justify-center gap-4">
+            {/* Main Action Buttons - Responsive: Stack on mobile, side-by-side on desktop */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-md mx-auto">
               {/* Start Matching Button */}
               <Button
                 onClick={handleStartMatching}
                 size="xl"
                 icon={Zap}
                 iconPosition="right"
-                className="shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)]"
+                className="w-full sm:w-auto shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)]"
                 data-testid="start-matching-button"
               >
                 Start Matching
@@ -198,7 +198,7 @@ const Dashboard = () => {
                     });
                   }
                 }}
-                className="group relative h-[52px] px-6 flex items-center justify-center gap-2 bg-transparent border-2 border-purple-500/50 hover:border-purple-500 rounded-xl font-semibold text-white transition-all duration-300 hover:shadow-[0_0_25px_rgba(124,58,237,0.4)] hover:scale-[1.02]"
+                className="group relative w-full sm:w-auto h-[52px] px-6 flex items-center justify-center gap-2 bg-transparent border-2 border-purple-500/50 hover:border-purple-500 rounded-xl font-semibold text-white transition-all duration-300 hover:shadow-[0_0_25px_rgba(124,58,237,0.4)] active:scale-95 sm:hover:scale-[1.02]"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
                 data-testid="private-room-btn"
               >
