@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil, Users } from 'lucide-react';
+import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/Button';
@@ -169,28 +169,46 @@ const Dashboard = () => {
               Ready to meet someone new?
             </p>
             
-            {/* Start Matching Button */}
-            <Button
-              onClick={handleStartMatching}
-              size="xl"
-              icon={Zap}
-              iconPosition="right"
-              className="shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)]"
-              data-testid="start-matching-button"
-            >
-              Start Matching
-            </Button>
-            
-            {/* Private Room Button */}
-            <button
-              onClick={() => navigate('/private-room')}
-              className="mt-4 flex items-center justify-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 rounded-xl transition-all"
-              data-testid="private-room-btn"
-            >
-              <Users size={20} className="text-purple-400" />
-              <span style={{ fontFamily: 'Manrope, sans-serif' }}>Play with Friends</span>
-              {!isPremium && <Lock size={14} className="text-yellow-400 ml-1" />}
-            </button>
+            {/* Main Action Buttons - Side by Side */}
+            <div className="flex items-center justify-center gap-4">
+              {/* Start Matching Button */}
+              <Button
+                onClick={handleStartMatching}
+                size="xl"
+                icon={Zap}
+                iconPosition="right"
+                className="shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.8)]"
+                data-testid="start-matching-button"
+              >
+                Start Matching
+              </Button>
+              
+              {/* Private Room Button - Outlined Style */}
+              <button
+                onClick={() => {
+                  if (isPremium) {
+                    navigate('/private-room');
+                  } else {
+                    toast.info('Private Rooms require Premium', {
+                      description: 'Upgrade to create and join private rooms with friends',
+                      action: {
+                        label: 'Upgrade',
+                        onClick: () => navigate('/premium')
+                      }
+                    });
+                  }
+                }}
+                className="group relative h-[52px] px-6 flex items-center justify-center gap-2 bg-transparent border-2 border-purple-500/50 hover:border-purple-500 rounded-xl font-semibold text-white transition-all duration-300 hover:shadow-[0_0_25px_rgba(124,58,237,0.4)] hover:scale-[1.02]"
+                style={{ fontFamily: 'Manrope, sans-serif' }}
+                data-testid="private-room-btn"
+              >
+                <Lock size={18} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
+                <span>Private Room</span>
+                {!isPremium && (
+                  <Crown size={14} className="text-yellow-400 ml-1" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Premium Status Card */}
