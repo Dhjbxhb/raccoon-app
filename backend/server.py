@@ -83,17 +83,29 @@ logger = logging.getLogger(__name__)
 # Register Socket.IO handlers
 @app.on_event("startup")
 async def startup_event():
-    # Create database indexes for optimal performance
-    from services.db_service import DatabaseService
-    await DatabaseService.create_indexes()
-    logger.info("Database indexes created")
+    import asyncio
     
-    # Initialize database with indexes and seed data
-    from services.db_init_service import initialize_database
-    await initialize_database()
-    logger.info("Database initialized")
+    # Create database indexes with timeout (non-blocking)
+    try:
+        from services.db_service import DatabaseService
+        await asyncio.wait_for(DatabaseService.create_indexes(), timeout=10.0)
+        logger.info("Database indexes created")
+    except asyncio.TimeoutError:
+        logger.warning("Database index creation timed out - continuing without indexes")
+    except Exception as e:
+        logger.warning(f"Database index creation failed: {e} - continuing without indexes")
     
-    # Register socket handlers
+    # Initialize database with timeout (non-blocking)
+    try:
+        from services.db_init_service import initialize_database
+        await asyncio.wait_for(initialize_database(), timeout=15.0)
+        logger.info("Database initialized")
+    except asyncio.TimeoutError:
+        logger.warning("Database initialization timed out - continuing without full init")
+    except Exception as e:
+        logger.warning(f"Database initialization failed: {e} - continuing")
+    
+    # Register socket handlers (critical - must succeed)
     from websocket.socket_handlers import register_socket_handlers
     await register_socket_handlers(sio)
     logger.info("Socket.IO handlers registered")
