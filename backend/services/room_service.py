@@ -247,6 +247,9 @@ def start_group_matching(room_code: str, player_id: str) -> dict:
     creator = next((p for p in room['players'] if p['is_creator']), None)
     if not creator or creator['id'] != player_id:
         return {'error': 'Only room creator can start matching'}
+
+    if len(room['players']) != MAX_ROOM_PLAYERS:
+        return {'error': f'Need exactly {MAX_ROOM_PLAYERS} players for room matching'}
     
     room['status'] = 'matching'
     

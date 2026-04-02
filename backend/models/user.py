@@ -108,6 +108,9 @@ class User(BaseModel):
     is_admin: bool = Field(default=False, description="Admin privileges")
     is_moderator: bool = Field(default=False, description="Moderator privileges")
     admin_level: int = Field(default=0, description="Admin permission level (0-10)")
+
+    # === Match Session ===
+    currentSessionId: Optional[str] = Field(default=None, description="Active match session ID or null when idle")
     
     # === Statistics ===
     total_sessions: int = Field(default=0, description="Total match sessions")
@@ -199,6 +202,7 @@ class UserResponse(BaseModel):
     age_verified: bool = False
     premium_status: bool = False
     is_premium: bool = False  # Computed premium status for frontend
+    currentSessionId: Optional[str] = None
     premium_tier: str = "free"
     premium_expires_at: Optional[str] = None
     is_admin: bool = False

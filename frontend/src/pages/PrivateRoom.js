@@ -176,12 +176,12 @@ const PrivateRoom = () => {
   
   // Check if current user is creator
   const isCreator = room?.players?.find(p => p.id === myId)?.is_creator;
+  const playerCount = room?.player_count || room?.players?.length || 0;
+  const isRoomReady = playerCount === 2;
   
   // Get camera layout based on player count
   const getCameraLayout = (count) => {
-    if (count <= 2) return 'grid-cols-2';
-    if (count === 3) return 'grid-cols-3';
-    return 'grid-cols-2 grid-rows-2';
+    return count <= 1 ? 'grid-cols-1' : 'grid-cols-2';
   };
   
   return (
@@ -351,15 +351,17 @@ const PrivateRoom = () => {
               </div>
               
               {/* Player Count */}
-              <div className="flex items-center justify-center gap-2 text-gray-400">
+              <div className="flex items-center justify-center gap-2 text-gray-400" data-testid="room-player-count">
                 <Users size={18} />
-                <span>{room.player_count || room.players?.length || 0}/{room.max_players || 2} Players</span>
+                <span>{playerCount}/{room.max_players || 2} Players</span>
               </div>
               
               {/* Status */}
               <p className="mt-2 text-sm">
                 {room.status === 'waiting' && (
-                  <span className="text-yellow-400">Waiting for players...</span>
+                  <span className="text-yellow-400">
+                    {isRoomReady ? 'Room full and ready.' : 'Waiting for 1 more player...'}
+                  </span>
                 )}
                 {room.status === 'matching' && (
                   <span className="text-blue-400">Looking for opponents...</span>
@@ -409,12 +411,12 @@ const PrivateRoom = () => {
                 <>
                   <button
                     onClick={handleStartMatching}
-                    disabled={room.players?.length < 1}
+                    disabled={!isRoomReady}
                     className="flex-1 flex items-center justify-center gap-2 p-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-semibold hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all disabled:opacity-50"
                     data-testid="start-matching-btn"
                   >
                     <Zap size={20} />
-                    Start Matching
+                    Start 2v2 Matching
                   </button>
                 </>
               )}

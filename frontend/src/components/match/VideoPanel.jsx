@@ -76,7 +76,7 @@ const VideoPanel = forwardRef(({
               <User size={32} className="text-white/60" />
             </div>
             <p className="video-panel__placeholder-text">
-              Camera starting...
+              Connecting...
             </p>
           </div>
         </div>

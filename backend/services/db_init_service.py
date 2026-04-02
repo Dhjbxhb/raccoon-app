@@ -125,6 +125,7 @@ async def ensure_admin_user():
             "email_verified": True,
             "account_status": "active",
             "is_banned": False,
+            "currentSessionId": None,
             "premium_status": True,
             "premium_tier": "lifetime",
             "is_admin": True,
@@ -156,6 +157,8 @@ async def ensure_admin_user():
         if not existing.get('premium_status'):
             update_fields['premium_status'] = True
             update_fields['premium_tier'] = 'lifetime'
+        if 'currentSessionId' not in existing:
+            update_fields['currentSessionId'] = None
         if existing.get('admin_level', 0) < 10:
             update_fields['admin_level'] = 10
         

@@ -637,7 +637,7 @@ const Match = () => {
           {!localStream && (
             <div className="video-panel__connecting">
               <div className="video-panel__connecting-spinner" />
-              <span className="video-panel__connecting-text">Starting camera...</span>
+              <span className="video-panel__connecting-text">Connecting...</span>
             </div>
           )}
           

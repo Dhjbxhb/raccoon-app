@@ -37,6 +37,7 @@ class Guest(BaseModel):
     # === Session ===
     session_expires_at: datetime = Field(..., description="When guest session expires")
     is_active: bool = Field(default=True, description="Session active status")
+    currentSessionId: Optional[str] = Field(default=None, description="Active match session ID or null when idle")
     
     # === Status ===
     is_banned: bool = Field(default=False, description="Ban status")
@@ -66,6 +67,7 @@ class GuestResponse(BaseModel):
     username: str
     gender: str
     age_verified: bool = False
+    currentSessionId: Optional[str] = None
     country: Optional[str] = None
     country_code: Optional[str] = None
     country_flag: Optional[str] = None

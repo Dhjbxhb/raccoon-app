@@ -26,6 +26,7 @@ export const useMatching = (socket) => {
   const matchRetryTimeoutRef = useRef(null);
   const lastFiltersRef = useRef({ gender: 'any', country: 'ANY' });
   const autoRejoinRef = useRef(true);
+  const autoRejoinInFlightRef = useRef(false);
   const skipRetryCountRef = useRef(0);
   const MAX_SKIP_RETRIES = 2;
   
@@ -33,6 +34,72 @@ export const useMatching = (socket) => {
   const mountedRef = useRef(true);
   // Track current socket to prevent stale listeners
   const socketIdRef = useRef(null);
+  const stateRef = useRef('idle');
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const clearTimers = useCallback(() => {
+    if (skipTimeoutRef.current) {
+      clearTimeout(skipTimeoutRef.current);
+      skipTimeoutRef.current = null;
+    }
+    if (matchRetryTimeoutRef.current) {
+      clearTimeout(matchRetryTimeoutRef.current);
+      matchRetryTimeoutRef.current = null;
+    }
+  }, []);
+
+  const attemptAutoRejoin = useCallback((reason) => {
+    const shouldAutoRejoin = [
+      'skipped',
+      'no_session',
+      'partner_skipped',
+      'stale_cleanup',
+      'partner_stale_cleanup',
+      'partner_disconnected'
+    ].includes(reason);
+
+    if (!shouldAutoRejoin) {
+      autoRejoinInFlightRef.current = false;
+      setState('idle');
+      return false;
+    }
+
+    if (!autoRejoinRef.current || !socket?.connected) {
+      autoRejoinInFlightRef.current = false;
+      setState('idle');
+      return false;
+    }
+
+    if (autoRejoinInFlightRef.current) {
+      return false;
+    }
+
+    autoRejoinInFlightRef.current = true;
+    setState('searching');
+    socket.emit('join_queue', {
+      gender_filter: lastFiltersRef.current.gender,
+      country_filter: lastFiltersRef.current.country
+    });
+
+    matchRetryTimeoutRef.current = setTimeout(() => {
+      if (!mountedRef.current || !socket?.connected || !autoRejoinRef.current) {
+        return;
+      }
+
+      if (stateRef.current === 'searching') {
+        console.log('[Matching] Rejoin retry after:', reason);
+        socket.emit('join_queue', {
+          gender_filter: lastFiltersRef.current.gender,
+          country_filter: lastFiltersRef.current.country
+        });
+      }
+    }, 3000);
+
+    return true;
+  }, [socket]);
 
   // Clean reset of all match-related state
   const resetMatchState = useCallback(() => {
@@ -52,6 +119,7 @@ export const useMatching = (socket) => {
 
   const handleQueueLeft = useCallback((data) => {
     if (!mountedRef.current) return;
+    autoRejoinInFlightRef.current = false;
     // Only reset to idle if not in skip flow
     setState(prev => {
       // Check the ref instead of state to avoid stale closure
@@ -74,17 +142,9 @@ export const useMatching = (socket) => {
     setQueuePosition(null);
     setIsSkipping(false);
     skipRetryCountRef.current = 0;
-    
-    // Clear any pending timeouts
-    if (skipTimeoutRef.current) {
-      clearTimeout(skipTimeoutRef.current);
-      skipTimeoutRef.current = null;
-    }
-    if (matchRetryTimeoutRef.current) {
-      clearTimeout(matchRetryTimeoutRef.current);
-      matchRetryTimeoutRef.current = null;
-    }
-  }, []);
+    autoRejoinInFlightRef.current = false;
+    clearTimers();
+  }, [clearTimers]);
 
   const handleMatchEnded = useCallback((data) => {
     if (!mountedRef.current) return;
@@ -94,50 +154,10 @@ export const useMatching = (socket) => {
     // Clean up state
     resetMatchState();
     skipRetryCountRef.current = 0;
-    
-    // Clear any pending timeouts
-    if (skipTimeoutRef.current) {
-      clearTimeout(skipTimeoutRef.current);
-      skipTimeoutRef.current = null;
-    }
-    
-    // Auto-rejoin queue if we were the one who skipped OR partner skipped
-    const shouldAutoRejoin = [
-      'skipped',
-      'no_session',
-      'partner_skipped',
-      'stale_cleanup',
-      'partner_stale_cleanup'
-    ].includes(data.reason);
-    
-    if (shouldAutoRejoin && autoRejoinRef.current) {
-      if (mountedRef.current && socket?.connected) {
-        console.log('[Matching] Auto-rejoining queue after:', data.reason);
-        setState('searching');
-        socket.emit('join_queue', {
-          gender_filter: lastFiltersRef.current.gender,
-          country_filter: lastFiltersRef.current.country
-        });
-        
-        // Set a retry timeout in case no match found in 3 seconds
-        matchRetryTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current && socket?.connected) {
-            const currentState = state;
-            if (currentState === 'searching') {
-              console.log('[Matching] No match in 3s, re-emitting join_queue');
-              socket.emit('join_queue', {
-                gender_filter: lastFiltersRef.current.gender,
-                country_filter: lastFiltersRef.current.country
-              });
-            }
-          }
-        }, 3000);
-      }
-    } else {
-      // Other reason - return to idle
-      setState('idle');
-    }
-  }, [socket, resetMatchState, state]);
+
+    clearTimers();
+    attemptAutoRejoin(data.reason);
+  }, [resetMatchState, clearTimers, attemptAutoRejoin]);
   
   // CRITICAL: Handle session_ended event - triggers WebRTC cleanup
   const handleSessionEnded = useCallback((data) => {
@@ -149,17 +169,10 @@ export const useMatching = (socket) => {
     resetMatchState();
     skipRetryCountRef.current = 0;
     setIsSkipping(false);
-    
-    // Clear timeouts
-    if (skipTimeoutRef.current) {
-      clearTimeout(skipTimeoutRef.current);
-      skipTimeoutRef.current = null;
-    }
-    if (matchRetryTimeoutRef.current) {
-      clearTimeout(matchRetryTimeoutRef.current);
-      matchRetryTimeoutRef.current = null;
-    }
-  }, [resetMatchState]);
+
+    clearTimers();
+    attemptAutoRejoin(data.reason);
+  }, [resetMatchState, clearTimers, attemptAutoRejoin]);
 
   const handlePartnerDisconnected = useCallback((data) => {
     if (!mountedRef.current) return;
@@ -168,19 +181,10 @@ export const useMatching = (socket) => {
     
     resetMatchState();
     skipRetryCountRef.current = 0;
-    
-    // Auto-rejoin queue immediately
-    if (autoRejoinRef.current && socket?.connected) {
-      console.log('[Matching] Auto-rejoining after partner disconnect');
-      setState('searching');
-      socket.emit('join_queue', {
-        gender_filter: lastFiltersRef.current.gender,
-        country_filter: lastFiltersRef.current.country
-      });
-    } else {
-      setState('idle');
-    }
-  }, [socket, resetMatchState]);
+
+    clearTimers();
+    attemptAutoRejoin('partner_disconnected');
+  }, [resetMatchState, clearTimers, attemptAutoRejoin]);
 
   // Handle session restored (for reconnection)
   const handleSessionRestored = useCallback((data) => {
@@ -191,6 +195,7 @@ export const useMatching = (socket) => {
     setSessionId(data.session_id);
     setQueuePosition(null);
     setIsSkipping(false);
+    autoRejoinInFlightRef.current = false;
     
     console.log('Session restored:', data.session_id);
   }, []);
@@ -207,6 +212,7 @@ export const useMatching = (socket) => {
     if (!mountedRef.current) return;
     setIsSkipping(false);
     skipRetryCountRef.current = 0;
+    autoRejoinInFlightRef.current = false;
   }, []);
   
   // Handle skip failure - retry automatically
@@ -226,6 +232,7 @@ export const useMatching = (socket) => {
       resetMatchState();
       setState('idle');
       skipRetryCountRef.current = 0;
+      autoRejoinInFlightRef.current = false;
     }
   }, [socket, resetMatchState]);
 
@@ -235,17 +242,11 @@ export const useMatching = (socket) => {
     return () => {
       mountedRef.current = false;
       // Clear any pending timeouts on unmount
-      if (skipTimeoutRef.current) {
-        clearTimeout(skipTimeoutRef.current);
-        skipTimeoutRef.current = null;
-      }
-      if (matchRetryTimeoutRef.current) {
-        clearTimeout(matchRetryTimeoutRef.current);
-        matchRetryTimeoutRef.current = null;
-      }
+      clearTimers();
       skipRetryCountRef.current = 0;
+      autoRejoinInFlightRef.current = false;
     };
-  }, []);
+  }, [clearTimers]);
 
   useEffect(() => {
     if (!socket) return;
@@ -288,6 +289,7 @@ export const useMatching = (socket) => {
     // Store filters for auto-rejoin
     lastFiltersRef.current = { gender: genderFilter, country: countryFilter };
     autoRejoinRef.current = true;
+    autoRejoinInFlightRef.current = false;
     
     socket.emit('join_queue', { 
       gender_filter: genderFilter,
@@ -301,10 +303,12 @@ export const useMatching = (socket) => {
     if (!socket) return;
     
     autoRejoinRef.current = false;
+    autoRejoinInFlightRef.current = false;
+    clearTimers();
     socket.emit('leave_queue');
     setState('idle');
     setQueuePosition(null);
-  }, [socket]);
+  }, [socket, clearTimers]);
 
   // Skip current match - MAIN SKIP LOGIC with retry
   const skipMatch = useCallback(() => {
@@ -340,6 +344,7 @@ export const useMatching = (socket) => {
                   resetMatchState();
                   setState('searching');
                   skipRetryCountRef.current = 0;
+                  autoRejoinInFlightRef.current = true;
                   
                   if (socket?.connected) {
                     socket.emit('join_queue', {
@@ -359,6 +364,7 @@ export const useMatching = (socket) => {
             resetMatchState();
             setState('searching');
             skipRetryCountRef.current = 0;
+            autoRejoinInFlightRef.current = true;
             
             if (socket?.connected) {
               socket.emit('join_queue', {
@@ -393,6 +399,8 @@ export const useMatching = (socket) => {
     if (!socket) return;
     
     autoRejoinRef.current = false;
+    autoRejoinInFlightRef.current = false;
+    clearTimers();
     
     if (state === 'matched') {
       socket.emit('skip_match');
@@ -402,7 +410,7 @@ export const useMatching = (socket) => {
     
     resetMatchState();
     setState('idle');
-  }, [socket, state, resetMatchState]);
+  }, [socket, state, resetMatchState, clearTimers]);
 
   // Set auto-rejoin behavior
   const setAutoRejoin = useCallback((value) => {

@@ -39,6 +39,56 @@ import services.room_service as room_service
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)  # Only warnings and errors
 
+CURRENT_SESSION_FIELD = 'currentSessionId'
+
+
+def get_actor_collection(is_guest: bool):
+    return get_guests_collection() if is_guest else get_users_collection()
+
+
+def get_actor_query(user_id: str, is_guest: bool) -> dict:
+    return {'guest_id': user_id} if is_guest else {'user_id': user_id}
+
+
+async def set_current_session_id(user_id: str, is_guest: bool, session_id: str | None) -> None:
+    collection = get_actor_collection(is_guest)
+    await collection.update_one(
+        get_actor_query(user_id, is_guest),
+        {
+            '$set': {
+                CURRENT_SESSION_FIELD: session_id,
+                'last_active': datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+
+
+def get_session_participants(session_data: dict | None) -> list[dict]:
+    if not session_data:
+        return []
+
+    return [
+        {
+            'user_id': session_data['user1'].get('user_id'),
+            'is_guest': session_data['user1'].get('is_guest', False)
+        },
+        {
+            'user_id': session_data['user2'].get('user_id'),
+            'is_guest': session_data['user2'].get('is_guest', False)
+        }
+    ]
+
+
+async def sync_users_current_session(participants: list[dict], session_id: str | None) -> None:
+    valid_participants = [participant for participant in participants if participant.get('user_id')]
+    if not valid_participants:
+        return
+
+    await asyncio.gather(*[
+        set_current_session_id(participant['user_id'], participant.get('is_guest', False), session_id)
+        for participant in valid_participants
+    ])
+
 
 # PERFORMANCE: Async helper for parallel emissions
 async def emit_to_both_fast(sio, event, data, socket1, socket2):
@@ -99,6 +149,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         # Check if in active session
         if matching_queue.is_user_in_session(user_id):
+            session_data = matching_queue.get_session(user_id)
             # Get partner socket before ending session
             partner_socket = matching_queue.get_partner_socket(user_id)
             partner_id = matching_queue.get_partner_id(user_id)
@@ -107,6 +158,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             result = matching_queue.end_session(user_id, reason='disconnected')
             
             if result:
+                await sync_users_current_session(get_session_participants(session_data), None)
                 # End match session and update stats
                 await stats_service.end_match_session(user_id, is_guest)
                 
@@ -188,6 +240,18 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     is_premium, tier, expires = await premium_service.check_premium_status(user_id)
                     user_data['premium_status'] = is_premium
                     user_data['premium_tier'] = tier
+
+            if user_data:
+                in_memory_session = matching_queue.get_session(user_id)
+                persisted_session_id = user_data.get(CURRENT_SESSION_FIELD)
+                if in_memory_session:
+                    active_session_id = in_memory_session['session_id']
+                    if persisted_session_id != active_session_id:
+                        await set_current_session_id(user_id, is_guest, active_session_id)
+                        user_data[CURRENT_SESSION_FIELD] = active_session_id
+                elif persisted_session_id is not None:
+                    await set_current_session_id(user_id, is_guest, None)
+                    user_data[CURRENT_SESSION_FIELD] = None
             
             # Store premium and username in session for later use
             async with sio.session(sid) as session:
@@ -274,9 +338,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # This prevents "already in active session" and ensures both users exit.
             if matching_queue.is_user_in_session(user_id):
                 logger.warning(f"[JOIN_QUEUE] User {user_id} in stale session, forcing cleanup")
+                stale_session = matching_queue.get_session(user_id)
                 stale_partner_socket = matching_queue.get_partner_socket(user_id)
                 stale_partner_id = matching_queue.get_partner_id(user_id)
                 cleanup_result = matching_queue.force_cleanup_user(user_id)
+                await sync_users_current_session(get_session_participants(stale_session), None)
                 logger.info(f"[JOIN_QUEUE] Stale session cleanup: {cleanup_result}")
 
                 # Notify current user their old session was cleaned
@@ -319,6 +385,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if not user_data:
                 await sio.emit('error', {'message': 'User not found'}, room=sid)
                 return
+
+            if user_data.get(CURRENT_SESSION_FIELD) is not None and not matching_queue.is_user_in_session(user_id):
+                logger.warning(f"[JOIN_QUEUE] Clearing persisted stale session for {user_id}: {user_data.get(CURRENT_SESSION_FIELD)}")
+                await set_current_session_id(user_id, is_guest, None)
+                user_data[CURRENT_SESSION_FIELD] = None
             
             # Prepare user data for queue
             user_data['socket_id'] = sid
@@ -402,6 +473,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'message_count': 0,
                     'end_reason': None
                 })
+
+                await sync_users_current_session([
+                    {'user_id': user1_id, 'is_guest': match['user1'].get('is_guest', False)},
+                    {'user_id': user2_id, 'is_guest': match['user2'].get('is_guest', False)}
+                ], session_id)
                 
                 # Notify both users
                 user1_socket = match['user1']['socket_id']
@@ -486,6 +562,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     return
             
             logger.info(f"[SKIP] Skip match requested by user {user_id}")
+            session_data = matching_queue.get_session(user_id)
             
             # Get partner info BEFORE ending session
             partner_socket = matching_queue.get_partner_socket(user_id)
@@ -504,6 +581,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             result = matching_queue.end_session(user_id, reason='skipped')
             
             if result:
+                await sync_users_current_session(get_session_participants(session_data), None)
                 # End match sessions and update stats for BOTH users
                 await stats_service.end_match_session(user_id, is_guest)
                 if partner_id:
@@ -550,6 +628,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 # No active session - force cleanup user state anyway
                 logger.warning(f"[SKIP] No active session for {user_id}, forcing cleanup")
                 cleanup_result = matching_queue.force_cleanup_user(user_id)
+                await set_current_session_id(user_id, is_guest, None)
                 logger.info(f"[SKIP] Force cleanup result: {cleanup_result}")
                 
                 await sio.emit('session_ended', {
@@ -591,12 +670,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             })
             
             # End session
+            session_data = matching_queue.get_session(user_id)
             partner_socket = matching_queue.get_partner_socket(user_id)
             result = matching_queue.end_session(user_id, reason='blocked')
             
             if result:
+                await sync_users_current_session(get_session_participants(session_data), None)
+                await sio.emit('session_ended', {'reason': 'blocked', 'success': True}, room=sid)
                 await sio.emit('match_ended', {'reason': 'blocked'}, room=sid)
                 if partner_socket:
+                    await sio.emit('session_ended', {'reason': 'partner_blocked', 'success': True}, room=partner_socket)
                     await sio.emit('match_ended', {'reason': 'partner_left'}, room=partner_socket)
                 
                 # Update session in DB
