@@ -115,50 +115,31 @@ const Premium = () => {
     try {
       const token = localStorage.getItem('raccoon_token');
       
-      if (stripeEnabled) {
-        // Create Stripe checkout session
-        const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            plan_id: plan.plan_id,
-            success_url: `${window.location.origin}/premium?success=true`,
-            cancel_url: `${window.location.origin}/premium?cancelled=true`
-          })
-        });
+      if (!stripeEnabled) {
+        toast.error('Payments are not available right now. Premium cannot be activated without payment.');
+        return;
+      }
 
-        const data = await response.json();
-        
-        if (data.checkout_url) {
-          window.location.href = data.checkout_url;
-        } else if (data.success === false) {
-          toast.info(data.message || 'Please complete payment setup');
-        }
+      // Create Stripe checkout session
+      const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          plan_id: plan.plan_id,
+          success_url: `${window.location.origin}/premium?success=true`,
+          cancel_url: `${window.location.origin}/premium?cancelled=true`
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.checkout_url) {
+        window.location.href = data.checkout_url;
       } else {
-        // Development mode - create subscription directly
-        const response = await fetch(`${API_URL}/api/payments/create-subscription`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            plan_id: plan.plan_id
-          })
-        });
-
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          toast.success('🎉 Premium activated!');
-          await fetchData();
-          if (refreshUser) refreshUser();
-        } else {
-          toast.error(data.detail || data.message || 'Failed to activate premium');
-        }
+        toast.error(data.detail || data.message || 'Unable to start secure checkout');
       }
     } catch (error) {
       console.error('Subscription error:', error);
@@ -497,7 +478,7 @@ const Premium = () => {
               {!stripeEnabled && (
                 <div className="mt-8 text-center text-sm text-gray-500">
                   <AlertCircle size={16} className="inline mr-2" />
-                  Payment processing with Stripe is being configured. Subscriptions are in test mode.
+                  Payment processing is currently unavailable. Premium cannot be activated until secure checkout is configured.
                 </div>
               )}
             </>

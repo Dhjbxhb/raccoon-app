@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://realtime-raccoon.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://premium-social-31.preview.emergentagent.com')
 
 class TestHealthAndRoot:
     """Basic API health checks"""

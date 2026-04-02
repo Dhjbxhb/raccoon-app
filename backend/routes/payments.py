@@ -194,8 +194,8 @@ async def create_subscription(
     """
     Create a new subscription.
     
-    If Stripe is enabled and payment_method_id is provided, processes payment.
-    Otherwise, creates a pending subscription for manual activation.
+    Direct premium activation is disabled.
+    Users must complete payment through the backend-controlled checkout flow.
     """
     plan = get_plan_by_id(data.plan_id)
     if not plan:
@@ -209,40 +209,15 @@ async def create_subscription(
             detail="You already have an active subscription. Please cancel it first."
         )
     
-    # If Stripe is enabled and configured
-    if STRIPE_ENABLED and data.payment_method_id:
-        # Stripe payment processing would go here
-        # For now, return that Stripe checkout is needed
-        return {
-            'success': False,
-            'requires_action': True,
-            'action_type': 'stripe_checkout',
-            'message': 'Please complete payment through Stripe checkout'
-        }
-    
-    # For development/testing - create subscription directly
-    # In production, this would only work for promo codes or admin
     if not STRIPE_ENABLED:
-        success, message, subscription = await subscription_service.create_subscription(
-            user_id=user['user_id'],
-            plan_id=data.plan_id,
-            provider=PaymentProvider.MANUAL,
-            amount_paid=plan.price_cents
+        raise HTTPException(
+            status_code=503,
+            detail="Payments are temporarily unavailable. Premium cannot be activated without a completed payment."
         )
-        
-        if not success:
-            raise HTTPException(status_code=400, detail=message)
-        
-        return {
-            'success': True,
-            'message': message,
-            'subscription': subscription,
-            'note': 'Stripe integration pending - subscription created for testing'
-        }
-    
+
     raise HTTPException(
-        status_code=400, 
-        detail="Payment method required"
+        status_code=403,
+        detail="Direct subscription activation is disabled. Complete payment through Stripe checkout."
     )
 
 
@@ -265,19 +240,10 @@ async def create_checkout_session(
         raise HTTPException(status_code=400, detail="Invalid plan selected")
     
     if not STRIPE_ENABLED:
-        # Return mock checkout URL for testing
-        return {
-            'success': True,
-            'checkout_url': None,
-            'session_id': None,
-            'stripe_enabled': False,
-            'message': 'Stripe not configured. Use /create-subscription for testing.',
-            'plan': {
-                'plan_id': plan.plan_id,
-                'display_name': plan.display_name,
-                'price': plan.price_cents / 100
-            }
-        }
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe checkout is not configured. Premium purchases are unavailable in this environment."
+        )
     
     # When Stripe is configured, create actual checkout session
     # import stripe
@@ -402,8 +368,6 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
     - customer.subscription.updated: Subscription modified
     """
     payload = await request.body()
-    sig_header = request.headers.get('stripe-signature')
-    
     if not STRIPE_ENABLED:
         return {'received': True, 'note': 'Stripe not configured'}
     

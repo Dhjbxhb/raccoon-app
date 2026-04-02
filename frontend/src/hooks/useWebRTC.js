@@ -449,8 +449,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, []);
 
-  // End call - THOROUGH CLEANUP
-  const endCall = useCallback(() => {
+  const performCallCleanup = useCallback(() => {
     console.log('[WebRTC] endCall - Starting cleanup');
     
     // 1. Stop local stream tracks FIRST
@@ -491,13 +490,19 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     // 5. Reset auto-start flag
     autoStarted.current = false;
     
-    // 6. Notify server
-    if (socket && sessionId) {
+    console.log('[WebRTC] endCall - Cleanup complete');
+  }, [cleanupPeerConnection]);
+
+  // End call - THOROUGH CLEANUP
+  const endCall = useCallback((options = {}) => {
+    const { notifyPeer = false } = options;
+
+    performCallCleanup();
+
+    if (notifyPeer && socket && sessionId) {
       socket.emit('webrtc_end_call', { session_id: sessionId });
     }
-    
-    console.log('[WebRTC] endCall - Cleanup complete');
-  }, [socket, sessionId, cleanupPeerConnection]);
+  }, [performCallCleanup, socket, sessionId]);
 
   // Restart camera - useful for recovery from black screen
   const restartCamera = useCallback(async () => {
@@ -561,7 +566,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     const onOffer = (data) => handleOffer(data.offer);
     const onAnswer = (data) => handleAnswer(data.answer);
     const onIceCandidate = (data) => handleIceCandidate(data.candidate);
-    const onEndCall = () => endCall();
+    const onEndCall = () => performCallCleanup();
 
     socket.on('webrtc_offer', onOffer);
     socket.on('webrtc_answer', onAnswer);
@@ -575,7 +580,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       socket.off('webrtc_end_call', onEndCall);
       socketIdRef.current = null;
     };
-  }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
+  }, [socket, handleOffer, handleAnswer, handleIceCandidate, performCallCleanup]);
 
   // Auto-start call when sessionId changes
   useEffect(() => {
@@ -585,7 +590,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     if (!sessionId) {
       if (peerConnection.current || localStreamRef.current) {
         console.log('[WebRTC] No sessionId, cleaning up');
-        endCall();
+        performCallCleanup();
       }
       currentSessionId.current = null;
       return;
@@ -635,7 +640,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       
       return () => clearTimeout(timer);
     }
-  }, [autoStart, sessionId, partnerId, socket?.connected, startCall, endCall, cleanupPeerConnection]);
+  }, [autoStart, sessionId, partnerId, socket?.connected, startCall, performCallCleanup, cleanupPeerConnection]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -643,9 +648,9 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     
     return () => {
       mountedRef.current = false;
-      endCall();
+      performCallCleanup();
     };
-  }, [endCall]);
+  }, [performCallCleanup]);
 
   return {
     localVideoRef,

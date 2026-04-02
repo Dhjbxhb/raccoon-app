@@ -270,19 +270,37 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 logger.warning(f"Banned user {user_id} attempted to join queue")
                 return
             
-            # ISSUE 3 FIX: Force cleanup stale sessions before checking
-            # This prevents "already in active session" bug
+            # Force cleanup stale sessions before matching again.
+            # This prevents "already in active session" and ensures both users exit.
             if matching_queue.is_user_in_session(user_id):
                 logger.warning(f"[JOIN_QUEUE] User {user_id} in stale session, forcing cleanup")
+                stale_partner_socket = matching_queue.get_partner_socket(user_id)
+                stale_partner_id = matching_queue.get_partner_id(user_id)
                 cleanup_result = matching_queue.force_cleanup_user(user_id)
                 logger.info(f"[JOIN_QUEUE] Stale session cleanup: {cleanup_result}")
-                
-                # Notify user their old session was cleaned
+
+                # Notify current user their old session was cleaned
                 await sio.emit('session_ended', {
                     'reason': 'stale_cleanup',
                     'success': True,
                     'can_rejoin': True
                 }, room=sid)
+                await sio.emit('match_ended', {
+                    'reason': 'stale_cleanup',
+                    'success': True
+                }, room=sid)
+
+                # Notify partner too so they never remain stuck in a ghost call
+                if stale_partner_socket and stale_partner_id:
+                    await sio.emit('session_ended', {
+                        'reason': 'partner_stale_cleanup',
+                        'success': True,
+                        'can_rejoin': True
+                    }, room=stale_partner_socket)
+                    await sio.emit('match_ended', {
+                        'reason': 'partner_stale_cleanup',
+                        'success': True
+                    }, room=stale_partner_socket)
             
             # Get user data
             if is_guest:
@@ -1340,7 +1358,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     await sio.emit('uno_error', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            # ALWAYS do a fresh premium check (including force_premium)
+            # ALWAYS do a fresh backend premium check
             is_premium, tier, expires = await premium_service.check_premium_status(user_id, is_guest)
             
             logger.info(f"[UNO] Start game request from {user_id}, premium={is_premium}, is_guest={is_guest}")
@@ -1626,7 +1644,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 username = session.get('username', 'Player')
                 is_guest = session.get('is_guest', False)
             
-            # ALWAYS do a fresh premium check (including force_premium)
+            # ALWAYS do a fresh backend premium check
             is_premium, tier, expires = await premium_service.check_premium_status(user_id, is_guest)
             
             logger.info(f"[ROOM] Create room request from {user_id}, premium={is_premium}, is_guest={is_guest}")
@@ -1640,8 +1658,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             room = result['room']
             room_code = room['code']
             
-            # Join socket room
-            sio.enter_room(sid, f"room_{room_code}")
+            # Join socket room before emitting updates
+            await sio.enter_room(sid, f"room_{room_code}")
             
             await sio.emit('room_created', room, room=sid)
             
@@ -1674,8 +1692,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             room = result['room']
             
-            # Join socket room
-            sio.enter_room(sid, f"room_{room_code}")
+            # Join socket room before emitting updates
+            await sio.enter_room(sid, f"room_{room_code}")
             
             # Notify all room members
             await sio.emit('room_updated', room, room=f"room_{room_code}")
@@ -1706,8 +1724,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             result = room_service.leave_room(user_id)
             
-            # Leave socket room
-            sio.leave_room(sid, f"room_{room_code}")
+            # Leave socket room before notifying others
+            await sio.leave_room(sid, f"room_{room_code}")
             
             await sio.emit('room_left', {'success': True}, room=sid)
             

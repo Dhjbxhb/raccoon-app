@@ -22,6 +22,15 @@ player_rooms: Dict[str, str] = {}  # player_id -> room_code
 # MAX 2 PLAYERS PER ROOM - for 1v1 or 2v2 matching
 MAX_ROOM_PLAYERS = 2
 
+
+def normalize_room(room: dict) -> dict:
+    """Force room state to respect the current 2-player contract."""
+    if room is None:
+        return room
+
+    room['max_players'] = MAX_ROOM_PLAYERS
+    return room
+
 def generate_room_code() -> str:
     """Generate unique 5-character room code"""
     chars = string.ascii_uppercase + string.digits
@@ -58,6 +67,8 @@ def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dic
         'game_state': None,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
+
+    normalize_room(room)
     
     active_rooms[room_code] = room
     player_rooms[creator_id] = room_code
@@ -89,13 +100,12 @@ def join_room(room_code: str, player_id: str, player_username: str) -> dict:
     room = active_rooms.get(room_code)
     if not room:
         return {'error': 'Room not found'}
+
+    normalize_room(room)
     
     # STRICT: Max 2 players
     if len(room['players']) >= MAX_ROOM_PLAYERS:
         return {'error': f'Room is full (max {MAX_ROOM_PLAYERS} players)'}
-    
-    if room['status'] not in ['waiting', 'in_game']:
-        return {'error': 'Room is not accepting players'}
     
     # Check if player already in room (shouldn't happen but safety check)
     if any(p['id'] == player_id for p in room['players']):
@@ -128,6 +138,8 @@ def leave_room(player_id: str) -> dict:
     if not room:
         del player_rooms[player_id]
         return {'error': 'Room not found'}
+
+    normalize_room(room)
     
     # Remove player
     room['players'] = [p for p in room['players'] if p['id'] != player_id]
@@ -153,26 +165,30 @@ def leave_room(player_id: str) -> dict:
 
 def get_room(room_code: str) -> Optional[dict]:
     """Get room by code"""
-    return active_rooms.get(room_code.upper())
+    room = active_rooms.get(room_code.upper())
+    return normalize_room(room) if room else None
 
 def get_player_room(player_id: str) -> Optional[dict]:
     """Get room for a player"""
     room_code = player_rooms.get(player_id)
     if room_code:
-        return active_rooms.get(room_code)
+        room = active_rooms.get(room_code)
+        return normalize_room(room) if room else None
     return None
 
 def get_room_state(room: dict) -> dict:
     """Get sanitized room state for clients"""
+    normalized_room = normalize_room(room)
+
     return {
-        'room_id': room['room_id'],
-        'code': room['code'],
-        'players': room['players'],
-        'player_count': len(room['players']),
-        'max_players': room['max_players'],
-        'status': room['status'],
-        'current_game': room['current_game'],
-        'is_full': len(room['players']) >= room['max_players']
+        'room_id': normalized_room['room_id'],
+        'code': normalized_room['code'],
+        'players': normalized_room['players'],
+        'player_count': len(normalized_room['players']),
+        'max_players': MAX_ROOM_PLAYERS,
+        'status': normalized_room['status'],
+        'current_game': normalized_room['current_game'],
+        'is_full': len(normalized_room['players']) >= MAX_ROOM_PLAYERS
     }
 
 def start_room_game(room_code: str, game_type: str, player_id: str) -> dict:
@@ -180,6 +196,8 @@ def start_room_game(room_code: str, game_type: str, player_id: str) -> dict:
     room = active_rooms.get(room_code)
     if not room:
         return {'error': 'Room not found'}
+
+    normalize_room(room)
     
     # Only creator can start games
     creator = next((p for p in room['players'] if p['is_creator']), None)
@@ -205,6 +223,8 @@ def end_room_game(room_code: str) -> dict:
     room = active_rooms.get(room_code)
     if not room:
         return {'error': 'Room not found'}
+
+    normalize_room(room)
     
     room['status'] = 'waiting'
     room['current_game'] = None
@@ -220,6 +240,8 @@ def start_group_matching(room_code: str, player_id: str) -> dict:
     room = active_rooms.get(room_code)
     if not room:
         return {'error': 'Room not found'}
+
+    normalize_room(room)
     
     # Only creator can start matching
     creator = next((p for p in room['players'] if p['is_creator']), None)
@@ -241,6 +263,8 @@ def stop_group_matching(room_code: str) -> dict:
     room = active_rooms.get(room_code)
     if not room:
         return {'error': 'Room not found'}
+
+    normalize_room(room)
     
     room['status'] = 'waiting'
     
@@ -253,6 +277,7 @@ def get_room_players(room_code: str) -> List[dict]:
     """Get list of players in room"""
     room = active_rooms.get(room_code)
     if room:
+        normalize_room(room)
         return room['players']
     return []
 

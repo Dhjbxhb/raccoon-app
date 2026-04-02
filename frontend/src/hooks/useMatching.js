@@ -102,7 +102,13 @@ export const useMatching = (socket) => {
     }
     
     // Auto-rejoin queue if we were the one who skipped OR partner skipped
-    const shouldAutoRejoin = ['skipped', 'no_session', 'partner_skipped', 'stale_cleanup'].includes(data.reason);
+    const shouldAutoRejoin = [
+      'skipped',
+      'no_session',
+      'partner_skipped',
+      'stale_cleanup',
+      'partner_stale_cleanup'
+    ].includes(data.reason);
     
     if (shouldAutoRejoin && autoRejoinRef.current) {
       if (mountedRef.current && socket?.connected) {

@@ -354,7 +354,7 @@ async def get_current_user(request: Request):
         if not guest_dict:
             raise HTTPException(status_code=404, detail="Guest session not found")
         
-        # Compute is_premium including force_premium for testing
+        # Compute backend-controlled premium status
         is_premium, tier, expires = await premium_service.check_premium_status(payload['user_id'], is_guest=True)
         
         return {
@@ -373,8 +373,7 @@ async def get_current_user(request: Request):
             "is_guest": True,
             "is_premium": is_premium,  # COMPUTED premium status
             "premium_status": is_premium,
-            "premium_tier": tier,
-            "force_premium": guest_dict.get('force_premium', False)
+            "premium_tier": tier
         }
     else:
         users = get_users_collection()
@@ -382,7 +381,7 @@ async def get_current_user(request: Request):
         if not user_dict:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Compute is_premium including force_premium for testing
+        # Compute backend-controlled premium status
         is_premium, tier, expires = await premium_service.check_premium_status(payload['user_id'], is_guest=False)
         
         # Format premium_expires_at if present
@@ -404,7 +403,6 @@ async def get_current_user(request: Request):
             "is_premium": is_premium,  # COMPUTED premium status
             "premium_tier": tier,
             "premium_expires_at": premium_expires_at,
-            "force_premium": user_dict.get('force_premium', False),
             "is_admin": user_dict.get('is_admin', False),
             "is_moderator": user_dict.get('is_moderator', False),
             "total_sessions": user_dict.get('total_sessions', 0),

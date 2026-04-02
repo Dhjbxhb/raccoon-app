@@ -2,7 +2,7 @@
 Premium Status Service
 
 Handles premium status checks, expiry logic, and premium enforcement.
-Includes test mode with force_premium override.
+Premium access is controlled strictly by backend subscription/admin state.
 """
 
 from datetime import datetime, timezone, timedelta
@@ -18,19 +18,10 @@ class PremiumService:
         """
         Check if a user currently has active premium.
         Automatically handles expired premium.
-        
-        PRIORITY ORDER:
-        1. force_premium = True → Always premium (testing mode)
-        2. premium_status + expiry check → Normal premium logic
-        
+
         Returns: (is_premium, premium_tier, expires_at)
         """
         if is_guest:
-            # Check guest collection for force_premium
-            guests = get_guests_collection()
-            guest = await guests.find_one({'guest_id': user_id}, {'_id': 0})
-            if guest and guest.get('force_premium', False):
-                return True, 'premium', None
             return False, 'free', None
         
         collection = get_users_collection()
@@ -38,10 +29,6 @@ class PremiumService:
         
         if not user:
             return False, 'free', None
-        
-        # TEST MODE: force_premium overrides everything
-        if user.get('force_premium', False):
-            return True, user.get('premium_tier', 'premium'), None
         
         is_premium = user.get('premium_status', False)
         premium_tier = user.get('premium_tier', 'free')
@@ -66,33 +53,13 @@ class PremiumService:
     @staticmethod
     async def set_force_premium(user_id: str, force: bool, is_guest: bool = False) -> Dict:
         """
-        Set force_premium flag for testing purposes.
-        This allows testing premium features without Stripe.
-        
-        Args:
-            user_id: User or guest ID
-            force: True to force premium, False to disable
-            is_guest: Whether this is a guest user
-            
-        Returns: {success, is_premium, message}
+        Legacy dev helper retained only for compatibility.
+        Premium overrides are disabled for security.
         """
-        if is_guest:
-            collection = get_guests_collection()
-            result = await collection.update_one(
-                {'guest_id': user_id},
-                {'$set': {'force_premium': force}}
-            )
-        else:
-            collection = get_users_collection()
-            result = await collection.update_one(
-                {'user_id': user_id},
-                {'$set': {'force_premium': force}}
-            )
-        
         return {
-            'success': result.modified_count > 0 or result.matched_count > 0,
-            'is_premium': force,
-            'message': f"Premium {'enabled' if force else 'disabled'} for user {user_id}"
+            'success': False,
+            'is_premium': False,
+            'message': 'Premium override is disabled. Payment or authorized backend grant is required.'
         }
     
     @staticmethod

@@ -62,7 +62,7 @@ class TestPremiumStatus:
     """Premium Status Tests"""
     
     def test_set_force_premium_endpoint(self):
-        """Test /api/admin/dev/set-premium endpoint"""
+        """Test /api/admin/dev/set-premium endpoint is disabled"""
         # First create a guest user
         unique_username = f"TestPremium_{uuid.uuid4().hex[:8]}"
         guest_response = requests.post(f"{BASE_URL}/api/auth/guest", json={
@@ -74,22 +74,15 @@ class TestPremiumStatus:
         user_id = guest_data['user'].get('guest_id') or guest_data['user'].get('user_id')
         token = guest_data['token']
         
-        # Set force_premium
+        # Override must be blocked
         premium_response = requests.post(
             f"{BASE_URL}/api/admin/dev/set-premium",
             json={"user_id": user_id, "force_premium": True},
             headers={"Authorization": f"Bearer {token}"}
         )
-        
-        # This endpoint may require admin auth or may not exist
-        if premium_response.status_code == 200:
-            print(f"✓ Force premium set successfully for {user_id}")
-        elif premium_response.status_code == 401:
-            print(f"⚠ Force premium endpoint requires admin auth (expected)")
-        elif premium_response.status_code == 404:
-            print(f"⚠ Force premium endpoint not found - may need different path")
-        else:
-            print(f"⚠ Force premium response: {premium_response.status_code} - {premium_response.text}")
+
+        assert premium_response.status_code in [403, 404]
+        print(f"✓ Premium override blocked: {premium_response.status_code}")
 
 
 class TestRoomCapacity:
@@ -117,7 +110,7 @@ class TestRoomCapacity:
         # Create a room (simulating premium user)
         result = create_room(test_creator_id, "TestCreator", is_premium=True)
         
-        assert 'success' in result and result['success'] == True
+        assert 'success' in result and result['success']
         room = result['room']
         
         assert room['max_players'] == 2, f"Room max_players should be 2, got {room['max_players']}"
@@ -144,14 +137,14 @@ class TestRoomCapacity:
         
         # Create room
         create_result = create_room(creator_id, "Creator", is_premium=True)
-        assert create_result['success'] == True
+        assert create_result['success']
         room_code = create_result['room']['code']
         
         # Player 2 joins
         join_result = join_room(room_code, player2_id, "Player2")
-        assert join_result['success'] == True
+        assert join_result['success']
         assert join_result['room']['player_count'] == 2
-        print(f"✓ Player 2 joined room, count=2")
+        print("✓ Player 2 joined room, count=2")
         
         # Player 3 tries to join - should be blocked
         join_result_3 = join_room(room_code, player3_id, "Player3")
@@ -194,7 +187,7 @@ class TestRoomPremiumRestriction:
         
         result = create_room(premium_user_id, "PremiumUser", is_premium=True)
         
-        assert 'success' in result and result['success'] == True
+        assert 'success' in result and result['success']
         assert 'room' in result
         print(f"✓ Premium user created room: {result['room']['code']}")
         

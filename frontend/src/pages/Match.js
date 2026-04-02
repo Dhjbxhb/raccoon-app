@@ -111,7 +111,7 @@ const Match = () => {
     endCall
   } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
-  const isPremium = user?.premium_status;
+  const isPremium = user?.is_premium === true;
   
   // ========== RESPONSIVE HANDLER ==========
   useEffect(() => {

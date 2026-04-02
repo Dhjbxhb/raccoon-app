@@ -52,7 +52,7 @@ const Guest = () => {
     detectCountry();
   }, []);
 
-  const isPremium = user?.premium_status || false;
+  const isPremium = user?.is_premium === true;
 
   const handleLockedFeature = (feature) => {
     setShowPremiumModal(true);

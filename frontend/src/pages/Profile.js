@@ -85,7 +85,7 @@ const Profile = () => {
 
   // Premium status from API or user context
   const premium = fullUserData?.premium || {
-    is_premium: user.premium_status || false,
+    is_premium: user?.is_premium === true,
     plan_name: null,
     expiry_date: null,
     days_remaining: null,

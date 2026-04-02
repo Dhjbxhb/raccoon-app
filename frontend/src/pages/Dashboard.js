@@ -14,7 +14,7 @@ const Dashboard = () => {
   const { user, logout, isGuest, token, loading } = useAuth();
 
   // Premium status - from backend's computed is_premium field
-  const isPremium = user?.is_premium === true || user?.premium_status === true;
+  const isPremium = user?.is_premium === true;
 
   // Calculate premium time remaining
   const getPremiumStatus = () => {
@@ -109,17 +109,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen text-white relative">
-      {/* DEBUG PANEL - Shows premium status */}
-      <div className="fixed top-2 right-2 z-50 px-3 py-1.5 bg-black/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-mono">
-        <span className="text-gray-400">Premium: </span>
-        <span className={isPremium ? "text-green-400 font-bold" : "text-red-400 font-bold"}>
-          {isPremium ? "TRUE" : "FALSE"}
-        </span>
-        {user?.force_premium && (
-          <span className="ml-2 text-yellow-400">(forced)</span>
-        )}
-      </div>
-      
       {/* Cinematic space background */}
       <SpaceBackground intensity="minimal" showNebula={true} showShootingStars={true} />
 
@@ -149,7 +138,7 @@ const Dashboard = () => {
             >
               <User size={18} />
               <span style={{ fontFamily: 'Manrope, sans-serif' }}>{user.username}</span>
-              {user.premium_status && <Star size={16} className="text-yellow-400 fill-yellow-400" />}
+              {isPremium && <Star size={16} className="text-yellow-400 fill-yellow-400" />}
             </button>
             <button
               onClick={handleLogout}
