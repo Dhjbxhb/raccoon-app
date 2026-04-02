@@ -1281,18 +1281,15 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
                 is_guest = session.get('is_guest', False)
-                is_premium = session.get('is_premium', False)
                 
                 if not user_id:
                     await sio.emit('uno_error', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            # Check premium status from session (already validated during auth)
-            # For non-guests, also do a fresh check to ensure subscription hasn't expired
-            if not is_guest and not is_premium:
-                users_collection = get_users_collection()
-                user_data = await users_collection.find_one({'user_id': user_id})
-                is_premium = user_data.get('premium_status', False) if user_data else False
+            # ALWAYS do a fresh premium check (including force_premium)
+            is_premium, tier, expires = await premium_service.check_premium_status(user_id, is_guest)
+            
+            logger.info(f"[UNO] Start game request from {user_id}, premium={is_premium}, is_guest={is_guest}")
             
             if not is_premium:
                 await sio.emit('premium_required', {
@@ -1573,7 +1570,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     return
                 
                 username = session.get('username', 'Player')
-                is_premium = session.get('is_premium', False)
+                is_guest = session.get('is_guest', False)
+            
+            # ALWAYS do a fresh premium check (including force_premium)
+            is_premium, tier, expires = await premium_service.check_premium_status(user_id, is_guest)
+            
+            logger.info(f"[ROOM] Create room request from {user_id}, premium={is_premium}, is_guest={is_guest}")
             
             result = room_service.create_room(user_id, username, is_premium)
             

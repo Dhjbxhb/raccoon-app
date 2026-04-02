@@ -7,6 +7,7 @@ from models.user import User, UserResponse
 from models.guest import Guest, GuestResponse
 from utils.validators import validate_age, validate_password, validate_username
 from middleware.auth_middleware import verify_token
+from services.premium_service import premium_service
 import uuid
 from datetime import datetime, timedelta, timezone
 import random
@@ -352,25 +353,37 @@ async def get_current_user(request: Request):
         guest_dict = await guests.find_one({"guest_id": payload['user_id']}, {"_id": 0})
         if not guest_dict:
             raise HTTPException(status_code=404, detail="Guest session not found")
-        return GuestResponse(
-            guest_id=guest_dict['guest_id'],
-            username=guest_dict['username'],
-            gender=guest_dict['gender'],
-            age_verified=guest_dict.get('age_verified', False),
-            country=guest_dict.get('country'),
-            country_code=guest_dict.get('country_code'),
-            country_flag=guest_dict.get('country_flag'),
-            total_sessions=guest_dict.get('total_sessions', 0),
-            total_time_spent=guest_dict.get('total_time_spent', 0),
-            games_played=guest_dict.get('games_played', 0),
-            games_won=guest_dict.get('games_won', 0),
-            created_at=guest_dict.get('created_at')
-        )
+        
+        # Compute is_premium including force_premium for testing
+        is_premium, tier, expires = await premium_service.check_premium_status(payload['user_id'], is_guest=True)
+        
+        return {
+            "guest_id": guest_dict['guest_id'],
+            "username": guest_dict['username'],
+            "gender": guest_dict['gender'],
+            "age_verified": guest_dict.get('age_verified', False),
+            "country": guest_dict.get('country'),
+            "country_code": guest_dict.get('country_code'),
+            "country_flag": guest_dict.get('country_flag'),
+            "total_sessions": guest_dict.get('total_sessions', 0),
+            "total_time_spent": guest_dict.get('total_time_spent', 0),
+            "games_played": guest_dict.get('games_played', 0),
+            "games_won": guest_dict.get('games_won', 0),
+            "created_at": guest_dict.get('created_at'),
+            "is_guest": True,
+            "is_premium": is_premium,  # COMPUTED premium status
+            "premium_status": is_premium,
+            "premium_tier": tier,
+            "force_premium": guest_dict.get('force_premium', False)
+        }
     else:
         users = get_users_collection()
         user_dict = await users.find_one({"user_id": payload['user_id']}, {"_id": 0})
         if not user_dict:
             raise HTTPException(status_code=404, detail="User not found")
+        
+        # Compute is_premium including force_premium for testing
+        is_premium, tier, expires = await premium_service.check_premium_status(payload['user_id'], is_guest=False)
         
         # Format premium_expires_at if present
         premium_expires_at = user_dict.get('premium_expires_at')
@@ -378,28 +391,31 @@ async def get_current_user(request: Request):
             if hasattr(premium_expires_at, 'isoformat'):
                 premium_expires_at = premium_expires_at.isoformat()
         
-        return UserResponse(
-            user_id=user_dict['user_id'],
-            email=user_dict['email'],
-            username=user_dict['username'],
-            country=user_dict['country'],
-            country_code=user_dict.get('country_code', 'US'),
-            country_flag=user_dict.get('country_flag', '🇺🇸'),
-            gender=user_dict['gender'],
-            age_verified=user_dict.get('age_verified', False),
-            premium_status=user_dict.get('premium_status', False),
-            premium_tier=user_dict.get('premium_tier', 'free'),
-            premium_expires_at=premium_expires_at,
-            is_admin=user_dict.get('is_admin', False),
-            is_moderator=user_dict.get('is_moderator', False),
-            total_sessions=user_dict.get('total_sessions', 0),
-            total_time_spent=user_dict.get('total_time_spent', 0),
-            games_played=user_dict.get('games_played', 0),
-            games_won=user_dict.get('games_won', 0),
-            photo_url=user_dict.get('photo_url'),
-            bio=user_dict.get('bio'),
-            created_at=user_dict.get('created_at')
-        )
+        return {
+            "user_id": user_dict['user_id'],
+            "email": user_dict['email'],
+            "username": user_dict['username'],
+            "country": user_dict['country'],
+            "country_code": user_dict.get('country_code', 'US'),
+            "country_flag": user_dict.get('country_flag', '🇺🇸'),
+            "gender": user_dict['gender'],
+            "age_verified": user_dict.get('age_verified', False),
+            "premium_status": is_premium,  # COMPUTED premium status
+            "is_premium": is_premium,  # COMPUTED premium status
+            "premium_tier": tier,
+            "premium_expires_at": premium_expires_at,
+            "force_premium": user_dict.get('force_premium', False),
+            "is_admin": user_dict.get('is_admin', False),
+            "is_moderator": user_dict.get('is_moderator', False),
+            "total_sessions": user_dict.get('total_sessions', 0),
+            "total_time_spent": user_dict.get('total_time_spent', 0),
+            "games_played": user_dict.get('games_played', 0),
+            "games_won": user_dict.get('games_won', 0),
+            "photo_url": user_dict.get('photo_url'),
+            "bio": user_dict.get('bio'),
+            "created_at": user_dict.get('created_at'),
+            "is_guest": False
+        }
 
 
 class AgeVerifyRequest(BaseModel):
@@ -457,7 +473,7 @@ class GoogleAuthRequest(BaseModel):
 @router.post("/google", response_model=AuthResponse)
 async def google_auth(data: GoogleAuthRequest, request: Request):
     """Handle Google authentication specifically"""
-    logger.info(f"=== GOOGLE AUTH REQUEST ===")
+    logger.info("=== GOOGLE AUTH REQUEST ===")
     logger.info(f"Firebase UID: {data.uid}")
     logger.info(f"Email: {data.email}")
     logger.info(f"Display Name: {data.displayName}")

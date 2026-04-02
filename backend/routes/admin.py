@@ -69,6 +69,52 @@ async def get_current_admin(authorization: Optional[str] = Header(None)):
     return payload
 
 # ============================================
+# DEV/TEST PREMIUM ENDPOINT (NO AUTH REQUIRED FOR TESTING)
+# ============================================
+
+class SetPremiumRequest(BaseModel):
+    user_id: str
+    force_premium: bool
+    is_guest: bool = False
+
+@router.post("/dev/set-premium")
+async def dev_set_premium(request: SetPremiumRequest):
+    """
+    DEV ENDPOINT: Set force_premium flag for testing.
+    This allows testing premium features without Stripe.
+    
+    NOTE: In production, this should be protected or removed.
+    """
+    result = await premium_service.set_force_premium(
+        user_id=request.user_id,
+        force=request.force_premium,
+        is_guest=request.is_guest
+    )
+    
+    return {
+        "success": result['success'],
+        "user_id": request.user_id,
+        "is_premium": result['is_premium'],
+        "message": result['message']
+    }
+
+@router.get("/dev/check-premium/{user_id}")
+async def dev_check_premium(user_id: str, is_guest: bool = False):
+    """
+    DEV ENDPOINT: Check premium status for a user.
+    Returns the computed premium status including force_premium override.
+    """
+    is_premium, tier, expires = await premium_service.check_premium_status(user_id, is_guest)
+    
+    return {
+        "user_id": user_id,
+        "is_guest": is_guest,
+        "is_premium": is_premium,
+        "tier": tier,
+        "expires_at": expires
+    }
+
+# ============================================
 # DASHBOARD STATS
 # ============================================
 

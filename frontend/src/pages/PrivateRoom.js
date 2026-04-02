@@ -17,7 +17,7 @@ import {
 const PrivateRoom = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { socket, isConnected } = useSocket();
+  const { socket, connected: isConnected } = useSocket();
   
   const [mode, setMode] = useState('menu'); // menu, create, join, room
   const [joinCode, setJoinCode] = useState('');
@@ -25,7 +25,8 @@ const PrivateRoom = () => {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  const isPremium = user?.premium_status === true;
+  // Premium status - from backend's computed is_premium field
+  const isPremium = user?.is_premium === true || user?.premium_status === true;
   const myId = user?.user_id || user?.guest_id;
   
   // Socket event handlers
@@ -185,6 +186,17 @@ const PrivateRoom = () => {
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0614] via-[#120a24] to-[#0a0614] text-white">
+      {/* DEBUG PANEL - Shows premium status */}
+      <div className="fixed top-2 right-2 z-50 px-3 py-1.5 bg-black/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-mono">
+        <span className="text-gray-400">Premium: </span>
+        <span className={isPremium ? "text-green-400 font-bold" : "text-red-400 font-bold"}>
+          {isPremium ? "TRUE" : "FALSE"}
+        </span>
+        {user?.force_premium && (
+          <span className="ml-2 text-yellow-400">(forced)</span>
+        )}
+      </div>
+      
       {/* Background effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px]" />

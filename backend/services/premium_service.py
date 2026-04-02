@@ -2,29 +2,46 @@
 Premium Status Service
 
 Handles premium status checks, expiry logic, and premium enforcement.
+Includes test mode with force_premium override.
 """
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Tuple
-from services.db_service import get_users_collection
+from services.db_service import get_users_collection, get_guests_collection
 
 
 class PremiumService:
     """Service for managing user premium status"""
     
     @staticmethod
-    async def check_premium_status(user_id: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    async def check_premium_status(user_id: str, is_guest: bool = False) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Check if a user currently has active premium.
         Automatically handles expired premium.
         
+        PRIORITY ORDER:
+        1. force_premium = True → Always premium (testing mode)
+        2. premium_status + expiry check → Normal premium logic
+        
         Returns: (is_premium, premium_tier, expires_at)
         """
+        if is_guest:
+            # Check guest collection for force_premium
+            guests = get_guests_collection()
+            guest = await guests.find_one({'guest_id': user_id}, {'_id': 0})
+            if guest and guest.get('force_premium', False):
+                return True, 'premium', None
+            return False, 'free', None
+        
         collection = get_users_collection()
         user = await collection.find_one({'user_id': user_id}, {'_id': 0})
         
         if not user:
             return False, 'free', None
+        
+        # TEST MODE: force_premium overrides everything
+        if user.get('force_premium', False):
+            return True, user.get('premium_tier', 'premium'), None
         
         is_premium = user.get('premium_status', False)
         premium_tier = user.get('premium_tier', 'free')
@@ -45,6 +62,38 @@ class PremiumService:
                 pass
         
         return True, premium_tier, expires_at
+    
+    @staticmethod
+    async def set_force_premium(user_id: str, force: bool, is_guest: bool = False) -> Dict:
+        """
+        Set force_premium flag for testing purposes.
+        This allows testing premium features without Stripe.
+        
+        Args:
+            user_id: User or guest ID
+            force: True to force premium, False to disable
+            is_guest: Whether this is a guest user
+            
+        Returns: {success, is_premium, message}
+        """
+        if is_guest:
+            collection = get_guests_collection()
+            result = await collection.update_one(
+                {'guest_id': user_id},
+                {'$set': {'force_premium': force}}
+            )
+        else:
+            collection = get_users_collection()
+            result = await collection.update_one(
+                {'user_id': user_id},
+                {'$set': {'force_premium': force}}
+            )
+        
+        return {
+            'success': result.modified_count > 0 or result.matched_count > 0,
+            'is_premium': force,
+            'message': f"Premium {'enabled' if force else 'disabled'} for user {user_id}"
+        }
     
     @staticmethod
     async def auto_expire_premium(user_id: str) -> bool:
