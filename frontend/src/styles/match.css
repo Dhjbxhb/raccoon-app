@@ -383,48 +383,100 @@
   }
 }
 
-/* ===== VIDEO AREA ===== */
+/* ===== VIDEO AREA - CAMERAS ARE THE MAIN ELEMENT ===== */
 .match-videos {
   flex: 1;
   display: flex;
   position: relative;
   overflow: hidden;
   /* Gap creates visual separation */
-  gap: 4px;
-  padding: 4px;
-  background: #0a0a10;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: linear-gradient(180deg, #08060f 0%, #0a0814 50%, #08060f 100%);
+  /* Minimum height to ensure cameras are prominent */
+  min-height: 50vh;
 }
 
-/* Mobile: Stack vertically */
+/* Mobile: Stack vertically - FULL WIDTH cameras */
 @media (max-width: 1023px) {
   .match-videos {
     flex-direction: column;
-    gap: 3px;
-    padding: 3px;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    min-height: auto;
+    max-height: 65vh;
   }
 }
 
-/* Desktop: Side by side */
+/* Desktop: Side by side - DOMINANT cameras */
 @media (min-width: 1024px) {
   .match-videos {
     flex-direction: row;
+    gap: 1rem;
+    padding: 1rem;
+    min-height: 55vh;
+    max-height: 70vh;
   }
 }
 
-/* ===== VIDEO PANEL ===== */
+/* ===== VIDEO PANEL - LARGE VISIBLE CAMERAS ===== */
 .video-panel {
   position: relative;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 1.25rem;
   background: linear-gradient(135deg, #0f0f18 0%, #080810 100%);
+  /* Purple glow border */
+  box-shadow: 
+    0 0 30px rgba(124, 58, 237, 0.15),
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(124, 58, 237, 0.2);
 }
 
-/* Desktop sizing */
+/* MOBILE sizing - stack with good height */
+@media (max-width: 1023px) {
+  .video-panel {
+    flex: 1;
+    min-height: 140px;
+    max-height: 45%;
+    width: 100%;
+    border-radius: 1rem;
+  }
+  
+  /* Remote video on TOP (stranger first) */
+  .video-panel--remote {
+    order: 1;
+  }
+  
+  /* Local video on BOTTOM */
+  .video-panel--local {
+    order: 2;
+  }
+}
+
+/* TABLET sizing */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .video-panel {
+    min-height: 180px;
+    border-radius: 1.125rem;
+  }
+}
+
+/* DESKTOP sizing - side by side, equal large */
 @media (min-width: 1024px) {
   .video-panel {
     flex: 1;
-    height: 100%;
-    border-radius: 20px;
+    /* Each camera takes ~45% of container */
+    max-width: 48%;
+    /* Force substantial height */
+    min-height: 280px;
+    max-height: 380px;
+    height: auto;
+    aspect-ratio: 4/3;
+    border-radius: 1.5rem;
+    box-shadow: 
+      0 0 40px rgba(124, 58, 237, 0.2),
+      0 12px 40px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 2px rgba(124, 58, 237, 0.25);
   }
   
   /* Local video on LEFT */
@@ -438,45 +490,60 @@
   }
 }
 
-/* Mobile sizing */
-@media (max-width: 1023px) {
+/* LARGE DESKTOP - even bigger */
+@media (min-width: 1440px) {
   .video-panel {
-    flex: 1;
-    min-height: 0;
-    border-radius: 14px;
-  }
-  
-  /* Remote video on TOP */
-  .video-panel--remote {
-    order: 1;
-  }
-  
-  /* Local video on BOTTOM */
-  .video-panel--local {
-    order: 2;
+    min-height: 320px;
+    max-height: 420px;
   }
 }
 
-/* Subtle glow effect on panels */
+/* Subtle animated glow effect on panels */
 .video-panel::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: -2px;
   border-radius: inherit;
-  padding: 1px;
   background: linear-gradient(
     135deg,
-    rgba(124, 58, 237, 0.2),
-    transparent 40%,
-    transparent 60%,
-    rgba(124, 58, 237, 0.1)
+    rgba(124, 58, 237, 0.4) 0%,
+    rgba(124, 58, 237, 0.1) 25%,
+    transparent 50%,
+    rgba(124, 58, 237, 0.1) 75%,
+    rgba(124, 58, 237, 0.3) 100%
   );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  z-index: 1;
+  z-index: -1;
+  opacity: 0.6;
+  animation: panelGlow 4s ease-in-out infinite;
+}
+
+@keyframes panelGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+/* Local panel - green accent glow */
+.video-panel--local::before {
+  background: linear-gradient(
+    135deg,
+    rgba(34, 197, 94, 0.4) 0%,
+    rgba(34, 197, 94, 0.1) 25%,
+    transparent 50%,
+    rgba(34, 197, 94, 0.1) 75%,
+    rgba(34, 197, 94, 0.3) 100%
+  );
+}
+
+/* Remote panel - blue accent glow */
+.video-panel--remote::before {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.4) 0%,
+    rgba(59, 130, 246, 0.1) 25%,
+    transparent 50%,
+    rgba(59, 130, 246, 0.1) 75%,
+    rgba(59, 130, 246, 0.3) 100%
+  );
 }
 
 /* ===== VIDEO ELEMENT ===== */
@@ -495,48 +562,73 @@
   transform: scaleX(-1);
 }
 
-/* ===== LABELS ===== */
+/* ===== LABELS - INSIDE CAMERA BOTTOM-LEFT ===== */
 .video-panel__label {
   position: absolute;
   z-index: 10;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  background: rgba(0, 0, 0, 0.65);
+  padding: 0.5rem 0.875rem;
+  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-radius: 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-transform: uppercase;
 }
 
-.video-panel__label--top-left {
-  top: 0.75rem;
-  left: 0.75rem;
-}
-
+/* Position labels at BOTTOM-LEFT inside camera */
+.video-panel__label--top-left,
 .video-panel__label--top-right {
-  top: 0.75rem;
-  right: 0.75rem;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  top: auto;
+  right: auto;
+}
+
+/* YOU label - green accent */
+.video-panel--local .video-panel__label {
+  background: rgba(0, 0, 0, 0.75);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+/* STRANGER label - blue accent */
+.video-panel--remote .video-panel__label {
+  background: rgba(0, 0, 0, 0.75);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
 }
 
 @media (min-width: 768px) {
   .video-panel__label {
-    padding: 0.5rem 1rem;
-    font-size: 0.8125rem;
-    border-radius: 12px;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    border-radius: 0.875rem;
   }
   
-  .video-panel__label--top-left {
-    top: 1rem;
+  .video-panel__label--top-left,
+  .video-panel__label--top-right {
+    bottom: 1rem;
     left: 1rem;
   }
+}
+
+@media (min-width: 1024px) {
+  .video-panel__label {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9375rem;
+    border-radius: 1rem;
+  }
   
+  .video-panel__label--top-left,
   .video-panel__label--top-right {
-    top: 1rem;
-    right: 1rem;
+    bottom: 1.25rem;
+    left: 1.25rem;
   }
 }
 
