@@ -110,12 +110,24 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
     // Handle remote tracks
     pc.ontrack = (event) => {
+      console.log('[WebRTC] Remote track received:', event.track.kind);
       if (event.streams && event.streams[0]) {
+        const remoteStr = event.streams[0];
+        
         if (mountedRef.current) {
-          setRemoteStream(event.streams[0]);
+          setRemoteStream(remoteStr);
         }
+        
         if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+          // Clear any stale srcObject first
+          if (remoteVideoRef.current.srcObject !== remoteStr) {
+            remoteVideoRef.current.srcObject = remoteStr;
+          }
+          
+          // Force play - critical for avoiding black screens
+          remoteVideoRef.current.play().catch(e => {
+            console.warn('[WebRTC] Remote video play warning:', e);
+          });
         }
       }
     };
@@ -125,6 +137,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       if (!mountedRef.current) return;
       
       const state = pc.iceConnectionState;
+      console.log('[WebRTC] ICE connection state:', state);
       
       if (state === 'connected' || state === 'completed') {
         setConnectionState('connected');
@@ -133,10 +146,20 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
           clearTimeout(connectionTimeout.current);
           connectionTimeout.current = null;
         }
+        
+        // Ensure videos are playing after connection
+        if (localVideoRef.current && localVideoRef.current.srcObject) {
+          localVideoRef.current.play().catch(() => {});
+        }
+        if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+          remoteVideoRef.current.play().catch(() => {});
+        }
       } else if (state === 'failed') {
+        console.error('[WebRTC] Connection failed');
         setConnectionState('failed');
         setError('Connection failed');
       } else if (state === 'disconnected') {
+        console.warn('[WebRTC] Connection disconnected, may recover');
         setConnectionState('reconnecting');
       } else if (state === 'checking') {
         setConnectionState('connecting');
@@ -179,12 +202,30 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
   // Get camera stream - direct, no filter processing
   const getLocalStream = useCallback(async () => {
+    // IMPORTANT: Clean up any existing stream first
+    if (localStreamRef.current) {
+      console.log('[WebRTC] Cleaning up existing local stream before getting new one');
+      cleanupStream(localStreamRef.current);
+      localStreamRef.current = null;
+      
+      // Clear video element
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+      
+      if (mountedRef.current) {
+        setLocalStream(null);
+      }
+    }
+    
     try {
       const mode = performanceModeRef.current;
       const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
       const constraints = getMediaConstraints(settings);
       
+      console.log('[WebRTC] Requesting camera with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('[WebRTC] Got camera stream:', stream.id);
       
       // Store ref for cleanup
       localStreamRef.current = stream;
@@ -193,14 +234,20 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         setLocalStream(stream);
       }
       
-      // Set local video
+      // Set local video and ensure it plays
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        // Force play - important for some browsers
+        try {
+          await localVideoRef.current.play();
+        } catch (playError) {
+          console.warn('[WebRTC] Local video play warning:', playError);
+        }
       }
       
       return stream;
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error('[WebRTC] Camera error:', err);
       setError('Camera access failed');
       throw err;
     }
@@ -209,22 +256,33 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
   // Start the call
   const startCall = useCallback(async () => {
     if (!socket || !sessionId) {
-      console.warn('Cannot start call: missing socket or sessionId');
+      console.warn('[WebRTC] Cannot start call: missing socket or sessionId');
       return;
     }
+
+    console.log('[WebRTC] Starting call for session:', sessionId);
 
     try {
       setConnectionState('connecting');
       setError(null);
 
-      // Get camera stream
+      // Get camera stream (this also cleans up any existing stream)
       const stream = await getLocalStream();
+      
+      if (!stream) {
+        throw new Error('Failed to get camera stream');
+      }
       
       // Create peer connection
       const pc = createPeerConnection();
       
+      if (!pc) {
+        throw new Error('Failed to create peer connection');
+      }
+      
       // Add tracks to peer connection
       stream.getTracks().forEach(track => {
+        console.log('[WebRTC] Adding track to PC:', track.kind);
         pc.addTrack(track, stream);
       });
 
@@ -233,36 +291,57 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       await applyBitrateConstraints(pc, settings.bitrate);
 
       // Set connection timeout
+      if (connectionTimeout.current) {
+        clearTimeout(connectionTimeout.current);
+      }
+      
       connectionTimeout.current = setTimeout(() => {
-        if (mountedRef.current && connectionState !== 'connected') {
-          setError('Connection timeout');
-          setConnectionState('failed');
+        if (mountedRef.current) {
+          const currentState = peerConnection.current?.iceConnectionState;
+          if (currentState !== 'connected' && currentState !== 'completed') {
+            console.warn('[WebRTC] Connection timeout, state:', currentState);
+            setError('Connection timeout - trying to reconnect');
+            setConnectionState('failed');
+          }
         }
       }, CONNECTION_TIMEOUT);
 
+      console.log('[WebRTC] Call started successfully');
     } catch (err) {
-      console.error('Start call error:', err);
+      console.error('[WebRTC] Start call error:', err);
       setError(err.message || 'Failed to start call');
       setConnectionState('failed');
     }
-  }, [socket, sessionId, getLocalStream, createPeerConnection, connectionState]);
+  }, [socket, sessionId, getLocalStream, createPeerConnection]);
 
   // Handle incoming offer
   const handleOffer = useCallback(async (offer) => {
+    console.log('[WebRTC] Received offer');
+    
     if (!peerConnection.current) {
+      console.log('[WebRTC] No peer connection, creating one');
       const pc = createPeerConnection();
       
       // Get local stream if not already present
       if (!localStreamRef.current) {
+        console.log('[WebRTC] No local stream, getting one');
         const stream = await getLocalStream();
         stream.getTracks().forEach(track => {
           pc.addTrack(track, stream);
+        });
+      } else {
+        // Add existing stream tracks to new PC
+        localStreamRef.current.getTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef.current);
         });
       }
     }
 
     const pc = peerConnection.current;
-    if (!pc) return;
+    if (!pc) {
+      console.error('[WebRTC] Still no peer connection after creation');
+      return;
+    }
 
     try {
       const offerCollision = makingOffer.current || 
@@ -271,6 +350,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       ignoreOffer.current = !isPolite() && offerCollision;
       
       if (ignoreOffer.current) {
+        console.log('[WebRTC] Ignoring offer due to collision');
         return;
       }
 
@@ -296,9 +376,10 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
           answer: pc.localDescription,
           session_id: sessionId
         });
+        console.log('[WebRTC] Sent answer');
       }
     } catch (err) {
-      console.error('Handle offer error:', err);
+      console.error('[WebRTC] Handle offer error:', err);
     }
   }, [socket, sessionId, isPolite, createPeerConnection, getLocalStream]);
 
@@ -368,24 +449,37 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     }
   }, []);
 
-  // End call
+  // End call - THOROUGH CLEANUP
   const endCall = useCallback(() => {
-    // Stop local stream
+    console.log('[WebRTC] endCall - Starting cleanup');
+    
+    // 1. Stop local stream tracks FIRST
     if (localStreamRef.current) {
-      cleanupStream(localStreamRef.current);
+      console.log('[WebRTC] Stopping local stream:', localStreamRef.current.id);
+      localStreamRef.current.getTracks().forEach(track => {
+        console.log('[WebRTC] Stopping track:', track.kind, track.id);
+        track.stop();
+        track.enabled = false;
+      });
       localStreamRef.current = null;
     }
     
-    // Clean video elements
+    // 2. Clear video elements BEFORE cleaning peer connection
     if (localVideoRef.current) {
+      localVideoRef.current.pause();
       localVideoRef.current.srcObject = null;
+      localVideoRef.current.load(); // Reset video element
     }
     if (remoteVideoRef.current) {
+      remoteVideoRef.current.pause();
       remoteVideoRef.current.srcObject = null;
+      remoteVideoRef.current.load(); // Reset video element
     }
     
+    // 3. Clean peer connection
     cleanupPeerConnection();
     
+    // 4. Reset state
     if (mountedRef.current) {
       setLocalStream(null);
       setRemoteStream(null);
@@ -394,10 +488,68 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       setError(null);
     }
     
+    // 5. Reset auto-start flag
     autoStarted.current = false;
     
-    socket?.emit('webrtc_end_call', { session_id: sessionId });
+    // 6. Notify server
+    if (socket && sessionId) {
+      socket.emit('webrtc_end_call', { session_id: sessionId });
+    }
+    
+    console.log('[WebRTC] endCall - Cleanup complete');
   }, [socket, sessionId, cleanupPeerConnection]);
+
+  // Restart camera - useful for recovery from black screen
+  const restartCamera = useCallback(async () => {
+    console.log('[WebRTC] Restarting camera...');
+    
+    // Clean up existing stream
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+      localStreamRef.current = null;
+    }
+    
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    
+    setLocalStream(null);
+    
+    // Get new stream
+    try {
+      const stream = await getLocalStream();
+      
+      // If we have an active peer connection, replace the tracks
+      if (peerConnection.current && stream) {
+        const senders = peerConnection.current.getSenders();
+        for (const sender of senders) {
+          if (sender.track?.kind === 'video') {
+            const newVideoTrack = stream.getVideoTracks()[0];
+            if (newVideoTrack) {
+              await sender.replaceTrack(newVideoTrack);
+              console.log('[WebRTC] Replaced video track');
+            }
+          } else if (sender.track?.kind === 'audio') {
+            const newAudioTrack = stream.getAudioTracks()[0];
+            if (newAudioTrack) {
+              await sender.replaceTrack(newAudioTrack);
+              console.log('[WebRTC] Replaced audio track');
+            }
+          }
+        }
+      }
+      
+      console.log('[WebRTC] Camera restarted successfully');
+      return true;
+    } catch (err) {
+      console.error('[WebRTC] Failed to restart camera:', err);
+      setError('Failed to restart camera');
+      return false;
+    }
+  }, [getLocalStream]);
 
   // Socket event listeners
   useEffect(() => {
@@ -427,30 +579,63 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
 
   // Auto-start call when sessionId changes
   useEffect(() => {
-    if (!autoStart || !sessionId || !socket?.connected) return;
+    if (!autoStart || !socket?.connected) return;
     
-    // Detect session change
-    if (sessionId !== currentSessionId.current) {
-      currentSessionId.current = sessionId;
-      autoStarted.current = false;
-      
-      // Clean up previous call
-      if (peerConnection.current) {
+    // No session - cleanup and wait
+    if (!sessionId) {
+      if (peerConnection.current || localStreamRef.current) {
+        console.log('[WebRTC] No sessionId, cleaning up');
         endCall();
       }
+      currentSessionId.current = null;
+      return;
     }
     
+    // Detect session change - means we matched with someone new (after skip)
+    if (sessionId !== currentSessionId.current) {
+      console.log('[WebRTC] Session changed:', currentSessionId.current, '->', sessionId);
+      
+      // Clean up previous call FIRST
+      if (currentSessionId.current) {
+        console.log('[WebRTC] Cleaning up previous session');
+        // Synchronous cleanup
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(track => {
+            track.stop();
+            track.enabled = false;
+          });
+          localStreamRef.current = null;
+        }
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = null;
+        }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = null;
+        }
+        cleanupPeerConnection();
+        setLocalStream(null);
+        setRemoteStream(null);
+      }
+      
+      currentSessionId.current = sessionId;
+      autoStarted.current = false;
+    }
+    
+    // Start call if we have a partner and haven't started yet
     if (!autoStarted.current && partnerId) {
       autoStarted.current = true;
+      console.log('[WebRTC] Auto-starting call for session:', sessionId);
       
-      // Delay slightly to ensure socket is ready
+      // Small delay to ensure cleanup completed and socket is ready
       const timer = setTimeout(() => {
-        startCall();
-      }, 500);
+        if (mountedRef.current && sessionId === currentSessionId.current) {
+          startCall();
+        }
+      }, 300);
       
       return () => clearTimeout(timer);
     }
-  }, [autoStart, sessionId, partnerId, socket?.connected, startCall, endCall]);
+  }, [autoStart, sessionId, partnerId, socket?.connected, startCall, endCall, cleanupPeerConnection]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -473,6 +658,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     error,
     startCall,
     endCall,
+    restartCamera,
     toggleVideo,
     toggleAudio,
     performanceMode,
