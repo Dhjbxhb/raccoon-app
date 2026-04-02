@@ -1,253 +1,176 @@
 /**
- * Firebase Service - Proper Session Persistence
+ * Firebase Service - SINGLETON + POPUP ONLY
  * 
- * CRITICAL FIXES:
- * 1. setPersistence(browserLocalPersistence) BEFORE signInWithRedirect
- * 2. Single Firebase instance (no duplicates)
- * 3. Don't clear auth state before it resolves
- * 4. Properly wait for onAuthStateChanged
+ * CRITICAL:
+ * 1. Firebase initialized ONCE globally
+ * 2. signInWithPopup ONLY (no redirect)
+ * 3. User returned DIRECTLY from popup result
+ * 4. No reliance on cross-domain session persistence
  */
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  signInWithRedirect,
   signInWithPopup,
-  onAuthStateChanged,
   signOut as firebaseSignOut,
   browserLocalPersistence,
   setPersistence
 } from 'firebase/auth';
 import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
 
-// === SINGLETON STATE ===
-let app = null;
-let auth = null;
-let googleProvider = null;
-let isInitialized = false;
+// === STRICT SINGLETON ===
+let _app = null;
+let _auth = null;
+let _googleProvider = null;
+let _initialized = false;
 
-// Auth state
-let currentUser = null;
-let authStateResolved = false;
-let authReadyPromise = null;
-let authReadyResolve = null;
-
-// Subscribers
-const authSubscribers = [];
-
-// === INITIALIZE FIREBASE (ONCE) ===
-const initializeFirebase = () => {
-  if (isInitialized) {
-    console.log('[FIREBASE] Already initialized, skipping');
-    return;
+/**
+ * Get or create Firebase app (SINGLETON)
+ */
+const getFirebaseApp = () => {
+  if (_app) return _app;
+  
+  const apps = getApps();
+  if (apps.length > 0) {
+    _app = getApp();
+    console.log('[FIREBASE] Reusing existing app');
+  } else {
+    _app = initializeApp(firebaseConfig);
+    console.log('[FIREBASE] Created new app');
   }
   
-  console.log('[FIREBASE] Initializing...');
-  console.log('[FIREBASE] Config check:');
-  console.log('[FIREBASE] - projectId:', firebaseConfig.projectId);
-  console.log('[FIREBASE] - authDomain:', firebaseConfig.authDomain);
-  console.log('[FIREBASE] - apiKey:', firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0, 10) + '...' : 'MISSING');
+  return _app;
+};
+
+/**
+ * Get or create Auth instance (SINGLETON)
+ */
+const getFirebaseAuth = () => {
+  if (_auth) return _auth;
+  
+  const app = getFirebaseApp();
+  _auth = getAuth(app);
+  
+  console.log('[FIREBASE] Auth instance created');
+  console.log('[FIREBASE] projectId:', _auth.app.options.projectId);
+  console.log('[FIREBASE] authDomain:', _auth.app.options.authDomain);
+  
+  return _auth;
+};
+
+/**
+ * Get or create Google Provider (SINGLETON)
+ */
+const getGoogleProvider = () => {
+  if (_googleProvider) return _googleProvider;
+  
+  _googleProvider = new GoogleAuthProvider();
+  _googleProvider.addScope('email');
+  _googleProvider.addScope('profile');
+  _googleProvider.setCustomParameters({ prompt: 'select_account' });
+  
+  console.log('[FIREBASE] Google provider created');
+  
+  return _googleProvider;
+};
+
+/**
+ * Initialize Firebase (call once at app startup)
+ */
+export const initializeFirebase = () => {
+  if (_initialized) {
+    console.log('[FIREBASE] Already initialized');
+    return true;
+  }
+  
+  console.log('[FIREBASE] ==========================================');
+  console.log('[FIREBASE] INITIALIZING (SINGLETON)');
+  console.log('[FIREBASE] ==========================================');
   
   if (!isFirebaseConfigured()) {
-    console.error('[FIREBASE] Not configured - missing env vars');
-    console.error('[FIREBASE] Missing values:', {
-      apiKey: !firebaseConfig.apiKey,
-      authDomain: !firebaseConfig.authDomain,
-      projectId: !firebaseConfig.projectId,
-      appId: !firebaseConfig.appId
-    });
-    authStateResolved = true;
-    return;
+    console.error('[FIREBASE] NOT CONFIGURED - missing env vars');
+    return false;
   }
+  
+  console.log('[FIREBASE] Config:');
+  console.log('[FIREBASE] - projectId:', firebaseConfig.projectId);
+  console.log('[FIREBASE] - authDomain:', firebaseConfig.authDomain);
+  console.log('[FIREBASE] - apiKey:', firebaseConfig.apiKey?.substring(0, 15) + '...');
   
   try {
-    // Get existing app or create new one (SINGLETON)
-    const existingApps = getApps();
-    if (existingApps.length > 0) {
-      app = getApp();
-      console.log('[FIREBASE] Using existing app');
-    } else {
-      app = initializeApp(firebaseConfig);
-      console.log('[FIREBASE] Created new app');
-    }
+    getFirebaseApp();
+    getFirebaseAuth();
+    getGoogleProvider();
     
-    // Get auth instance
-    auth = getAuth(app);
-    console.log('[FIREBASE] Auth obtained');
-    console.log('[FIREBASE] Auth app projectId:', auth.app.options.projectId);
-    console.log('[FIREBASE] Auth app authDomain:', auth.app.options.authDomain);
-    
-    // Configure Google provider
-    googleProvider = new GoogleAuthProvider();
-    googleProvider.addScope('email');
-    googleProvider.addScope('profile');
-    googleProvider.setCustomParameters({ prompt: 'select_account' });
-    
-    // Create promise for auth ready state
-    authReadyPromise = new Promise((resolve) => {
-      authReadyResolve = resolve;
-    });
-    
-    // === CRITICAL: Listen for auth state changes ===
-    onAuthStateChanged(auth, (user) => {
-      console.log('[FIREBASE] ==========================================');
-      console.log('[FIREBASE] onAuthStateChanged FIRED');
-      console.log('[FIREBASE] User:', user ? 'EXISTS' : 'NULL');
-      if (user) {
-        console.log('[FIREBASE] Email:', user.email);
-        console.log('[FIREBASE] UID:', user.uid);
-        console.log('[FIREBASE] Display Name:', user.displayName);
-        console.log('[FIREBASE] Provider:', user.providerData?.[0]?.providerId);
-      }
-      console.log('[FIREBASE] ==========================================');
-      
-      currentUser = user;
-      authStateResolved = true;
-      
-      // Resolve the ready promise
-      if (authReadyResolve) {
-        authReadyResolve(user);
-        authReadyResolve = null;
-      }
-      
-      // Notify all subscribers
-      authSubscribers.forEach(callback => {
-        try {
-          callback(user);
-        } catch (e) {
-          console.error('[FIREBASE] Subscriber error:', e);
-        }
-      });
-    });
-    
-    isInitialized = true;
-    console.log('[FIREBASE] Initialization complete');
-    
+    _initialized = true;
+    console.log('[FIREBASE] Initialization COMPLETE');
+    return true;
   } catch (error) {
     console.error('[FIREBASE] Init error:', error);
-    authStateResolved = true;
-    if (authReadyResolve) {
-      authReadyResolve(null);
-    }
+    return false;
   }
 };
 
-// Initialize immediately when module loads
+// Initialize immediately on module load
 initializeFirebase();
 
-// ============================================
-// EXPORTED FUNCTIONS
-// ============================================
-
 /**
- * Wait for auth state to be determined
- * Returns: Firebase User or null
- */
-export const waitForAuthReady = async () => {
-  console.log('[FIREBASE] waitForAuthReady called');
-  console.log('[FIREBASE] authStateResolved:', authStateResolved);
-  console.log('[FIREBASE] currentUser:', currentUser?.email || 'null');
-  
-  // If already resolved, return immediately
-  if (authStateResolved) {
-    return currentUser;
-  }
-  
-  // Wait for the promise
-  if (authReadyPromise) {
-    console.log('[FIREBASE] Waiting for authReadyPromise...');
-    const user = await authReadyPromise;
-    console.log('[FIREBASE] authReadyPromise resolved:', user?.email || 'null');
-    return user;
-  }
-  
-  return null;
-};
-
-/**
- * Get current user (synchronous, may be null if not ready)
- */
-export const getCurrentUser = () => {
-  return currentUser;
-};
-
-/**
- * Check if auth state has been determined
- */
-export const isAuthReady = () => {
-  return authStateResolved;
-};
-
-/**
- * Subscribe to auth state changes
- * Returns unsubscribe function
- */
-export const subscribeToAuth = (callback) => {
-  authSubscribers.push(callback);
-  
-  // Immediately call with current state if resolved
-  if (authStateResolved) {
-    callback(currentUser);
-  }
-  
-  // Return unsubscribe function
-  return () => {
-    const index = authSubscribers.indexOf(callback);
-    if (index > -1) {
-      authSubscribers.splice(index, 1);
-    }
-  };
-};
-
-/**
- * Start Google sign in - tries popup first, falls back to redirect
- * Popup is more reliable as it doesn't require cross-page state persistence
+ * Sign in with Google using POPUP ONLY
+ * Returns Firebase user directly - no cross-domain issues
  */
 export const signInWithGoogle = async () => {
-  if (!auth || !googleProvider) {
+  console.log('[FIREBASE] ==========================================');
+  console.log('[FIREBASE] SIGN IN WITH GOOGLE (POPUP)');
+  console.log('[FIREBASE] ==========================================');
+  
+  const auth = getFirebaseAuth();
+  const provider = getGoogleProvider();
+  
+  if (!auth || !provider) {
     throw new Error('Firebase not initialized');
   }
   
-  console.log('[FIREBASE] ==========================================');
-  console.log('[FIREBASE] STARTING GOOGLE SIGN IN');
-  console.log('[FIREBASE] Current URL:', window.location.href);
-  console.log('[FIREBASE] ==========================================');
-  
   try {
-    // CRITICAL: Set persistence to LOCAL
-    console.log('[FIREBASE] Setting persistence to browserLocalPersistence...');
+    // Set persistence
+    console.log('[FIREBASE] Setting persistence...');
     await setPersistence(auth, browserLocalPersistence);
-    console.log('[FIREBASE] Persistence set successfully');
     
-    // Try popup first (more reliable)
-    console.log('[FIREBASE] Trying signInWithPopup...');
-    const result = await signInWithPopup(auth, googleProvider);
+    // Sign in with popup - user returned DIRECTLY
+    console.log('[FIREBASE] Opening popup...');
+    const result = await signInWithPopup(auth, provider);
     
-    console.log('[FIREBASE] Popup sign-in successful!');
-    console.log('[FIREBASE] User:', result.user.email);
+    // Log the result immediately
+    console.log('[FIREBASE] ==========================================');
+    console.log('[FIREBASE] POPUP RESULT:');
+    console.log('[FIREBASE] result:', result ? 'EXISTS' : 'NULL');
+    console.log('[FIREBASE] result.user:', result?.user ? 'EXISTS' : 'NULL');
     
-    // Return the user directly - no need to wait for redirect
+    if (result?.user) {
+      console.log('[FIREBASE] USER DETAILS:');
+      console.log('[FIREBASE] - email:', result.user.email);
+      console.log('[FIREBASE] - uid:', result.user.uid);
+      console.log('[FIREBASE] - displayName:', result.user.displayName);
+      console.log('[FIREBASE] - emailVerified:', result.user.emailVerified);
+      console.log('[FIREBASE] - providerId:', result.providerId);
+      
+      // Double check auth.currentUser
+      console.log('[FIREBASE] auth.currentUser:', auth.currentUser?.email || 'NULL');
+    }
+    console.log('[FIREBASE] ==========================================');
+    
+    if (!result?.user) {
+      throw new Error('No user in popup result');
+    }
+    
     return result.user;
     
   } catch (error) {
-    console.log('[FIREBASE] Popup error:', error.code, error.message);
-    
-    // If popup blocked or failed, fall back to redirect
-    if (error.code === 'auth/popup-blocked' || 
-        error.code === 'auth/popup-closed-by-user' ||
-        error.code === 'auth/cancelled-popup-request') {
-      
-      console.log('[FIREBASE] Falling back to redirect...');
-      
-      // Set pending flag for redirect
-      localStorage.setItem('googleAuthPending', 'true');
-      localStorage.setItem('googleAuthTimestamp', Date.now().toString());
-      
-      await signInWithRedirect(auth, googleProvider);
-      return null; // Will redirect
-    }
-    
+    console.error('[FIREBASE] ==========================================');
+    console.error('[FIREBASE] POPUP ERROR:');
+    console.error('[FIREBASE] code:', error.code);
+    console.error('[FIREBASE] message:', error.message);
+    console.error('[FIREBASE] ==========================================');
     throw error;
   }
 };
@@ -256,48 +179,28 @@ export const signInWithGoogle = async () => {
  * Sign out
  */
 export const signOut = async () => {
+  const auth = getFirebaseAuth();
   if (auth) {
     console.log('[FIREBASE] Signing out...');
     await firebaseSignOut(auth);
-    currentUser = null;
     console.log('[FIREBASE] Signed out');
   }
+};
+
+/**
+ * Get current user (may be null)
+ */
+export const getCurrentUser = () => {
+  const auth = getFirebaseAuth();
+  return auth?.currentUser || null;
 };
 
 /**
  * Check if Firebase is ready
  */
 export const isFirebaseReady = () => {
-  return isInitialized && !!auth && !!googleProvider;
+  return _initialized && !!_auth && !!_googleProvider;
 };
 
-/**
- * Check if Google auth redirect is pending
- */
-export const isGoogleAuthPending = () => {
-  const pending = localStorage.getItem('googleAuthPending') === 'true';
-  const timestamp = localStorage.getItem('googleAuthTimestamp');
-  
-  // Stale if older than 5 minutes
-  if (pending && timestamp) {
-    const age = Date.now() - parseInt(timestamp);
-    if (age > 5 * 60 * 1000) {
-      console.log('[FIREBASE] Pending flag is stale (> 5 min), clearing');
-      clearGoogleAuthPending();
-      return false;
-    }
-  }
-  
-  return pending;
-};
-
-/**
- * Clear pending flags
- */
-export const clearGoogleAuthPending = () => {
-  console.log('[FIREBASE] Clearing pending flags');
-  localStorage.removeItem('googleAuthPending');
-  localStorage.removeItem('googleAuthTimestamp');
-};
-
-export { auth };
+// Export auth for direct access if needed
+export const auth = _auth;

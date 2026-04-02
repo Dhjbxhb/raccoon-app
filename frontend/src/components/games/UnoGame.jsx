@@ -1,155 +1,209 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { X, RotateCcw, Zap, ArrowRight } from 'lucide-react';
 
 /**
  * UnoGame - Premium Real-Time Multiplayer UNO
- * 
- * RULES:
- * - 100% Backend controlled - NO local game logic
- * - Real-time sync via Socket.IO
- * - Valid moves enforced by server
- * - Special cards, UNO call, penalty system
- * 
- * LAYOUT:
- * - Desktop: Opponent (top) → Board (center) → My Hand (bottom)
- * - Mobile: Opponent (top) → Board (center) → Scrollable Hand (bottom)
+ * Exact match to provided design reference
  */
 
-// UNO Color definitions
-const UNO_COLORS = {
-  red: { bg: '#ef4444', glow: 'rgba(239, 68, 68, 0.5)', name: 'Red' },
-  blue: { bg: '#3b82f6', glow: 'rgba(59, 130, 246, 0.5)', name: 'Blue' },
-  green: { bg: '#22c55e', glow: 'rgba(34, 197, 94, 0.5)', name: 'Green' },
-  yellow: { bg: '#eab308', glow: 'rgba(234, 179, 8, 0.5)', name: 'Yellow' },
-  wild: { bg: 'linear-gradient(135deg, #ef4444, #3b82f6, #22c55e, #eab308)', glow: 'rgba(124, 58, 237, 0.5)', name: 'Wild' }
+// UNO Card colors
+const CARD_COLORS = {
+  red: '#ef4444',
+  blue: '#3b82f6', 
+  green: '#22c55e',
+  yellow: '#eab308',
+  wild: 'linear-gradient(135deg, #ef4444 25%, #3b82f6 25%, #3b82f6 50%, #22c55e 50%, #22c55e 75%, #eab308 75%)'
 };
 
-// Get card display symbol
-const getCardDisplay = (card) => {
-  if (!card) return { symbol: '?', label: '' };
-  
-  const valueMap = {
-    'skip': { symbol: '⊘', label: 'Skip' },
-    'reverse': { symbol: '⟳', label: 'Reverse' },
-    'draw_two': { symbol: '+2', label: 'Draw 2' },
-    'wild': { symbol: '★', label: 'Wild' },
-    'wild_draw_four': { symbol: '+4', label: 'Wild +4' }
+// Get card display
+const getCardSymbol = (card) => {
+  if (!card) return { value: '?', isSpecial: false };
+  const specialMap = {
+    'skip': { value: '⊘', isSpecial: true },
+    'reverse': { value: '↻', isSpecial: true },
+    'draw_two': { value: '+2', isSpecial: true },
+    'wild': { value: '', isSpecial: true, isWild: true },
+    'wild_draw_four': { value: '+4', isSpecial: true, isWild: true }
   };
-  
-  if (valueMap[card.value]) return valueMap[card.value];
-  return { symbol: card.value, label: card.value };
+  return specialMap[card.value] || { value: card.value, isSpecial: false };
 };
 
-// === CARD COMPONENT ===
+// === UNO CARD COMPONENT ===
 const UnoCard = memo(({ 
   card, 
-  isPlayable = false, 
-  isBack = false, 
-  size = 'normal',
+  isPlayable = false,
+  isBack = false,
+  size = 'medium',
+  rotation = 0,
+  offsetY = 0,
   onClick,
-  isAnimating = false
+  isCenter = false,
+  animate = false
 }) => {
-  const colorData = UNO_COLORS[card?.color] || UNO_COLORS.wild;
-  const display = getCardDisplay(card);
+  const [isHovered, setIsHovered] = useState(false);
   
-  const sizeStyles = {
-    tiny: { width: '2rem', height: '2.75rem', fontSize: '0.625rem' },
-    small: { width: '2.75rem', height: '3.75rem', fontSize: '0.75rem' },
-    normal: { width: '3.5rem', height: '5rem', fontSize: '1rem' },
-    large: { width: '5rem', height: '7rem', fontSize: '1.5rem' }
+  const sizes = {
+    small: { w: 50, h: 70, font: 20, corner: 10 },
+    medium: { w: 70, h: 100, font: 28, corner: 12 },
+    large: { w: 90, h: 130, font: 36, corner: 14 },
+    center: { w: 100, h: 140, font: 44, corner: 16 }
   };
   
-  const style = sizeStyles[size];
+  const s = sizes[size];
+  const symbol = getCardSymbol(card);
+  const isWild = card?.type === 'wild' || symbol.isWild;
   
+  // Card back design
   if (isBack) {
     return (
-      <div 
-        className="uno-card-back"
+      <div
         style={{
-          width: style.width,
-          height: style.height,
-          background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
-          borderRadius: '0.5rem',
-          border: '2px solid rgba(124, 58, 237, 0.4)',
+          width: s.w,
+          height: s.h,
+          borderRadius: s.corner,
+          background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)',
+          border: '3px solid #0f0f23',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+          boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+          transform: `rotate(${rotation}deg) translateY(${offsetY}px)`,
+          position: 'relative',
+          overflow: 'hidden'
         }}
       >
-        <span style={{ fontSize: '1.25rem', opacity: 0.5 }}>🦝</span>
+        {/* UNO back design */}
+        <div style={{
+          width: '80%',
+          height: '60%',
+          background: '#ef4444',
+          borderRadius: s.corner - 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '2px solid #dc2626',
+          boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.3)'
+        }}>
+          <span style={{
+            color: '#fef08a',
+            fontWeight: 900,
+            fontSize: s.font * 0.6,
+            fontStyle: 'italic',
+            textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+            letterSpacing: '-1px'
+          }}>
+            UNO
+          </span>
+        </div>
+        {/* Diagonal stripes */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0,0,0,0.1) 5px, rgba(0,0,0,0.1) 10px)',
+          pointerEvents: 'none'
+        }} />
       </div>
     );
   }
   
-  const isWild = card?.color === 'wild';
-  const bgStyle = isWild 
-    ? { background: colorData.bg }
-    : { backgroundColor: colorData.bg };
+  const bgColor = isWild ? CARD_COLORS.wild : CARD_COLORS[card?.color] || '#888';
+  const isGradient = isWild;
   
   return (
-    <div 
+    <div
       onClick={isPlayable ? onClick : undefined}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
-        ...bgStyle,
-        width: style.width,
-        height: style.height,
-        borderRadius: '0.5rem',
+        width: s.w,
+        height: s.h,
+        borderRadius: s.corner,
+        background: isGradient ? bgColor : bgColor,
+        border: `3px solid ${isPlayable ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)'}`,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'white',
-        fontWeight: 800,
-        fontSize: style.fontSize,
-        textShadow: '0 2px 4px rgba(0,0,0,0.4)',
-        cursor: isPlayable ? 'pointer' : 'default',
-        transition: 'all 0.15s ease',
-        transform: isPlayable ? 'translateY(0)' : 'none',
-        boxShadow: isPlayable 
-          ? `0 0 0 3px white, 0 8px 24px ${colorData.glow}` 
-          : '0 4px 12px rgba(0,0,0,0.3)',
         flexShrink: 0,
+        cursor: isPlayable ? 'pointer' : 'default',
+        boxShadow: isPlayable 
+          ? `0 0 20px rgba(255,255,255,0.5), 0 8px 25px rgba(0,0,0,0.4)`
+          : '0 4px 15px rgba(0,0,0,0.4)',
+        transform: `rotate(${rotation}deg) translateY(${isHovered && isPlayable ? offsetY - 20 : offsetY}px) ${isHovered && isPlayable ? 'scale(1.1)' : 'scale(1)'}`,
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
         position: 'relative',
-        animation: isAnimating ? 'cardPlayed 0.3s ease-out' : 'none'
-      }}
-      onMouseEnter={(e) => {
-        if (isPlayable) {
-          e.currentTarget.style.transform = 'translateY(-12px) scale(1.05)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (isPlayable) {
-          e.currentTarget.style.transform = 'translateY(0) scale(1)';
-        }
+        animation: isCenter && animate ? 'cardFloat 3s ease-in-out infinite' : 'none',
+        zIndex: isHovered ? 100 : 'auto'
       }}
       data-testid={card ? `uno-card-${card.id}` : 'uno-card'}
     >
-      {/* Top corner */}
-      <span style={{ 
-        position: 'absolute', 
-        top: '0.25rem', 
-        left: '0.375rem', 
-        fontSize: `calc(${style.fontSize} * 0.6)` 
+      {/* Center oval */}
+      <div style={{
+        width: '75%',
+        height: '55%',
+        background: isWild ? 'rgba(255,255,255,0.95)' : '#fef9c3',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: 'rotate(-20deg)',
+        boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.1)'
       }}>
-        {display.symbol}
-      </span>
+        {isWild ? (
+          <div style={{
+            width: '80%',
+            height: '80%',
+            borderRadius: '50%',
+            background: 'conic-gradient(#ef4444 0deg 90deg, #3b82f6 90deg 180deg, #22c55e 180deg 270deg, #eab308 270deg 360deg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {symbol.value && (
+              <span style={{
+                color: 'white',
+                fontWeight: 900,
+                fontSize: s.font * 0.7,
+                textShadow: '1px 1px 3px rgba(0,0,0,0.5)'
+              }}>
+                {symbol.value}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span style={{
+            color: isGradient ? '#1a1a2e' : CARD_COLORS[card?.color] || '#333',
+            fontWeight: 900,
+            fontSize: s.font,
+            textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}>
+            {symbol.value}
+          </span>
+        )}
+      </div>
       
-      {/* Center */}
-      <span style={{ fontSize: `calc(${style.fontSize} * 1.5)` }}>
-        {display.symbol}
+      {/* Corner numbers */}
+      <span style={{
+        position: 'absolute',
+        top: 6,
+        left: 8,
+        color: 'white',
+        fontWeight: 800,
+        fontSize: s.font * 0.5,
+        textShadow: '1px 1px 2px rgba(0,0,0,0.4)'
+      }}>
+        {symbol.value}
       </span>
-      
-      {/* Bottom corner */}
-      <span style={{ 
-        position: 'absolute', 
-        bottom: '0.25rem', 
-        right: '0.375rem', 
-        fontSize: `calc(${style.fontSize} * 0.6)`,
+      <span style={{
+        position: 'absolute',
+        bottom: 6,
+        right: 8,
+        color: 'white',
+        fontWeight: 800,
+        fontSize: s.font * 0.5,
+        textShadow: '1px 1px 2px rgba(0,0,0,0.4)',
         transform: 'rotate(180deg)'
       }}>
-        {display.symbol}
+        {symbol.value}
       </span>
     </div>
   );
@@ -169,46 +223,36 @@ const ColorPicker = memo(({ isOpen, onSelect }) => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 200,
-      animation: 'fadeIn 0.2s ease-out'
+      zIndex: 200
     }}>
       <div style={{
-        background: 'linear-gradient(135deg, #1e1b4b, #0f0d1a)',
-        border: '1px solid rgba(124, 58, 237, 0.4)',
-        borderRadius: '1.5rem',
+        background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)',
+        border: '2px solid rgba(139, 92, 246, 0.4)',
+        borderRadius: 24,
         padding: '2rem',
         textAlign: 'center'
       }}>
-        <h3 style={{ 
-          color: 'white', 
-          fontSize: '1.25rem', 
-          fontWeight: 700, 
-          marginBottom: '1.5rem' 
-        }}>
-          Choose a Color
+        <h3 style={{ color: 'white', fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.5rem' }}>
+          Choose Color
         </h3>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(2, 1fr)', 
-          gap: '1rem' 
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
           {['red', 'blue', 'green', 'yellow'].map(color => (
             <button
               key={color}
               onClick={() => onSelect(color)}
               style={{
-                width: '5rem',
-                height: '5rem',
-                backgroundColor: UNO_COLORS[color].bg,
-                border: 'none',
-                borderRadius: '1rem',
+                width: 80,
+                height: 80,
+                backgroundColor: CARD_COLORS[color],
+                border: '3px solid rgba(255,255,255,0.3)',
+                borderRadius: 16,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: `0 4px 20px ${UNO_COLORS[color].glow}`
+                transition: 'transform 0.2s ease',
+                boxShadow: `0 4px 20px ${CARD_COLORS[color]}66`
               }}
               onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              data-testid={`uno-color-${color}`}
+              data-testid={`color-${color}`}
             />
           ))}
         </div>
@@ -225,35 +269,32 @@ const UnoGame = memo(({
   socket,
   myUserId,
   partnerUsername = 'Opponent',
+  myUsername = 'You',
   sessionId,
   initialGameState = null,
-  isMobile = false
+  localVideoRef,
+  remoteVideoRef
 }) => {
-  // Game state from backend
   const [gameState, setGameState] = useState(initialGameState);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pendingCard, setPendingCard] = useState(null);
-  const [lastPlayedCard, setLastPlayedCard] = useState(null);
-  const [unoCalled, setUnoCalled] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [winner, setWinner] = useState(null);
   const [notification, setNotification] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
+  const [cardAnimating, setCardAnimating] = useState(false);
   
   const mountedRef = useRef(true);
-  const socketIdRef = useRef(null);
   const notificationTimer = useRef(null);
   
-  // Show notification
-  const showNotification = useCallback((message, type = 'info', duration = 2000) => {
-    setNotification({ message, type });
+  const showNotification = useCallback((message, duration = 2500) => {
+    setNotification(message);
     if (notificationTimer.current) clearTimeout(notificationTimer.current);
     notificationTimer.current = setTimeout(() => {
       if (mountedRef.current) setNotification(null);
     }, duration);
   }, []);
   
-  // Track mount state
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -262,151 +303,75 @@ const UnoGame = memo(({
     };
   }, []);
   
-  // Socket event handlers
+  // Socket handlers
   useEffect(() => {
-    if (!socket) {
-      console.log('[UNO] No socket');
-      return;
-    }
-    
-    if (socketIdRef.current === socket.id) {
-      return; // Already registered
-    }
-    socketIdRef.current = socket.id;
-    
-    console.log('[UNO] Registering socket listeners');
+    if (!socket) return;
     
     const handleGameStarted = (data) => {
-      console.log('[UNO] Game started', data);
       if (!mountedRef.current) return;
       setIsStarting(false);
       setGameState(data.game_state);
       setGameEnded(false);
       setWinner(null);
-      setUnoCalled(false);
-      showNotification('Game started!', 'success');
     };
     
     const handleCardPlayed = (data) => {
-      console.log('[UNO] Card played', data);
       if (!mountedRef.current) return;
-      
+      setCardAnimating(true);
+      setTimeout(() => setCardAnimating(false), 400);
       setGameState(data.game_state);
-      setLastPlayedCard(data.card);
       
-      setTimeout(() => {
-        if (mountedRef.current) setLastPlayedCard(null);
-      }, 300);
-      
-      // Show effect notifications
-      if (data.effect === 'skip') {
-        showNotification('Turn skipped!', 'action');
-      } else if (data.effect === 'reverse') {
-        showNotification('Reversed!', 'action');
-      } else if (data.effect === 'draw_two') {
-        showNotification('+2 cards!', 'warning');
-      } else if (data.effect === 'wild_draw_four') {
-        showNotification('+4 cards!', 'error');
-      }
-      
-      if (data.uno_penalty) {
-        showNotification(`UNO penalty! +${data.penalty_cards} cards`, 'error');
-      }
+      if (data.effect === 'skip') showNotification('Turn Skipped');
+      else if (data.effect === 'reverse') showNotification('Reversed');
+      else if (data.effect === 'draw_two') showNotification('+2 Cards');
+      else if (data.effect === 'wild_draw_four') showNotification('+4 Cards');
     };
     
     const handleCardDrawn = (data) => {
-      console.log('[UNO] Card drawn', data);
       if (!mountedRef.current) return;
       setGameState(data.game_state);
-      
-      if (data.player_id === myUserId && data.can_play_drawn) {
-        showNotification('You can play the drawn card!', 'info');
-      }
-    };
-    
-    const handleUnoCalled = (data) => {
-      console.log('[UNO] UNO called', data);
-      if (!mountedRef.current) return;
-      showNotification(`${data.player_username} called UNO!`, 'success');
-      if (data.player_id === myUserId) {
-        setUnoCalled(true);
-      }
     };
     
     const handleGameEnded = (data) => {
-      console.log('[UNO] Game ended', data);
       if (!mountedRef.current) return;
       setGameEnded(true);
-      if (data.winner_id) {
-        setWinner({
-          id: data.winner_id,
-          username: data.winner_username,
-          isMe: data.winner_id === myUserId
-        });
-      }
-      if (data.reason === 'quit') {
-        showNotification('Opponent left the game', 'info');
-      }
-    };
-    
-    const handleError = (data) => {
-      console.error('[UNO] Error:', data.message);
-      showNotification(data.message || 'Error', 'error');
-      setIsStarting(false);
+      setWinner({
+        id: data.winner_id,
+        username: data.winner_username,
+        isMe: data.winner_id === myUserId
+      });
     };
     
     socket.on('uno_game_started', handleGameStarted);
     socket.on('uno_card_played', handleCardPlayed);
     socket.on('uno_card_drawn', handleCardDrawn);
-    socket.on('uno_called', handleUnoCalled);
     socket.on('uno_game_ended', handleGameEnded);
-    socket.on('uno_error', handleError);
     
     return () => {
-      console.log('[UNO] Cleaning up listeners');
       socket.off('uno_game_started', handleGameStarted);
       socket.off('uno_card_played', handleCardPlayed);
       socket.off('uno_card_drawn', handleCardDrawn);
-      socket.off('uno_called', handleUnoCalled);
       socket.off('uno_game_ended', handleGameEnded);
-      socket.off('uno_error', handleError);
-      socketIdRef.current = null;
     };
   }, [socket, myUserId, showNotification]);
   
-  // Restore initial state
   useEffect(() => {
     if (initialGameState) {
       setGameState(initialGameState);
       setGameEnded(initialGameState.status === 'finished');
-      if (initialGameState.winner_id) {
-        setWinner({
-          id: initialGameState.winner_id,
-          username: initialGameState.winner_username,
-          isMe: initialGameState.winner_id === myUserId
-        });
-      }
     }
-  }, [initialGameState, myUserId]);
+  }, [initialGameState]);
   
-  // Start game
   const startGame = useCallback(() => {
     if (!socket || isStarting) return;
     setIsStarting(true);
     socket.emit('start_uno_game');
-    console.log('[UNO] Emitted: start_uno_game');
   }, [socket, isStarting]);
   
-  // Play card
   const handlePlayCard = useCallback((card) => {
     if (!socket || !gameState?.is_my_turn) return;
+    if (!gameState.playable_card_ids.includes(card.id)) return;
     
-    if (!gameState.playable_card_ids.includes(card.id)) {
-      showNotification('Cannot play this card', 'error');
-      return;
-    }
-    
-    // Wild cards need color selection
     if (card.type === 'wild') {
       setPendingCard(card);
       setShowColorPicker(true);
@@ -414,602 +379,653 @@ const UnoGame = memo(({
     }
     
     socket.emit('uno_play_card', { card_id: card.id });
-    console.log('[UNO] Emitted: uno_play_card', card.id);
-  }, [socket, gameState, showNotification]);
+  }, [socket, gameState]);
   
-  // Select color for wild card
   const handleColorSelect = useCallback((color) => {
     if (!socket || !pendingCard) return;
-    
-    socket.emit('uno_play_card', { 
-      card_id: pendingCard.id,
-      chosen_color: color
-    });
-    console.log('[UNO] Emitted: uno_play_card (wild)', pendingCard.id, color);
-    
+    socket.emit('uno_play_card', { card_id: pendingCard.id, chosen_color: color });
     setShowColorPicker(false);
     setPendingCard(null);
   }, [socket, pendingCard]);
   
-  // Draw card
   const handleDrawCard = useCallback(() => {
     if (!socket || !gameState?.is_my_turn) return;
     socket.emit('uno_draw_card');
-    console.log('[UNO] Emitted: uno_draw_card');
   }, [socket, gameState]);
   
-  // Call UNO
   const handleCallUno = useCallback(() => {
     if (!socket) return;
     socket.emit('uno_call_uno');
-    setUnoCalled(true);
-    console.log('[UNO] Emitted: uno_call_uno');
-  }, [socket]);
+    showNotification('UNO!');
+  }, [socket, showNotification]);
   
-  // Close game
   const handleClose = useCallback(() => {
-    if (socket && !gameEnded) {
-      socket.emit('end_uno_game');
-    }
+    if (socket && !gameEnded) socket.emit('end_uno_game');
     onClose?.();
   }, [socket, gameEnded, onClose]);
   
-  // Play again
   const handlePlayAgain = useCallback(() => {
     setGameEnded(false);
     setWinner(null);
-    setUnoCalled(false);
     setGameState(null);
     startGame();
   }, [startGame]);
   
   if (!isOpen) return null;
   
-  // Derived state
   const isMyTurn = gameState?.is_my_turn || false;
   const myHand = gameState?.my_hand || [];
   const playableIds = gameState?.playable_card_ids || [];
   const topCard = gameState?.top_card;
-  const currentColor = gameState?.current_color || 'wild';
   const opponentCardCount = gameState?.opponent_hand_count || 0;
-  const opponentUsername = gameState?.opponent_username || partnerUsername;
-  const drawPileCount = gameState?.draw_pile_count || 0;
-  const canCallUno = gameState?.can_call_uno && !unoCalled;
-  const mustCallUno = gameState?.must_call_uno && !unoCalled;
+  const canCallUno = gameState?.can_call_uno;
+  const mustCallUno = gameState?.must_call_uno;
   
-  // Current color indicator
-  const currentColorData = UNO_COLORS[currentColor] || UNO_COLORS.wild;
+  // Calculate card fan rotation for player hand
+  const getCardTransform = (index, total) => {
+    const maxRotation = 25;
+    const step = total > 1 ? maxRotation / (total - 1) : 0;
+    const rotation = -maxRotation / 2 + step * index;
+    const offsetY = Math.abs(rotation) * 0.8;
+    return { rotation, offsetY };
+  };
   
   return (
     <div 
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
-        background: 'linear-gradient(180deg, #0c0a18 0%, #130f24 50%, #0a0814 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 50,
+        zIndex: 100,
         overflow: 'hidden'
       }}
       data-testid="uno-game"
     >
-      {/* Ambient glow */}
+      {/* Space Background */}
       <div style={{
         position: 'absolute',
         inset: 0,
-        background: 'radial-gradient(ellipse 60% 40% at 50% 30%, rgba(124, 58, 237, 0.1) 0%, transparent 60%)',
-        pointerEvents: 'none'
-      }} />
+        background: 'radial-gradient(ellipse at 50% 30%, #2d1b69 0%, #1a0d3d 40%, #0a0618 100%)',
+        overflow: 'hidden'
+      }}>
+        {/* Stars */}
+        {[...Array(50)].map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              width: Math.random() * 3 + 1,
+              height: Math.random() * 3 + 1,
+              background: 'white',
+              borderRadius: '50%',
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              opacity: Math.random() * 0.7 + 0.3,
+              animation: `twinkle ${2 + Math.random() * 3}s ease-in-out infinite ${Math.random() * 2}s`
+            }}
+          />
+        ))}
+        {/* Nebula glow */}
+        <div style={{
+          position: 'absolute',
+          width: '150%',
+          height: '150%',
+          left: '-25%',
+          top: '-25%',
+          background: 'radial-gradient(ellipse at 30% 40%, rgba(139, 92, 246, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(236, 72, 153, 0.1) 0%, transparent 50%)',
+          animation: 'nebulaDrift 20s ease-in-out infinite'
+        }} />
+      </div>
       
-      {/* === HEADER === */}
+      {/* === CAMERA SECTION (TOP) === */}
       <div style={{
+        position: 'absolute',
+        top: 20,
+        left: 20,
+        right: 20,
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '0.75rem 1rem',
-        background: 'rgba(0,0,0,0.4)',
-        borderBottom: '1px solid rgba(124, 58, 237, 0.2)',
-        position: 'relative',
         zIndex: 10
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.5rem' }}>🦝</span>
-          <span style={{
-            fontWeight: 700,
-            fontSize: '1.125rem',
-            background: 'linear-gradient(135deg, #fff, #a78bfa)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
+        {/* Opponent Camera (Left) */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 160,
+            height: 120,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: '3px solid',
+            borderColor: !isMyTurn ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
+            boxShadow: !isMyTurn 
+              ? '0 0 30px rgba(139, 92, 246, 0.6), inset 0 0 20px rgba(139, 92, 246, 0.2)'
+              : '0 4px 20px rgba(0,0,0,0.5)',
+            background: '#1a1a2e',
+            position: 'relative'
           }}>
-            Raccoon UNO
-          </span>
+            {remoteVideoRef?.current?.srcObject ? (
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
+              }}>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  border: '2px solid rgba(139, 92, 246, 0.5)',
+                  borderTopColor: '#8b5cf6',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+              </div>
+            )}
+          </div>
+          <p style={{
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: 14,
+            marginTop: 8,
+            fontWeight: 500
+          }}>
+            {partnerUsername}
+          </p>
         </div>
-        <button 
-          onClick={handleClose}
-          style={{
-            width: '2.25rem',
-            height: '2.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(255,255,255,0.1)',
-            border: 'none',
-            borderRadius: '0.625rem',
-            color: 'white',
-            cursor: 'pointer'
-          }}
-          data-testid="uno-close"
-        >
-          <X size={18} />
-        </button>
+        
+        {/* My Camera (Right) */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 160,
+            height: 120,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: '3px solid',
+            borderColor: isMyTurn ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
+            boxShadow: isMyTurn 
+              ? '0 0 30px rgba(139, 92, 246, 0.6), inset 0 0 20px rgba(139, 92, 246, 0.2)'
+              : '0 4px 20px rgba(0,0,0,0.5)',
+            background: '#1a1a2e',
+            position: 'relative'
+          }}>
+            {localVideoRef?.current?.srcObject ? (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+              />
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
+              }}>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  border: '2px solid rgba(139, 92, 246, 0.5)',
+                  borderTopColor: '#8b5cf6',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+              </div>
+            )}
+          </div>
+          <p style={{
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: 14,
+            marginTop: 8,
+            fontWeight: 500
+          }}>
+            {myUsername}
+          </p>
+        </div>
       </div>
       
       {/* === START SCREEN === */}
       {!gameState && !gameEnded && (
         <div style={{
-          flex: 1,
+          position: 'absolute',
+          inset: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '2rem',
-          textAlign: 'center',
-          position: 'relative',
-          zIndex: 5
+          zIndex: 20
         }}>
-          {/* Floating cards animation */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '0.5rem', 
-            marginBottom: '2rem' 
+          <div style={{
+            background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)',
+            border: '2px solid rgba(139, 92, 246, 0.4)',
+            borderRadius: 24,
+            padding: '3rem',
+            textAlign: 'center'
           }}>
-            {['#ef4444', '#3b82f6', '#22c55e', '#eab308'].map((color, i) => (
-              <div
-                key={color}
-                style={{
-                  width: '3.5rem',
-                  height: '5rem',
-                  background: color,
-                  borderRadius: '0.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.5rem',
-                  color: 'white',
-                  fontWeight: 800,
-                  boxShadow: `0 8px 24px ${color}66`,
-                  transform: `rotate(${(i - 1.5) * 8}deg)`,
-                  animation: `cardFloat 2s ease-in-out infinite ${i * 0.15}s`
-                }}
-              >
-                {['7', '★', '⊘', '+2'][i]}
-              </div>
-            ))}
-          </div>
-          
-          <h2 style={{ 
-            fontSize: '2rem', 
-            fontWeight: 800, 
-            color: 'white', 
-            marginBottom: '0.5rem' 
-          }}>
-            Raccoon UNO
-          </h2>
-          <p style={{ 
-            color: 'rgba(255,255,255,0.5)', 
-            marginBottom: '2rem' 
-          }}>
-            Play against {partnerUsername}
-          </p>
-          
-          <button
-            onClick={startGame}
-            disabled={isStarting}
-            style={{
-              padding: '1rem 3rem',
-              background: isStarting 
-                ? 'rgba(124, 58, 237, 0.5)' 
-                : 'linear-gradient(135deg, #7c3aed, #5b21b6)',
-              border: 'none',
-              borderRadius: '1rem',
+            <h2 style={{
               color: 'white',
-              fontSize: '1.125rem',
-              fontWeight: 700,
-              cursor: isStarting ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 24px rgba(124, 58, 237, 0.5)',
-              transition: 'all 0.2s ease'
-            }}
-            data-testid="start-uno-btn"
-          >
-            {isStarting ? 'Starting...' : 'Start Game'}
-          </button>
+              fontSize: '2rem',
+              fontWeight: 800,
+              marginBottom: '1rem'
+            }}>
+              UNO
+            </h2>
+            <p style={{
+              color: 'rgba(255,255,255,0.6)',
+              marginBottom: '2rem'
+            }}>
+              Play against {partnerUsername}
+            </p>
+            <button
+              onClick={startGame}
+              disabled={isStarting}
+              style={{
+                padding: '1rem 3rem',
+                background: 'linear-gradient(145deg, #8b5cf6, #6d28d9)',
+                border: 'none',
+                borderRadius: 12,
+                color: 'white',
+                fontSize: '1.125rem',
+                fontWeight: 700,
+                cursor: isStarting ? 'wait' : 'pointer',
+                boxShadow: '0 4px 20px rgba(139, 92, 246, 0.5)'
+              }}
+              data-testid="start-game-btn"
+            >
+              {isStarting ? 'Starting...' : 'Start Game'}
+            </button>
+          </div>
         </div>
       )}
       
       {/* === END SCREEN === */}
       {gameEnded && winner && (
         <div style={{
-          flex: 1,
+          position: 'absolute',
+          inset: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '2rem',
-          textAlign: 'center',
-          position: 'relative',
-          zIndex: 5
+          zIndex: 20,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(8px)'
         }}>
-          <div style={{ 
-            fontSize: '5rem', 
-            marginBottom: '1rem',
-            animation: 'bounce 0.6s ease-out'
+          <div style={{
+            background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)',
+            border: '2px solid rgba(139, 92, 246, 0.4)',
+            borderRadius: 24,
+            padding: '3rem',
+            textAlign: 'center'
           }}>
-            {winner.isMe ? '🎉' : '😔'}
+            <h2 style={{
+              color: 'white',
+              fontSize: '2rem',
+              fontWeight: 800,
+              marginBottom: '1rem'
+            }}>
+              {winner.isMe ? 'You Win!' : `${winner.username} Wins!`}
+            </h2>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+              <button
+                onClick={handlePlayAgain}
+                style={{
+                  padding: '0.875rem 2rem',
+                  background: 'linear-gradient(145deg, #8b5cf6, #6d28d9)',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: 'white',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Play Again
+              </button>
+              <button
+                onClick={handleClose}
+                style={{
+                  padding: '0.875rem 2rem',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 12,
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Exit
+              </button>
+            </div>
           </div>
-          <h2 style={{ 
-            fontSize: '2rem', 
-            fontWeight: 800, 
-            color: 'white', 
-            marginBottom: '2rem' 
+        </div>
+      )}
+      
+      {/* === ACTIVE GAME === */}
+      {gameState && !gameEnded && (
+        <>
+          {/* CENTER GAME AREA */}
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            top: '45%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            zIndex: 5
           }}>
-            {winner.isMe ? 'You Win!' : `${winner.username} Wins!`}
-          </h2>
+            {/* Top Card */}
+            {topCard && (
+              <div style={{ marginBottom: 20 }}>
+                <UnoCard 
+                  card={topCard} 
+                  size="center" 
+                  isCenter={true}
+                  animate={cardAnimating}
+                />
+              </div>
+            )}
+            
+            {/* UNO Ring */}
+            <div style={{
+              width: 200,
+              height: 80,
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {/* Rotating ring */}
+              <svg
+                viewBox="0 0 200 80"
+                style={{
+                  position: 'absolute',
+                  width: '100%',
+                  height: '100%',
+                  animation: 'ringRotate 8s linear infinite'
+                }}
+              >
+                <ellipse
+                  cx="100"
+                  cy="40"
+                  rx="90"
+                  ry="30"
+                  fill="none"
+                  stroke="url(#ringGradient)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray="30 15"
+                />
+                <defs>
+                  <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#f59e0b" />
+                    <stop offset="50%" stopColor="#fbbf24" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              
+              {/* UNO text */}
+              <span style={{
+                color: '#fbbf24',
+                fontSize: 28,
+                fontWeight: 900,
+                fontStyle: 'italic',
+                textShadow: '0 0 20px rgba(251, 191, 36, 0.5), 0 2px 4px rgba(0,0,0,0.5)',
+                zIndex: 1
+              }}>
+                UNO
+              </span>
+              
+              {/* Arrow indicators */}
+              <div style={{
+                position: 'absolute',
+                left: 5,
+                top: '50%',
+                transform: 'translateY(-50%) rotate(-30deg)',
+                color: '#f59e0b',
+                fontSize: 20,
+                textShadow: '0 0 10px rgba(245, 158, 11, 0.5)'
+              }}>
+                ➤
+              </div>
+              <div style={{
+                position: 'absolute',
+                right: 5,
+                top: '50%',
+                transform: 'translateY(-50%) rotate(150deg)',
+                color: '#f59e0b',
+                fontSize: 20,
+                textShadow: '0 0 10px rgba(245, 158, 11, 0.5)'
+              }}>
+                ➤
+              </div>
+            </div>
+          </div>
           
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          {/* OPPONENT CARDS (Right side) */}
+          <div style={{
+            position: 'absolute',
+            right: 30,
+            top: '45%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            zIndex: 5
+          }}>
+            <div style={{
+              display: 'flex',
+              position: 'relative',
+              width: 80,
+              height: 110
+            }}>
+              {[...Array(Math.min(opponentCardCount, 4))].map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: 'absolute',
+                    left: i * 8,
+                    top: i * 2,
+                    transform: `rotate(${5 + i * 3}deg)`
+                  }}
+                >
+                  <UnoCard isBack size="small" />
+                </div>
+              ))}
+            </div>
+            <span style={{
+              color: '#fbbf24',
+              fontSize: 20,
+              fontWeight: 700,
+              marginTop: 8,
+              textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+            }}>
+              {opponentCardCount}
+            </span>
+          </div>
+          
+          {/* UNO BUTTON (appears when player has few cards) */}
+          {(canCallUno || mustCallUno) && (
             <button
-              onClick={handlePlayAgain}
+              onClick={handleCallUno}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.875rem 1.5rem',
-                background: 'linear-gradient(135deg, #7c3aed, #5b21b6)',
-                border: 'none',
-                borderRadius: '0.875rem',
-                color: 'white',
-                fontWeight: 700,
-                cursor: 'pointer'
+                position: 'absolute',
+                right: 140,
+                bottom: 200,
+                padding: '0.75rem 1.5rem',
+                background: 'linear-gradient(145deg, #fbbf24, #f59e0b)',
+                border: '2px solid #fcd34d',
+                borderRadius: 12,
+                color: '#1a1a2e',
+                fontSize: '1.25rem',
+                fontWeight: 900,
+                cursor: 'pointer',
+                boxShadow: '0 0 30px rgba(251, 191, 36, 0.6), 0 4px 15px rgba(0,0,0,0.3)',
+                animation: mustCallUno ? 'unoPulse 0.5s ease-in-out infinite' : 'unoAppear 0.3s ease-out',
+                zIndex: 15
               }}
+              data-testid="uno-call-btn"
             >
-              <RotateCcw size={18} /> Play Again
+              UNO!
             </button>
+          )}
+          
+          {/* PLAYER CARDS (Bottom) */}
+          <div style={{
+            position: 'absolute',
+            bottom: 100,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-end',
+            zIndex: 10
+          }}>
+            {myHand.map((card, i) => {
+              const { rotation, offsetY } = getCardTransform(i, myHand.length);
+              const isPlayable = playableIds.includes(card.id) && isMyTurn;
+              return (
+                <div
+                  key={card.id}
+                  style={{
+                    marginLeft: i === 0 ? 0 : -25,
+                    zIndex: i
+                  }}
+                >
+                  <UnoCard
+                    card={card}
+                    size="medium"
+                    rotation={rotation}
+                    offsetY={offsetY}
+                    isPlayable={isPlayable}
+                    onClick={() => handlePlayCard(card)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* BUTTONS (Bottom) */}
+          <div style={{
+            position: 'absolute',
+            bottom: 20,
+            left: 20,
+            right: 20,
+            display: 'flex',
+            justifyContent: 'space-between',
+            zIndex: 15
+          }}>
+            {/* Draw Card Button */}
+            <button
+              onClick={handleDrawCard}
+              disabled={!isMyTurn}
+              style={{
+                padding: '0.875rem 1.75rem',
+                background: isMyTurn 
+                  ? 'linear-gradient(145deg, rgba(139, 92, 246, 0.3), rgba(139, 92, 246, 0.15))'
+                  : 'rgba(255,255,255,0.05)',
+                border: '2px solid',
+                borderColor: isMyTurn ? 'rgba(139, 92, 246, 0.5)' : 'rgba(255,255,255,0.1)',
+                borderRadius: 12,
+                color: isMyTurn ? 'white' : 'rgba(255,255,255,0.4)',
+                fontSize: '1rem',
+                fontWeight: 600,
+                cursor: isMyTurn ? 'pointer' : 'not-allowed',
+                boxShadow: isMyTurn ? '0 0 20px rgba(139, 92, 246, 0.3)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+              data-testid="draw-card-btn"
+            >
+              Draw Card
+            </button>
+            
+            {/* End Game Button */}
             <button
               onClick={handleClose}
               style={{
-                padding: '0.875rem 1.5rem',
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                borderRadius: '0.875rem',
-                color: 'white',
+                padding: '0.875rem 1.75rem',
+                background: 'rgba(255,255,255,0.05)',
+                border: '2px solid rgba(255,255,255,0.15)',
+                borderRadius: 12,
+                color: 'rgba(255,255,255,0.6)',
+                fontSize: '1rem',
                 fontWeight: 600,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
               }}
+              data-testid="end-game-btn"
             >
-              Exit
+              End Game
             </button>
           </div>
-        </div>
-      )}
-      
-      {/* === ACTIVE GAME BOARD === */}
-      {gameState && !gameEnded && (
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: isMobile ? '0.5rem' : '1rem',
-          position: 'relative',
-          zIndex: 5,
-          minHeight: 0
-        }}>
           
-          {/* OPPONENT AREA (TOP) */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.5rem',
-            paddingBottom: '0.5rem',
-            borderBottom: '1px solid rgba(255,255,255,0.05)'
-          }}>
-            {/* Opponent info */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              padding: '0.375rem 1rem',
-              background: !isMyTurn ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.05)',
-              border: !isMyTurn ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '2rem'
-            }}>
-              <div style={{
-                width: '0.5rem',
-                height: '0.5rem',
-                borderRadius: '50%',
-                background: !isMyTurn ? '#22c55e' : 'rgba(255,255,255,0.3)',
-                boxShadow: !isMyTurn ? '0 0 8px rgba(34, 197, 94, 0.5)' : 'none'
-              }} />
-              <span style={{ fontWeight: 600, color: 'white', fontSize: '0.875rem' }}>
-                {opponentUsername}
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>
-                {opponentCardCount} cards
-              </span>
-            </div>
-            
-            {/* Opponent hand (backs) */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: isMobile ? '-0.5rem' : '-0.25rem'
-            }}>
-              {Array(Math.min(opponentCardCount, isMobile ? 8 : 12)).fill(0).map((_, i) => (
-                <UnoCard key={i} card={{}} isBack={true} size={isMobile ? 'tiny' : 'small'} />
-              ))}
-              {opponentCardCount > (isMobile ? 8 : 12) && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 0.5rem',
-                  fontSize: '0.75rem',
-                  color: 'rgba(255,255,255,0.5)'
-                }}>
-                  +{opponentCardCount - (isMobile ? 8 : 12)}
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* CENTER PLAY AREA */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem',
-            position: 'relative',
-            minHeight: isMobile ? '10rem' : '12rem'
-          }}>
-            {/* Current color indicator */}
+          {/* Notification Toast */}
+          {notification && (
             <div style={{
               position: 'absolute',
-              top: isMobile ? '0.25rem' : '0.5rem',
+              top: 160,
               left: '50%',
               transform: 'translateX(-50%)',
-              padding: '0.25rem 0.875rem',
-              background: currentColor === 'wild' 
-                ? 'linear-gradient(135deg, #ef4444, #3b82f6, #22c55e, #eab308)'
-                : currentColorData.bg,
-              borderRadius: '2rem',
-              fontSize: '0.75rem',
-              fontWeight: 600,
+              padding: '0.75rem 2rem',
+              background: 'linear-gradient(145deg, rgba(139, 92, 246, 0.9), rgba(109, 40, 217, 0.9))',
+              borderRadius: 30,
               color: 'white',
-              textShadow: '0 1px 3px rgba(0,0,0,0.4)'
+              fontSize: '1rem',
+              fontWeight: 700,
+              boxShadow: '0 4px 20px rgba(139, 92, 246, 0.5)',
+              zIndex: 50,
+              animation: 'notificationSlide 0.3s ease-out'
             }}>
-              {currentColorData.name}
+              {notification}
             </div>
-            
-            {/* Discard and Draw piles */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: isMobile ? '1.5rem' : '2.5rem'
-            }}>
-              {/* Discard pile */}
-              <div style={{ position: 'relative' }}>
-                {topCard && (
-                  <UnoCard 
-                    card={topCard} 
-                    size={isMobile ? 'normal' : 'large'} 
-                    isAnimating={lastPlayedCard?.id === topCard.id}
-                  />
-                )}
-              </div>
-              
-              {/* Arrow */}
-              <ArrowRight size={24} style={{ color: 'rgba(255,255,255,0.2)' }} />
-              
-              {/* Draw pile */}
-              <button
-                onClick={handleDrawCard}
-                disabled={!isMyTurn}
-                style={{
-                  position: 'relative',
-                  background: 'none',
-                  border: 'none',
-                  cursor: isMyTurn ? 'pointer' : 'not-allowed',
-                  opacity: isMyTurn && playableIds.length === 0 ? 1 : 0.7,
-                  transition: 'all 0.2s ease',
-                  animation: isMyTurn && playableIds.length === 0 ? 'pulse 1.5s infinite' : 'none'
-                }}
-                data-testid="uno-draw-pile"
-              >
-                <UnoCard card={{}} isBack={true} size={isMobile ? 'normal' : 'large'} />
-                <span style={{
-                  position: 'absolute',
-                  bottom: '-0.5rem',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  padding: '0.125rem 0.5rem',
-                  background: 'rgba(0,0,0,0.7)',
-                  borderRadius: '1rem',
-                  fontSize: '0.625rem',
-                  color: 'white'
-                }}>
-                  {drawPileCount}
-                </span>
-              </button>
-            </div>
-            
-            {/* Turn indicator */}
-            <div style={{
-              padding: '0.5rem 1.25rem',
-              background: isMyTurn 
-                ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.15))'
-                : 'rgba(0,0,0,0.4)',
-              border: isMyTurn 
-                ? '1px solid rgba(34, 197, 94, 0.4)' 
-                : '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '2rem',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: isMyTurn ? '#22c55e' : 'rgba(255,255,255,0.5)'
-            }}>
-              {isMyTurn ? '🎯 Your turn!' : `⏳ ${opponentUsername}'s turn`}
-            </div>
-            
-            {/* UNO Call Button */}
-            {(canCallUno || mustCallUno) && (
-              <button
-                onClick={handleCallUno}
-                disabled={!isMyTurn}
-                style={{
-                  position: 'absolute',
-                  right: isMobile ? '0.5rem' : '1rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  padding: isMobile ? '0.625rem 1rem' : '0.875rem 1.5rem',
-                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                  border: 'none',
-                  borderRadius: '1rem',
-                  color: 'white',
-                  fontWeight: 800,
-                  fontSize: isMobile ? '0.875rem' : '1rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                  boxShadow: '0 4px 20px rgba(239, 68, 68, 0.5)',
-                  animation: mustCallUno ? 'urgentPulse 0.5s infinite' : 'none'
-                }}
-                data-testid="uno-call-btn"
-              >
-                UNO!
-                {mustCallUno && <Zap size={16} />}
-              </button>
-            )}
-          </div>
-          
-          {/* MY HAND (BOTTOM) */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.5rem',
-            paddingTop: '0.5rem',
-            borderTop: '1px solid rgba(255,255,255,0.05)'
-          }}>
-            {/* My info */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              padding: '0.25rem 0.875rem',
-              background: isMyTurn ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.05)',
-              borderRadius: '2rem'
-            }}>
-              <div style={{
-                width: '0.5rem',
-                height: '0.5rem',
-                borderRadius: '50%',
-                background: isMyTurn ? '#22c55e' : 'rgba(255,255,255,0.3)'
-              }} />
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>
-                Your hand ({myHand.length})
-              </span>
-            </div>
-            
-            {/* My cards - horizontal scroll on mobile */}
-            <div style={{
-              display: 'flex',
-              justifyContent: isMobile ? 'flex-start' : 'center',
-              gap: isMobile ? '0.25rem' : '0.375rem',
-              overflowX: 'auto',
-              maxWidth: '100%',
-              padding: '0.5rem',
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none'
-            }}>
-              {myHand.map(card => (
-                <UnoCard
-                  key={card.id}
-                  card={card}
-                  isPlayable={playableIds.includes(card.id) && isMyTurn}
-                  size={isMobile ? 'small' : 'normal'}
-                  onClick={() => handlePlayCard(card)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
       
-      {/* Color Picker Modal */}
-      <ColorPicker
-        isOpen={showColorPicker}
-        onSelect={handleColorSelect}
-      />
-      
-      {/* Notification Toast */}
-      {notification && (
-        <div style={{
-          position: 'absolute',
-          top: '4.5rem',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          padding: '0.625rem 1.25rem',
-          borderRadius: '2rem',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-          zIndex: 100,
-          animation: 'slideDown 0.3s ease-out',
-          background: {
-            info: 'rgba(59, 130, 246, 0.9)',
-            success: 'rgba(34, 197, 94, 0.9)',
-            warning: 'rgba(234, 179, 8, 0.9)',
-            error: 'rgba(239, 68, 68, 0.9)',
-            action: 'linear-gradient(135deg, #7c3aed, #5b21b6)'
-          }[notification.type] || 'rgba(59, 130, 246, 0.9)',
-          color: notification.type === 'warning' ? '#1f2937' : 'white'
-        }}>
-          {notification.message}
-        </div>
-      )}
+      {/* Color Picker */}
+      <ColorPicker isOpen={showColorPicker} onSelect={handleColorSelect} />
       
       {/* CSS Animations */}
       <style>{`
-        @keyframes cardFloat {
-          0%, 100% { transform: translateY(0) rotate(var(--rotate, 0deg)); }
-          50% { transform: translateY(-8px) rotate(var(--rotate, 0deg)); }
-        }
-        @keyframes cardPlayed {
-          0% { transform: scale(0.8); opacity: 0; }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-          to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-        @keyframes bounce {
-          0% { transform: scale(0); }
-          50% { transform: scale(1.2); }
-          100% { transform: scale(1); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.7; }
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; }
           50% { opacity: 1; }
         }
-        @keyframes urgentPulse {
-          0%, 100% { transform: translateY(-50%) scale(1); }
-          50% { transform: translateY(-50%) scale(1.08); }
+        @keyframes nebulaDrift {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          50% { transform: translate(2%, 2%) rotate(2deg); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes cardFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes ringRotate {
+          from { transform: rotateX(60deg) rotateZ(0deg); }
+          to { transform: rotateX(60deg) rotateZ(360deg); }
+        }
+        @keyframes unoPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(251, 191, 36, 0.6); }
+          50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(251, 191, 36, 0.8); }
+        }
+        @keyframes unoAppear {
+          from { transform: scale(0.5); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes notificationSlide {
+          from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+          to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
       `}</style>
     </div>

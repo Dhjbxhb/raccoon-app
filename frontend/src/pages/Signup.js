@@ -12,7 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { isFirebaseReady, signInWithGoogle, clearGoogleAuthPending, isGoogleAuthPending, waitForAuthReady, subscribeToAuth } from '@/services/firebase.service';
+import { isFirebaseReady, signInWithGoogle } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
   getErrorMessage,
@@ -50,71 +50,6 @@ const Signup = () => {
       }
     }
   }, [user, authLoading, navigate]);
-
-  // Handle Google redirect result on page load
-  useEffect(() => {
-    if (!firebaseReady || !isGoogleAuthPending()) return;
-    
-    let unsubscribe = null;
-    let timeoutId = null;
-    
-    const handleAuthState = async (firebaseUser) => {
-      if (!firebaseUser) return;
-      
-      try {
-        setSocialLoading('google');
-        const idToken = await firebaseUser.getIdToken(true);
-        await syncSocialAuth({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          provider: 'google',
-          idToken: idToken
-        });
-      } catch (error) {
-        console.error('Google redirect error:', error);
-        toast.error('Google signup failed. Please try again.');
-      } finally {
-        setSocialLoading(null);
-        clearGoogleAuthPending();
-        if (unsubscribe) unsubscribe();
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-    };
-    
-    // Check if user is already available
-    const checkAuth = async () => {
-      const user = await waitForAuthReady();
-      if (user) {
-        handleAuthState(user);
-      } else {
-        // Subscribe to future changes
-        unsubscribe = subscribeToAuth((user) => {
-          if (user && isGoogleAuthPending()) {
-            handleAuthState(user);
-          }
-        });
-        
-        // Timeout
-        timeoutId = setTimeout(() => {
-          if (isGoogleAuthPending()) {
-            clearGoogleAuthPending();
-            setSocialLoading(null);
-            toast.error('Google signup timed out. Please try again.');
-            if (unsubscribe) unsubscribe();
-          }
-        }, 10000);
-      }
-    };
-    
-    checkAuth();
-    
-    return () => {
-      if (unsubscribe) unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [firebaseReady]);
 
   // Clear field error when user types
   const handleFieldChange = useCallback((field, value) => {

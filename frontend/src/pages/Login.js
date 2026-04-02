@@ -12,15 +12,7 @@ import {
   AuthFooterLink 
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
-import { 
-  signInWithGoogle, 
-  isFirebaseReady,
-  isGoogleAuthPending,
-  clearGoogleAuthPending,
-  waitForAuthReady,
-  subscribeToAuth,
-  getCurrentUser
-} from '@/services/firebase.service';
+import { signInWithGoogle, isFirebaseReady } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
   getErrorMessage,
@@ -32,36 +24,37 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, user, loading: authLoading, finishAuthCheck } = useAuth();
+  const { login, user } = useAuth();
   
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(null);
-  const [checkingRedirect, setCheckingRedirect] = useState(true);
   
-  // Refs to prevent double execution
   const syncAttempted = useRef(false);
-  const mounted = useRef(true);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token && user) {
+      navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
+    }
+  }, [user, navigate]);
 
   // Sync Firebase user with backend
   const syncWithBackend = useCallback(async (firebaseUser) => {
-    // Prevent double sync
-    if (syncAttempted.current) {
-      console.log('[LOGIN] Sync already attempted, skipping');
-      return false;
-    }
+    if (syncAttempted.current) return false;
     syncAttempted.current = true;
     
     console.log('[LOGIN] ==========================================');
     console.log('[LOGIN] SYNCING WITH BACKEND');
-    console.log('[LOGIN] Email:', firebaseUser.email);
-    console.log('[LOGIN] UID:', firebaseUser.uid);
+    console.log('[LOGIN] email:', firebaseUser.email);
+    console.log('[LOGIN] uid:', firebaseUser.uid);
     console.log('[LOGIN] ==========================================');
     
     try {
-      // Get Firebase ID token
-      console.log('[LOGIN] Getting Firebase ID token...');
+      // Get ID token
+      console.log('[LOGIN] Getting ID token...');
       const idToken = await firebaseUser.getIdToken(true);
       console.log('[LOGIN] Token obtained, length:', idToken.length);
       
@@ -77,151 +70,37 @@ const Login = () => {
       });
       
       console.log('[LOGIN] Backend response:');
-      console.log('[LOGIN] Token:', response.data.token ? 'YES' : 'NO');
-      console.log('[LOGIN] User:', response.data.user?.username);
+      console.log('[LOGIN] - token:', response.data.token ? 'YES' : 'NO');
+      console.log('[LOGIN] - user:', response.data.user?.username);
       
       if (!response.data.token) {
-        console.error('[LOGIN] No token in response!');
-        syncAttempted.current = false;
-        toast.error('Login failed - no token from server');
-        return false;
+        throw new Error('No token in response');
       }
       
-      // Save JWT
-      console.log('[LOGIN] Saving JWT token...');
+      // Save and login
       localStorage.setItem(TOKEN_KEY, response.data.token);
-      
-      // Update auth context
-      console.log('[LOGIN] Updating auth context...');
       login(response.data.token, response.data.user);
       
-      // Clear pending flags
-      clearGoogleAuthPending();
-      
-      // Success!
       toast.success(`Welcome, ${response.data.user.username}!`);
-      const destination = response.data.user.age_verified ? '/dashboard' : '/verify-age';
-      console.log('[LOGIN] SUCCESS! Navigating to:', destination);
       
-      navigate(destination, { replace: true });
+      const dest = response.data.user.age_verified ? '/dashboard' : '/verify-age';
+      console.log('[LOGIN] SUCCESS! Redirecting to:', dest);
+      navigate(dest, { replace: true });
+      
       return true;
       
     } catch (error) {
-      console.error('[LOGIN] SYNC ERROR:', error.response?.data || error.message);
+      console.error('[LOGIN] Sync error:', error.response?.data || error.message);
       syncAttempted.current = false;
-      clearGoogleAuthPending();
       toast.error(getErrorMessage(error));
       return false;
     }
   }, [login, navigate]);
 
-  // Main effect: Check for redirect and handle auth state
-  useEffect(() => {
-    mounted.current = true;
-    
-    const handleAuth = async () => {
-      console.log('[LOGIN] ==========================================');
-      console.log('[LOGIN] Component mounted, checking auth...');
-      console.log('[LOGIN] ==========================================');
-      
-      // Check if already logged in with our JWT
-      const existingToken = localStorage.getItem(TOKEN_KEY);
-      if (existingToken && user) {
-        console.log('[LOGIN] Already logged in with JWT, redirecting');
-        navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
-        setCheckingRedirect(false);
-        return;
-      }
-      
-      // Check if Google auth redirect is pending
-      const wasPending = isGoogleAuthPending();
-      console.log('[LOGIN] Google auth pending:', wasPending);
-      
-      if (!wasPending) {
-        // No pending redirect, show login form
-        console.log('[LOGIN] No pending auth, showing login form');
-        setCheckingRedirect(false);
-        if (finishAuthCheck) finishAuthCheck();
-        return;
-      }
-      
-      // === PENDING REDIRECT: Wait for Firebase auth ===
-      console.log('[LOGIN] Processing Google redirect...');
-      setSocialLoading('google');
-      
-      // First, wait for Firebase auth to be ready
-      console.log('[LOGIN] Waiting for Firebase auth...');
-      const firebaseUser = await waitForAuthReady();
-      
-      console.log('[LOGIN] Firebase auth ready');
-      console.log('[LOGIN] User:', firebaseUser?.email || 'NULL');
-      
-      if (firebaseUser) {
-        // User exists! Sync with backend
-        console.log('[LOGIN] Firebase user found, syncing...');
-        const success = await syncWithBackend(firebaseUser);
-        
-        if (!success && mounted.current) {
-          setSocialLoading(null);
-          setCheckingRedirect(false);
-          if (finishAuthCheck) finishAuthCheck();
-        }
-      } else {
-        // No user yet - subscribe to auth changes with timeout
-        console.log('[LOGIN] No user yet, subscribing to auth changes...');
-        
-        let timeoutId = null;
-        let unsubscribe = null;
-        
-        const cleanup = () => {
-          if (timeoutId) clearTimeout(timeoutId);
-          if (unsubscribe) unsubscribe();
-        };
-        
-        unsubscribe = subscribeToAuth(async (user) => {
-          console.log('[LOGIN] Auth state changed:', user?.email || 'null');
-          
-          if (user && mounted.current) {
-            cleanup();
-            console.log('[LOGIN] User detected via subscription, syncing...');
-            const success = await syncWithBackend(user);
-            
-            if (!success && mounted.current) {
-              setSocialLoading(null);
-              setCheckingRedirect(false);
-              if (finishAuthCheck) finishAuthCheck();
-            }
-          }
-        });
-        
-        // Timeout after 10 seconds
-        timeoutId = setTimeout(() => {
-          if (mounted.current && isGoogleAuthPending()) {
-            console.log('[LOGIN] TIMEOUT: No user after 10 seconds');
-            cleanup();
-            clearGoogleAuthPending();
-            setSocialLoading(null);
-            setCheckingRedirect(false);
-            if (finishAuthCheck) finishAuthCheck();
-            toast.error('Google login session expired. Please try again.');
-          }
-        }, 10000);
-      }
-    };
-    
-    handleAuth();
-    
-    return () => {
-      mounted.current = false;
-    };
-  }, [user, navigate, syncWithBackend, finishAuthCheck]);
-
   // Form handlers
   const handleFieldChange = useCallback((field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   }, [errors]);
 
   const handleSubmit = async (e) => {
@@ -254,40 +133,53 @@ const Login = () => {
     }
   };
 
-  // Google login handler
+  // Google login - POPUP ONLY
   const handleGoogleLogin = async () => {
     if (socialLoading) return;
     
     if (!isFirebaseReady()) {
-      toast.error('Please wait, loading...');
+      toast.error('Firebase not ready. Please refresh.');
       return;
     }
     
     console.log('[LOGIN] ==========================================');
-    console.log('[LOGIN] USER CLICKED GOOGLE LOGIN');
+    console.log('[LOGIN] GOOGLE LOGIN CLICKED');
     console.log('[LOGIN] ==========================================');
     
     setSocialLoading('google');
     syncAttempted.current = false;
     
     try {
+      // Get user directly from popup - no redirect, no cross-domain issues
       const firebaseUser = await signInWithGoogle();
       
-      // If popup was used, we get the user directly
-      if (firebaseUser) {
-        console.log('[LOGIN] Got user from popup:', firebaseUser.email);
-        await syncWithBackend(firebaseUser);
+      console.log('[LOGIN] Got Firebase user:', firebaseUser.email);
+      
+      // Sync with backend immediately
+      const success = await syncWithBackend(firebaseUser);
+      
+      if (!success) {
+        setSocialLoading(null);
       }
-      // If redirect was used, the page will reload and useEffect will handle it
       
     } catch (error) {
-      console.error('[LOGIN] Google login error:', error);
-      toast.error('Failed to sign in with Google: ' + error.message);
+      console.error('[LOGIN] Google login error:', error.code, error.message);
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast.error('Popup closed. Please try again.');
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('Popup blocked. Please allow popups for this site.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        toast.error('Domain not authorized in Firebase.');
+      } else {
+        toast.error('Google login failed: ' + error.message);
+      }
+      
       setSocialLoading(null);
     }
   };
 
-  // Guest login handler
+  // Guest login
   const handleAnonymousLogin = async () => {
     if (socialLoading) return;
     
@@ -308,20 +200,6 @@ const Login = () => {
       setSocialLoading(null);
     }
   };
-
-  // Show loading while checking redirect
-  if (checkingRedirect) {
-    return (
-      <AuthLayout>
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-gray-400 text-sm">
-            {socialLoading === 'google' ? 'Signing in with Google...' : 'Loading...'}
-          </p>
-        </div>
-      </AuthLayout>
-    );
-  }
 
   return (
     <AuthLayout>
