@@ -8,7 +8,7 @@ import requests
 import os
 import random
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://premium-social-31.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://live-social-video.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = f"backendtest{random.randint(10000, 99999)}@test.com"

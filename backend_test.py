@@ -8,7 +8,7 @@ Tests critical backend behaviors:
 3. Match/skip/rejoin functionality
 4. Socket room syncing
 
-Uses the production URL: https://premium-social-31.preview.emergentagent.com
+Uses the production URL: https://live-social-video.preview.emergentagent.com
 """
 
 import asyncio
@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Test configuration
-BASE_URL = "https://premium-social-31.preview.emergentagent.com"
+BASE_URL = "https://live-social-video.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials from test_credentials.md
