@@ -181,6 +181,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     user_data['premium_status'] = is_premium
                     user_data['premium_tier'] = tier
             
+            # Store premium and username in session for later use
+            async with sio.session(sid) as session:
+                session['username'] = user_data.get('username', 'Player') if user_data else 'Player'
+                session['is_premium'] = user_data.get('premium_status', False) if user_data else False
+            
             # Start platform time tracking
             stats_service.start_platform_session(user_id)
             
@@ -284,6 +289,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             user_data['socket_id'] = sid
             user_data['is_guest'] = is_guest
             user_data['premium_status'] = user_data.get('premium_status', False)
+            
+            # Update session with latest premium status
+            async with sio.session(sid) as session:
+                session['username'] = user_data.get('username', 'Player')
+                session['is_premium'] = user_data.get('premium_status', False)
             
             # Get filters from request
             requested_gender = data.get('gender_filter', 'any')

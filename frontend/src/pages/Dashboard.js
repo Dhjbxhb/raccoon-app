@@ -185,28 +185,13 @@ const Dashboard = () => {
               
               {/* Private Room Button - Outlined Style */}
               <button
-                onClick={() => {
-                  if (isPremium) {
-                    navigate('/private-room');
-                  } else {
-                    toast.info('Private Rooms require Premium', {
-                      description: 'Upgrade to create and join private rooms with friends',
-                      action: {
-                        label: 'Upgrade',
-                        onClick: () => navigate('/premium')
-                      }
-                    });
-                  }
-                }}
+                onClick={() => navigate('/private-room')}
                 className="group relative w-full sm:w-auto h-[52px] px-6 flex items-center justify-center gap-2 bg-transparent border-2 border-purple-500/50 hover:border-purple-500 rounded-xl font-semibold text-white transition-all duration-300 hover:shadow-[0_0_25px_rgba(124,58,237,0.4)] active:scale-95 sm:hover:scale-[1.02]"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
                 data-testid="private-room-btn"
               >
                 <Lock size={18} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
                 <span>Private Room</span>
-                {!isPremium && (
-                  <Crown size={14} className="text-yellow-400 ml-1" />
-                )}
               </button>
             </div>
           </div>
