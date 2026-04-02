@@ -284,10 +284,10 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon Feud</h3>
                 <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  {isPremium ? 'Guess the top answers and compete with your match!' : 'Unlock with Premium to play!'}
+                  {isPremium ? 'Race to type answers first! Fast-paced typing competition.' : 'Unlock with Premium to play!'}
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-[#ffd700]/60 text-sm">
-                  <span>🎯 Survey Says Style</span>
+                  <span>Speed Mode</span>
                   <span>•</span>
                   <span>2 Players</span>
                 </div>
