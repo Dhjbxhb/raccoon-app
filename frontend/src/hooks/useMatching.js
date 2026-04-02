@@ -101,11 +101,12 @@ export const useMatching = (socket) => {
       skipTimeoutRef.current = null;
     }
     
-    // Auto-rejoin queue if we were the one who skipped
-    if ((data.reason === 'skipped' || data.reason === 'no_session') && autoRejoinRef.current) {
-      // Immediate rejoin for fast matching
+    // Auto-rejoin queue if we were the one who skipped OR partner skipped
+    const shouldAutoRejoin = ['skipped', 'no_session', 'partner_skipped', 'stale_cleanup'].includes(data.reason);
+    
+    if (shouldAutoRejoin && autoRejoinRef.current) {
       if (mountedRef.current && socket?.connected) {
-        console.log('[Matching] Auto-rejoining queue after skip');
+        console.log('[Matching] Auto-rejoining queue after:', data.reason);
         setState('searching');
         socket.emit('join_queue', {
           gender_filter: lastFiltersRef.current.gender,
@@ -126,21 +127,33 @@ export const useMatching = (socket) => {
           }
         }, 3000);
       }
-    } else if (data.reason === 'partner_skipped' && autoRejoinRef.current) {
-      // Partner skipped us - also auto-rejoin
-      if (mountedRef.current && socket?.connected) {
-        console.log('[Matching] Partner skipped, auto-rejoining queue');
-        setState('searching');
-        socket.emit('join_queue', {
-          gender_filter: lastFiltersRef.current.gender,
-          country_filter: lastFiltersRef.current.country
-        });
-      }
     } else {
       // Other reason - return to idle
       setState('idle');
     }
   }, [socket, resetMatchState, state]);
+  
+  // CRITICAL: Handle session_ended event - triggers WebRTC cleanup
+  const handleSessionEnded = useCallback((data) => {
+    if (!mountedRef.current) return;
+    
+    console.log('[Matching] Session ended (cleanup signal):', data.reason);
+    
+    // Reset all state
+    resetMatchState();
+    skipRetryCountRef.current = 0;
+    setIsSkipping(false);
+    
+    // Clear timeouts
+    if (skipTimeoutRef.current) {
+      clearTimeout(skipTimeoutRef.current);
+      skipTimeoutRef.current = null;
+    }
+    if (matchRetryTimeoutRef.current) {
+      clearTimeout(matchRetryTimeoutRef.current);
+      matchRetryTimeoutRef.current = null;
+    }
+  }, [resetMatchState]);
 
   const handlePartnerDisconnected = useCallback((data) => {
     if (!mountedRef.current) return;
@@ -240,6 +253,7 @@ export const useMatching = (socket) => {
     socket.on('queue_left', handleQueueLeft);
     socket.on('match_found', handleMatchFound);
     socket.on('match_ended', handleMatchEnded);
+    socket.on('session_ended', handleSessionEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
     socket.on('session_restored', handleSessionRestored);
     socket.on('partner_reconnected', handlePartnerReconnected);
@@ -251,6 +265,7 @@ export const useMatching = (socket) => {
       socket.off('queue_left', handleQueueLeft);
       socket.off('match_found', handleMatchFound);
       socket.off('match_ended', handleMatchEnded);
+      socket.off('session_ended', handleSessionEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
       socket.off('session_restored', handleSessionRestored);
       socket.off('partner_reconnected', handlePartnerReconnected);
@@ -258,7 +273,7 @@ export const useMatching = (socket) => {
       socket.off('skip_failed', handleSkipFailed);
       socketIdRef.current = null;
     };
-  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handlePartnerDisconnected, handleSessionRestored, handlePartnerReconnected, handleError, handleSkipFailed]);
+  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handleSessionEnded, handlePartnerDisconnected, handleSessionRestored, handlePartnerReconnected, handleError, handleSkipFailed]);
 
   // Start matching
   const startMatching = useCallback((genderFilter = 'any', countryFilter = 'ANY') => {

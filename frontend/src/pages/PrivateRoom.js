@@ -364,7 +364,7 @@ const PrivateRoom = () => {
               {/* Player Count */}
               <div className="flex items-center justify-center gap-2 text-gray-400">
                 <Users size={18} />
-                <span>{room.player_count || room.players?.length || 0}/{room.max_players || 4} Players</span>
+                <span>{room.player_count || room.players?.length || 0}/{room.max_players || 2} Players</span>
               </div>
               
               {/* Status */}

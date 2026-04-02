@@ -529,6 +529,48 @@ class MatchingQueue:
         with self._lock:
             return user_id in self.user_sessions
     
+    def get_partner_id(self, user_id: str) -> Optional[str]:
+        """Get partner's user ID for a user in session."""
+        with self._lock:
+            session_id = self.user_sessions.get(user_id)
+            if not session_id:
+                return None
+            
+            session = self.active_sessions.get(session_id)
+            if not session:
+                return None
+            
+            if session.user1_id == user_id:
+                return session.user2_id
+            else:
+                return session.user1_id
+    
+    def get_socket_id(self, user_id: str) -> Optional[str]:
+        """Get socket ID for a user (from active session or queue)."""
+        with self._lock:
+            # First check active sessions
+            session_id = self.user_sessions.get(user_id)
+            if session_id:
+                session = self.active_sessions.get(session_id)
+                if session:
+                    if session.user1_id == user_id:
+                        return session.user1_socket
+                    else:
+                        return session.user2_socket
+            
+            # Check queue entries
+            for queue in self.queues.values():
+                for entry in queue:
+                    if entry.user_id == user_id:
+                        return entry.socket_id
+            
+            # Check socket_users mapping
+            for socket_id, uid in self.socket_users.items():
+                if uid == user_id:
+                    return socket_id
+            
+            return None
+    
     def cleanup_stale_entries(self, max_age_seconds: int = 300) -> int:
         """Remove entries that have been in queue too long (cleanup job)."""
         with self._lock:
@@ -548,6 +590,74 @@ class MatchingQueue:
                 logger.info(f"Cleaned up {removed} stale queue entries")
             
             return removed
+    
+    def force_cleanup_user(self, user_id: str) -> dict:
+        """
+        FORCE cleanup user from ALL states.
+        Used to fix "already in session" bugs and ensure clean state.
+        
+        Returns: Dict with cleanup actions taken
+        """
+        with self._lock:
+            actions = {
+                'removed_from_queue': False,
+                'ended_session': False,
+                'cleaned_socket_mapping': False,
+                'session_id': None,
+                'partner_id': None
+            }
+            
+            # 1. Remove from queue if present
+            if user_id in self.users_in_queue:
+                self._remove_from_queue_unsafe(user_id)
+                actions['removed_from_queue'] = True
+                logger.info(f"Force cleanup: removed {user_id} from queue")
+            
+            # 2. End any active session
+            session_id = self.user_sessions.get(user_id)
+            if session_id:
+                actions['session_id'] = session_id
+                session = self.active_sessions.get(session_id)
+                
+                if session:
+                    # Get partner ID
+                    if session.user1_id == user_id:
+                        actions['partner_id'] = session.user2_id
+                    else:
+                        actions['partner_id'] = session.user1_id
+                    
+                    # Clean up session
+                    del self.active_sessions[session_id]
+                    
+                    # Clean up BOTH user mappings
+                    if session.user1_id in self.user_sessions:
+                        del self.user_sessions[session.user1_id]
+                    if session.user2_id in self.user_sessions:
+                        del self.user_sessions[session.user2_id]
+                    
+                    # Clean up socket mappings
+                    if session.user1_socket in self.socket_users:
+                        del self.socket_users[session.user1_socket]
+                    if session.user2_socket in self.socket_users:
+                        del self.socket_users[session.user2_socket]
+                    
+                    actions['ended_session'] = True
+                    logger.info(f"Force cleanup: ended session {session_id} for {user_id}")
+                else:
+                    # Orphaned mapping - clean it
+                    del self.user_sessions[user_id]
+                    actions['cleaned_socket_mapping'] = True
+            
+            # 3. Clean any orphaned socket mappings for this user
+            sockets_to_remove = [
+                sid for sid, uid in self.socket_users.items() 
+                if uid == user_id
+            ]
+            for sid in sockets_to_remove:
+                del self.socket_users[sid]
+                actions['cleaned_socket_mapping'] = True
+            
+            return actions
 
 
 # Global queue instance

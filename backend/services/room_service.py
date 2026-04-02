@@ -2,7 +2,7 @@
 Private Room Service
 - Room creation (premium only)
 - Room joining via code
-- Player management (2-4 players)
+- Player management (MAX 2 players for 1v1 or 2v2 matching)
 - Group matchmaking
 """
 
@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 active_rooms: Dict[str, dict] = {}
 player_rooms: Dict[str, str] = {}  # player_id -> room_code
 
+# MAX 2 PLAYERS PER ROOM - for 1v1 or 2v2 matching
+MAX_ROOM_PLAYERS = 2
+
 def generate_room_code() -> str:
     """Generate unique 5-character room code"""
     chars = string.ascii_uppercase + string.digits
@@ -32,9 +35,11 @@ def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dic
     if not is_premium:
         return {'error': 'Only premium users can create rooms'}
     
-    # Check if already in a room
+    # Check if already in a room - force cleanup if needed
     if creator_id in player_rooms:
-        return {'error': 'You are already in a room'}
+        existing_code = player_rooms[creator_id]
+        logger.warning(f"User {creator_id} already in room {existing_code}, cleaning up")
+        leave_room(creator_id)
     
     room_code = generate_room_code()
     room = {
@@ -47,7 +52,7 @@ def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dic
             'is_creator': True,
             'joined_at': datetime.now(timezone.utc).isoformat()
         }],
-        'max_players': 4,
+        'max_players': MAX_ROOM_PLAYERS,  # FIXED: Max 2 players
         'status': 'waiting',  # waiting, in_game, matching, matched
         'current_game': None,
         'game_state': None,
@@ -57,7 +62,7 @@ def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dic
     active_rooms[room_code] = room
     player_rooms[creator_id] = room_code
     
-    logger.info(f"Room {room_code} created by {creator_username}")
+    logger.info(f"Room {room_code} created by {creator_username} (max {MAX_ROOM_PLAYERS} players)")
     
     return {
         'success': True,
@@ -68,25 +73,33 @@ def join_room(room_code: str, player_id: str, player_username: str) -> dict:
     """Join an existing room"""
     room_code = room_code.upper()
     
-    # Check if already in a room
+    # Check if already in a room - force cleanup if different room
     if player_id in player_rooms:
         existing_code = player_rooms[player_id]
         if existing_code == room_code:
-            # Already in this room
+            # Already in this room - return current state
             room = active_rooms.get(room_code)
             if room:
                 return {'success': True, 'room': get_room_state(room)}
-        return {'error': 'You are already in another room'}
+        else:
+            # In different room - leave first
+            logger.warning(f"User {player_id} leaving room {existing_code} to join {room_code}")
+            leave_room(player_id)
     
     room = active_rooms.get(room_code)
     if not room:
         return {'error': 'Room not found'}
     
-    if len(room['players']) >= room['max_players']:
-        return {'error': 'Room is full'}
+    # STRICT: Max 2 players
+    if len(room['players']) >= MAX_ROOM_PLAYERS:
+        return {'error': f'Room is full (max {MAX_ROOM_PLAYERS} players)'}
     
     if room['status'] not in ['waiting', 'in_game']:
         return {'error': 'Room is not accepting players'}
+    
+    # Check if player already in room (shouldn't happen but safety check)
+    if any(p['id'] == player_id for p in room['players']):
+        return {'success': True, 'room': get_room_state(room)}
     
     # Add player
     room['players'].append({
@@ -98,7 +111,7 @@ def join_room(room_code: str, player_id: str, player_username: str) -> dict:
     
     player_rooms[player_id] = room_code
     
-    logger.info(f"Player {player_username} joined room {room_code}")
+    logger.info(f"Player {player_username} joined room {room_code} ({len(room['players'])}/{MAX_ROOM_PLAYERS})")
     
     return {
         'success': True,

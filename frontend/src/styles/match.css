@@ -610,6 +610,58 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Connecting overlay for mini video panels */
+.video-panel--mini .video-panel__connecting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(15, 10, 25, 0.95), rgba(8, 5, 16, 0.98));
+  z-index: 5;
+}
+
+.video-panel__connecting-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid rgba(124, 58, 237, 0.3);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0.5rem;
+}
+
+.video-panel__connecting-text {
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@media (min-width: 640px) {
+  .video-panel__connecting-spinner {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .video-panel__connecting-text {
+    font-size: 0.6875rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .video-panel__connecting-spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  
+  .video-panel__connecting-text {
+    font-size: 0.75rem;
+  }
+}
+
 /* ===== FILTER BADGE ===== */
 .video-panel__filter-badge {
   position: absolute;
@@ -1102,18 +1154,19 @@
   }
 }
 
-/* Mini video panel base styles - LARGER with glow */
+/* Mini video panel base styles - LARGE VISIBLE CAMERAS */
 .video-panel--mini {
   position: relative !important;
   flex: 0 0 auto !important;
-  width: 7rem;
-  height: 5.5rem;
-  border-radius: 1rem;
+  /* MOBILE: Large cameras at top */
+  width: 10rem;
+  height: 7.5rem;
+  border-radius: 1.25rem;
   overflow: hidden;
   box-shadow: 
-    0 0 30px rgba(124, 58, 237, 0.4),
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 2px rgba(255, 255, 255, 0.15);
+    0 0 40px rgba(124, 58, 237, 0.5),
+    0 10px 40px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.2);
   border: none;
   transition: all 0.2s ease;
   pointer-events: auto;
@@ -1122,15 +1175,15 @@
 .video-panel--mini::before {
   content: '';
   position: absolute;
-  inset: -2px;
-  border-radius: 1.125rem;
+  inset: -3px;
+  border-radius: 1.5rem;
   background: linear-gradient(
     135deg,
-    rgba(34, 197, 94, 0.6),
-    rgba(34, 197, 94, 0.2) 30%,
+    rgba(34, 197, 94, 0.7),
+    rgba(34, 197, 94, 0.3) 30%,
     transparent 50%,
-    rgba(34, 197, 94, 0.2) 70%,
-    rgba(34, 197, 94, 0.5)
+    rgba(34, 197, 94, 0.3) 70%,
+    rgba(34, 197, 94, 0.6)
   );
   z-index: -1;
   animation: glowPulse 3s ease-in-out infinite;
@@ -1142,33 +1195,35 @@
 }
 
 .video-panel--mini:hover {
-  transform: scale(1.08);
+  transform: scale(1.05);
   box-shadow: 
-    0 0 40px rgba(124, 58, 237, 0.6),
-    0 12px 40px rgba(0, 0, 0, 0.7);
+    0 0 50px rgba(124, 58, 237, 0.7),
+    0 15px 50px rgba(0, 0, 0, 0.8);
 }
 
+/* TABLET: Larger cameras */
 @media (min-width: 640px) {
   .video-panel--mini {
-    width: 9rem;
-    height: 7rem;
-    border-radius: 1.25rem;
-  }
-  
-  .video-panel--mini::before {
-    border-radius: 1.375rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .video-panel--mini {
-    width: 11rem;
-    height: 8.5rem;
+    width: 12rem;
+    height: 9rem;
     border-radius: 1.5rem;
   }
   
   .video-panel--mini::before {
-    border-radius: 1.625rem;
+    border-radius: 1.75rem;
+  }
+}
+
+/* DESKTOP: Maximum visibility - cameras dominate top area */
+@media (min-width: 1024px) {
+  .video-panel--mini {
+    width: 16rem;
+    height: 12rem;
+    border-radius: 1.75rem;
+  }
+  
+  .video-panel--mini::before {
+    border-radius: 2rem;
   }
 }
 

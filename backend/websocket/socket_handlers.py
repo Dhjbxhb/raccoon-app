@@ -262,10 +262,19 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 logger.warning(f"Banned user {user_id} attempted to join queue")
                 return
             
-            # Prevent joining if already in session
+            # ISSUE 3 FIX: Force cleanup stale sessions before checking
+            # This prevents "already in active session" bug
             if matching_queue.is_user_in_session(user_id):
-                await sio.emit('error', {'message': 'Already in active session'}, room=sid)
-                return
+                logger.warning(f"[JOIN_QUEUE] User {user_id} in stale session, forcing cleanup")
+                cleanup_result = matching_queue.force_cleanup_user(user_id)
+                logger.info(f"[JOIN_QUEUE] Stale session cleanup: {cleanup_result}")
+                
+                # Notify user their old session was cleaned
+                await sio.emit('session_ended', {
+                    'reason': 'stale_cleanup',
+                    'success': True,
+                    'can_rejoin': True
+                }, room=sid)
             
             # Get user data
             if is_guest:
@@ -433,7 +442,14 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def skip_match(sid):
-        """Skip current match - fast and reliable"""
+        """
+        Skip current match - CRITICAL: Must terminate BOTH users cleanly.
+        
+        REQUIREMENT:
+        1. Terminate BOTH peer connections
+        2. Clear BOTH user sessions
+        3. Emit session_ended to BOTH users
+        """
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
@@ -443,12 +459,13 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     await sio.emit('skip_failed', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            logger.info(f"Skip match requested by user {user_id}")
+            logger.info(f"[SKIP] Skip match requested by user {user_id}")
             
-            # Get partner info before ending
+            # Get partner info BEFORE ending session
             partner_socket = matching_queue.get_partner_socket(user_id)
             partner_id = matching_queue.get_partner_id(user_id)
             partner_is_guest = False
+            
             if partner_id:
                 partner_session = matching_queue.get_session(partner_id)
                 if partner_session:
@@ -457,19 +474,35 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     else:
                         partner_is_guest = partner_session['user2'].get('is_guest', False)
             
+            # End the session (this cleans up BOTH users in matching_queue)
             result = matching_queue.end_session(user_id, reason='skipped')
             
             if result:
-                # End match sessions and update stats for both users
+                # End match sessions and update stats for BOTH users
                 await stats_service.end_match_session(user_id, is_guest)
                 if partner_id:
                     await stats_service.end_match_session(partner_id, partner_is_guest)
                 
-                # Notify the skipper FIRST with confirmation
+                # CRITICAL: Emit session_ended to BOTH users so they can:
+                # 1. Close WebRTC connections
+                # 2. Clear local state
+                # 3. Return to queue
+                
+                # Notify the skipper
+                await sio.emit('session_ended', {
+                    'reason': 'skipped',
+                    'success': True,
+                    'can_rejoin': True
+                }, room=sid)
                 await sio.emit('match_ended', {'reason': 'skipped', 'success': True}, room=sid)
                 
-                # Notify partner
+                # Notify partner - CRITICAL they also cleanup
                 if partner_socket:
+                    await sio.emit('session_ended', {
+                        'reason': 'partner_skipped',
+                        'success': True,
+                        'can_rejoin': True
+                    }, room=partner_socket)
                     await sio.emit('match_ended', {'reason': 'partner_skipped'}, room=partner_socket)
                 
                 # Update session in DB (async, don't block)
@@ -486,14 +519,27 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     }}
                 )
                 
-                logger.info(f"Match skipped successfully by {user_id}")
+                logger.info(f"[SKIP] Session ended for BOTH users: {user_id} and {partner_id}")
             else:
-                # No active session but user requested skip - just acknowledge
-                logger.warning(f"Skip requested but no active session for user {user_id}")
+                # No active session - force cleanup user state anyway
+                logger.warning(f"[SKIP] No active session for {user_id}, forcing cleanup")
+                cleanup_result = matching_queue.force_cleanup_user(user_id)
+                logger.info(f"[SKIP] Force cleanup result: {cleanup_result}")
+                
+                await sio.emit('session_ended', {
+                    'reason': 'no_session',
+                    'success': True,
+                    'can_rejoin': True
+                }, room=sid)
                 await sio.emit('match_ended', {'reason': 'no_session', 'success': True}, room=sid)
         
         except Exception as e:
-            logger.error(f"Error skipping match: {e}")
+            logger.error(f"[SKIP] Error skipping match: {e}")
+            # Even on error, try to cleanup
+            try:
+                matching_queue.force_cleanup_user(user_id)
+            except Exception:
+                pass
             await sio.emit('skip_failed', {'message': 'Skip failed, please try again'}, room=sid)
     
     @sio.event
