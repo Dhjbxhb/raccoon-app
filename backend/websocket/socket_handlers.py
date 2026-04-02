@@ -101,6 +101,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         if matching_queue.is_user_in_session(user_id):
             # Get partner socket before ending session
             partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_id = matching_queue.get_partner_id(user_id)
             
             # End session with disconnect reason
             result = matching_queue.end_session(user_id, reason='disconnected')
@@ -109,8 +110,15 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 # End match session and update stats
                 await stats_service.end_match_session(user_id, is_guest)
                 
-                # Notify partner
+                # Notify partner with BOTH events for proper cleanup
                 if partner_socket:
+                    # session_ended triggers WebRTC cleanup
+                    await sio.emit('session_ended', {
+                        'reason': 'partner_disconnected',
+                        'success': True,
+                        'can_rejoin': True
+                    }, room=partner_socket)
+                    # partner_disconnected for UI messaging
                     await sio.emit('partner_disconnected', {
                         'reason': 'partner_disconnected'
                     }, room=partner_socket)
@@ -129,7 +137,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     }}
                 )
                 
-                logger.info(f"Session {result['session_id']} ended due to disconnect")
+                logger.info(f"[DISCONNECT] Session {result['session_id']} ended, partner {partner_id} notified")
     
     # ============================================
     # AUTHENTICATION

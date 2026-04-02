@@ -144,6 +144,37 @@ const Match = () => {
     }
   }, [state, sessionId, resetAllGameState]);
   
+  // ========== PAGE UNLOAD CLEANUP ==========
+  // Ensure cleanup when user closes tab or navigates away
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Emit leave event to backend
+      if (socket?.connected && sessionId) {
+        socket.emit('skip_match');
+      }
+      // Call endCall to clean up WebRTC
+      if (endCall) {
+        endCall();
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      // On mobile, page might be hidden when switching apps
+      if (document.visibilityState === 'hidden' && sessionId && socket?.connected) {
+        // Don't auto-skip on visibility change, but log for debugging
+        console.log('[Match] Page hidden, session active');
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [socket, sessionId, endCall]);
+  
   // ========== PREMIUM PROMPT HANDLERS ==========
   const showPremiumModal = useCallback((featureName) => {
     setPremiumFeatureName(featureName);
