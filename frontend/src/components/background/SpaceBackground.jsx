@@ -19,11 +19,11 @@ const SpaceBackground = memo(({
   showShootingStars = true,
   className = ''
 }) => {
-  // Star count based on intensity
+  // PERFORMANCE: Reduced star count for smoother animations
   const starCounts = {
-    minimal: { far: 30, mid: 15, near: 8 },
-    normal: { far: 60, mid: 35, near: 15 },
-    intense: { far: 100, mid: 60, near: 25 }
+    minimal: { far: 20, mid: 10, near: 5 },
+    normal: { far: 40, mid: 20, near: 10 },
+    intense: { far: 60, mid: 35, near: 15 }
   };
 
   const counts = starCounts[intensity] || starCounts.normal;

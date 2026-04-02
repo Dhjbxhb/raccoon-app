@@ -1,24 +1,33 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense, memo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SocketProvider } from '@/contexts/SocketContext';
 import { Toaster } from 'sonner';
-import Landing from '@/pages/Landing';
-import Login from '@/pages/Login';
-import Signup from '@/pages/Signup';
-import Guest from '@/pages/Guest';
-import AgeVerification from '@/pages/AgeVerification';
-import Dashboard from '@/pages/Dashboard';
-import Match from '@/pages/Match';
-import Premium from '@/pages/Premium';
-import PremiumSuccess from '@/pages/PremiumSuccess';
-import Admin from '@/pages/Admin';
-import Profile from '@/pages/Profile';
-import Terms from '@/pages/Terms';
-import Privacy from '@/pages/Privacy';
-import Guidelines from '@/pages/Guidelines';
-import Refund from '@/pages/Refund';
 import '@/App.css';
+
+// PERFORMANCE: Lazy load all page components for faster initial load
+const Landing = lazy(() => import('@/pages/Landing'));
+const Login = lazy(() => import('@/pages/Login'));
+const Signup = lazy(() => import('@/pages/Signup'));
+const Guest = lazy(() => import('@/pages/Guest'));
+const AgeVerification = lazy(() => import('@/pages/AgeVerification'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const Match = lazy(() => import('@/pages/Match'));
+const Premium = lazy(() => import('@/pages/Premium'));
+const PremiumSuccess = lazy(() => import('@/pages/PremiumSuccess'));
+const Admin = lazy(() => import('@/pages/Admin'));
+const Profile = lazy(() => import('@/pages/Profile'));
+const Terms = lazy(() => import('@/pages/Terms'));
+const Privacy = lazy(() => import('@/pages/Privacy'));
+const Guidelines = lazy(() => import('@/pages/Guidelines'));
+const Refund = lazy(() => import('@/pages/Refund'));
+
+// PERFORMANCE: Minimal loading fallback - no heavy spinners
+const PageLoader = memo(() => (
+  <div className="min-h-screen bg-[#0a0818] flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+));
 
 // Remove external branding
 const removeBranding = () => {
@@ -125,30 +134,31 @@ const AuthOnlyRoute = ({ children }) => {
 
 function AppRoutes() {
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/guest" element={<Guest />} />
-      <Route path="/premium" element={<Premium />} />
-      <Route path="/premium/success" element={<PremiumSuccess />} />
-      
-      {/* Legal Pages - Public */}
-      <Route path="/terms" element={<Terms />} />
-      <Route path="/privacy" element={<Privacy />} />
-      <Route path="/guidelines" element={<Guidelines />} />
-      <Route path="/refund" element={<Refund />} />
-      
-      {/* Age Verification - Requires auth but not age verification */}
-      <Route 
-        path="/verify-age" 
-        element={
-          <AuthOnlyRoute>
-            <AgeVerification />
-          </AuthOnlyRoute>
-        } 
-      />
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/guest" element={<Guest />} />
+        <Route path="/premium" element={<Premium />} />
+        <Route path="/premium/success" element={<PremiumSuccess />} />
+        
+        {/* Legal Pages - Public */}
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/guidelines" element={<Guidelines />} />
+        <Route path="/refund" element={<Refund />} />
+        
+        {/* Age Verification - Requires auth but not age verification */}
+        <Route 
+          path="/verify-age" 
+          element={
+            <AuthOnlyRoute>
+              <AgeVerification />
+            </AuthOnlyRoute>
+          } 
+        />
       
       {/* Protected routes - Require auth AND age verification */}
       <Route 
@@ -187,6 +197,7 @@ function AppRoutes() {
       {/* Catch all - redirect to landing */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
+    </Suspense>
   );
 }
 

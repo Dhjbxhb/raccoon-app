@@ -48,19 +48,22 @@ export const SocketProvider = ({ children }) => {
 
     connectingRef.current = true;
 
-    // Create socket connection with optimized settings
+    // PERFORMANCE: Create socket connection with low-latency settings
     const newSocket = io(SOCKET_URL, {
       path: '/api/socket.io',
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],  // Prefer WebSocket for speed
       upgrade: true,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionDelay: 500,  // Faster reconnection
+      reconnectionDelayMax: 2000,  // Lower max delay
       reconnectionAttempts: 10,
-      timeout: 20000,
-      // Prevent duplicate connections
+      timeout: 10000,  // Faster timeout
+      // Low-latency optimizations
       forceNew: false,
-      multiplex: true
+      multiplex: true,
+      // Engine.IO options for speed
+      pingTimeout: 10000,  // Faster ping timeout
+      pingInterval: 5000,  // More frequent pings
     });
 
     // Store in ref immediately

@@ -34,11 +34,13 @@ export const RaccoonLogo = ({ size = 120, className = '', animated = false }) =>
             : '0 0 30px rgba(124,58,237,0.3)'
         }}
       >
-        {/* Mascot image */}
+        {/* Mascot image - PERFORMANCE: lazy loading */}
         <img 
           src="/assets/raccoon-mascot.png" 
           alt="Raccoon" 
           className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
           style={{
             transform: 'scale(1.15)',
             objectPosition: 'center 30%'

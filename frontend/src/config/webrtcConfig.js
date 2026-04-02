@@ -35,32 +35,33 @@ const TURN_SERVERS = [
   // }
 ];
 
-// Full ICE server configuration
+// Full ICE server configuration - OPTIMIZED FOR SPEED
 export const ICE_SERVERS = {
   iceServers: [
-    // STUN servers for NAT discovery
-    ...STUN_SERVERS.map(url => ({ urls: url })),
+    // STUN servers for NAT discovery - prioritized by reliability
+    ...STUN_SERVERS.slice(0, 3).map(url => ({ urls: url })),
     
     // TURN servers for relay fallback
     ...TURN_SERVERS
   ],
-  iceCandidatePoolSize: 10
+  iceCandidatePoolSize: 5,  // Reduced for faster gathering
+  iceTransportPolicy: 'all'  // Use all available transports
 };
 
-// Media constraints for video capture
+// PERFORMANCE: Optimized media constraints for speed
 export const VIDEO_CONSTRAINTS = {
   video: {
-    width: { ideal: 1280, min: 640, max: 1920 },
-    height: { ideal: 720, min: 480, max: 1080 },
-    frameRate: { ideal: 30, min: 15, max: 60 },
+    width: { ideal: 640, min: 320, max: 1280 },  // Lower default for speed
+    height: { ideal: 480, min: 240, max: 720 },
+    frameRate: { ideal: 24, min: 15, max: 30 },  // Lower framerate = faster
     facingMode: 'user',
-    aspectRatio: { ideal: 16 / 9 }
+    aspectRatio: { ideal: 4 / 3 }
   },
   audio: {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
-    sampleRate: 48000,
+    sampleRate: 44100,  // Lower sample rate for speed
     channelCount: 1
   }
 };
@@ -97,15 +98,15 @@ export const OFFER_OPTIONS = {
   voiceActivityDetection: true
 };
 
-// Connection timeout in milliseconds
-export const CONNECTION_TIMEOUT = 30000;
+// Connection timeout in milliseconds - OPTIMIZED FOR SPEED
+export const CONNECTION_TIMEOUT = 15000;  // Faster timeout
 
-// ICE gathering timeout
-export const ICE_GATHERING_TIMEOUT = 10000;
+// ICE gathering timeout - OPTIMIZED FOR SPEED
+export const ICE_GATHERING_TIMEOUT = 5000;  // Faster ICE gathering
 
 // Reconnection attempts
 export const MAX_RECONNECTION_ATTEMPTS = 3;
-export const RECONNECTION_DELAY = 2000;
+export const RECONNECTION_DELAY = 1000;  // Faster reconnection
 
 // Detect if user is on mobile
 export const isMobile = () => {

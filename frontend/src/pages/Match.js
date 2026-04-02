@@ -475,6 +475,8 @@ const Match = () => {
               src="https://customer-assets.emergentagent.com/job_realtime-raccoon/artifacts/818jgnvw_Screenshot%202026-03-22%20at%202.50.16%E2%80%AFPM.png"
               alt="Raccoon" 
               className="w-full h-full object-cover scale-150" 
+              loading="lazy"
+              decoding="async"
               style={{ objectPosition: 'center 30%' }}
             />
           </div>

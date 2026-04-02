@@ -2,6 +2,7 @@
 Enhanced Game Services with Full Database Persistence
 - Raccoon Feud with multiplayer sync and DB storage
 - UNO card game
+PERFORMANCE: Optimized for <100ms response time
 """
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timezone
@@ -11,7 +12,9 @@ import random
 import math
 from rapidfuzz import fuzz
 
+# PERFORMANCE: Only log errors, not info
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 # ============================================================
 # DATABASE HELPERS

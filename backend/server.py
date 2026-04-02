@@ -1,26 +1,51 @@
 from fastapi import FastAPI, APIRouter, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 import socketio
 import os
 import logging
 from pathlib import Path
+import time
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Create Socket.IO server
+# PERFORMANCE: Socket.IO with optimized settings
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins='*',
-    logger=True,
-    engineio_logger=False
+    logger=False,  # Disable logging for speed
+    engineio_logger=False,
+    ping_timeout=20,  # Faster connection timeout
+    ping_interval=10,  # More frequent pings for real-time feel
+    max_http_buffer_size=1e6,  # 1MB max for fast transfers
+    async_handlers=True  # Async handlers for better concurrency
 )
 
-# Create the main FastAPI app
-app = FastAPI()
+# Create the main FastAPI app with performance settings
+app = FastAPI(
+    title="Raccoon API",
+    docs_url=None,  # Disable docs in production for speed
+    redoc_url=None,
+    openapi_url=None
+)
+
+# PERFORMANCE: GZip compression for all responses
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# PERFORMANCE: Request timing middleware
+class PerformanceMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.perf_counter()
+        response = await call_next(request)
+        process_time = (time.perf_counter() - start_time) * 1000
+        response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
+        return response
+
+app.add_middleware(PerformanceMiddleware)
 
 # COOP Middleware for Firebase Auth popup support
 class COOPMiddleware(BaseHTTPMiddleware):
@@ -29,9 +54,12 @@ class COOPMiddleware(BaseHTTPMiddleware):
         # Allow popups to communicate with opener (required for Firebase Google Auth)
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
         response.headers["Cross-Origin-Embedder-Policy"] = "unsafe-none"
+        # PERFORMANCE: Add caching headers for static content
+        if request.url.path.startswith('/api/static'):
+            response.headers["Cache-Control"] = "public, max-age=31536000"
         return response
 
-# Add COOP middleware first
+# Add COOP middleware
 app.add_middleware(COOPMiddleware)
 
 # Create a router with the /api prefix
