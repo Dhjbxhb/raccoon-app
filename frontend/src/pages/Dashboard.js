@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil } from 'lucide-react';
+import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/Button';
@@ -180,6 +180,17 @@ const Dashboard = () => {
             >
               Start Matching
             </Button>
+            
+            {/* Private Room Button */}
+            <button
+              onClick={() => navigate('/private-room')}
+              className="mt-4 flex items-center justify-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 rounded-xl transition-all"
+              data-testid="private-room-btn"
+            >
+              <Users size={20} className="text-purple-400" />
+              <span style={{ fontFamily: 'Manrope, sans-serif' }}>Play with Friends</span>
+              {!isPremium && <Lock size={14} className="text-yellow-400 ml-1" />}
+            </button>
           </div>
 
           {/* Premium Status Card */}

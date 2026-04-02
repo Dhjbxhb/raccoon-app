@@ -21,6 +21,7 @@ const Terms = lazy(() => import('@/pages/Terms'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
 const Guidelines = lazy(() => import('@/pages/Guidelines'));
 const Refund = lazy(() => import('@/pages/Refund'));
+const PrivateRoom = lazy(() => import('@/pages/PrivateRoom'));
 
 // PERFORMANCE: Minimal loading fallback - no heavy spinners
 const PageLoader = memo(() => (
@@ -190,6 +191,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Profile />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/private-room" 
+        element={
+          <ProtectedRoute>
+            <PrivateRoom />
           </ProtectedRoute>
         } 
       />

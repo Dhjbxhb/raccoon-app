@@ -391,10 +391,12 @@ const PrivateRoom = () => {
                     Feud
                   </button>
                   <button
-                    disabled
-                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-medium opacity-50 cursor-not-allowed"
+                    onClick={() => handleStartGame('draw')}
+                    disabled={room.players?.length < 2}
+                    className="px-4 py-2 bg-cyan-500/20 border border-cyan-500/40 rounded-xl text-sm font-medium hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    data-testid="game-draw-btn"
                   >
-                    Drawing (Soon)
+                    Draw & Guess
                   </button>
                 </div>
               </div>
