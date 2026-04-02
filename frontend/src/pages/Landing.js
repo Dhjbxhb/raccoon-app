@@ -27,14 +27,14 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-hidden">
       {/* Cinematic space background */}
       <SpaceBackground intensity="normal" showNebula={true} showShootingStars={true} />
 
-      {/* Main content */}
-      <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
+      {/* Main content - flex-grow pushes footer down, centered content */}
+      <div className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-8 pb-4">
         {/* Raccoon Mascot - Central focal point */}
-        <div className="mb-6 flex justify-center">
+        <div className="mb-4 sm:mb-6 flex justify-center">
           <div className="relative">
             {/* Outer glow ring */}
             <div 
@@ -45,13 +45,13 @@ const Landing = () => {
                 filter: 'blur(40px)'
               }}
             />
-            <RaccoonLogo size={200} animated />
+            <RaccoonLogo size={160} animated className="sm:w-[200px] sm:h-[200px]" />
           </div>
         </div>
 
         {/* Brand name */}
         <h1 
-          className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-gray-100 to-purple-200 bg-clip-text text-transparent drop-shadow-lg"
+          className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white via-gray-100 to-purple-200 bg-clip-text text-transparent drop-shadow-lg text-center"
           style={{ fontFamily: 'Outfit, sans-serif' }}
         >
           Raccoon
@@ -59,7 +59,7 @@ const Landing = () => {
 
         {/* Tagline */}
         <p 
-          className="text-xl md:text-2xl text-gray-300 mb-2 font-medium"
+          className="text-lg sm:text-xl md:text-2xl text-gray-300 mb-1 sm:mb-2 font-medium text-center px-2"
           style={{ fontFamily: 'Manrope, sans-serif' }}
         >
           Meet Strangers. Play Games. Go Wild.
@@ -67,28 +67,30 @@ const Landing = () => {
         
         {/* Subtitle */}
         <p 
-          className="text-sm text-gray-500 mb-10"
+          className="text-xs sm:text-sm text-gray-500 mb-6 sm:mb-10 text-center px-4"
           style={{ fontFamily: 'Manrope, sans-serif' }}
         >
           Video chat with real people from around the world
         </p>
 
-        {/* Primary CTA */}
-        <Button
-          onClick={handleStart}
-          size="xl"
-          icon={Sparkles}
-          iconPosition="left"
-          className="shadow-[0_0_50px_rgba(124,58,237,0.5)] hover:shadow-[0_0_70px_rgba(124,58,237,0.7)]"
-          data-testid="landing-start-button"
-          style={{ fontFamily: 'Outfit, sans-serif' }}
-        >
-          Start Now
-          <ArrowRight size={20} className="ml-2" />
-        </Button>
+        {/* Primary CTA - High z-index, always clickable */}
+        <div className="relative z-50">
+          <Button
+            onClick={handleStart}
+            size="xl"
+            icon={Sparkles}
+            iconPosition="left"
+            className="shadow-[0_0_50px_rgba(124,58,237,0.5)] hover:shadow-[0_0_70px_rgba(124,58,237,0.7)] min-w-[200px] sm:min-w-[240px]"
+            data-testid="landing-start-button"
+            style={{ fontFamily: 'Outfit, sans-serif' }}
+          >
+            Start Now
+            <ArrowRight size={20} className="ml-2" />
+          </Button>
+        </div>
 
         {/* Secondary links */}
-        <div className="mt-8 flex items-center justify-center gap-6 text-sm">
+        <div className="mt-6 sm:mt-8 flex items-center justify-center gap-4 sm:gap-6 text-sm">
           <Link 
             to="/login" 
             className="text-gray-400 hover:text-white transition-colors"
@@ -107,19 +109,19 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* Bottom footer */}
-      <div className="absolute bottom-0 left-0 right-0 z-10">
-        <div className="flex flex-col items-center pb-6">
-          {/* SEO Content Section */}
-          <div className="max-w-xl text-center mb-6 px-4">
+      {/* Bottom footer - NOT absolute, flows naturally */}
+      <div className="relative z-10 w-full">
+        <div className="flex flex-col items-center pb-4 sm:pb-6 px-4">
+          {/* SEO Content Section - Hidden on very small screens to prevent overlap */}
+          <div className="max-w-xl text-center mb-4 sm:mb-6 hidden sm:block">
             <h2 
-              className="text-lg md:text-xl font-semibold text-gray-300 mb-2"
+              className="text-base sm:text-lg md:text-xl font-semibold text-gray-300 mb-2"
               style={{ fontFamily: 'Outfit, sans-serif' }}
             >
               Random Video Chat – Talk to Strangers Online
             </h2>
             <p 
-              className="text-xs md:text-sm text-gray-500 leading-relaxed"
+              className="text-xs sm:text-sm text-gray-500 leading-relaxed"
               style={{ fontFamily: 'Manrope, sans-serif' }}
             >
               Raccoon App is a random video chat platform where you can talk to strangers instantly. 
@@ -128,7 +130,7 @@ const Landing = () => {
           </div>
           
           {/* Legal links */}
-          <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-4 text-xs text-gray-600 mb-2">
             <Link to="/terms" className="hover:text-gray-400 transition-colors">Terms</Link>
             <span>•</span>
             <Link to="/privacy" className="hover:text-gray-400 transition-colors">Privacy</Link>
@@ -137,7 +139,7 @@ const Landing = () => {
             <span>•</span>
             <Link to="/refund" className="hover:text-gray-400 transition-colors">Refund</Link>
           </div>
-          <p className="text-xs text-gray-700" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-xs text-gray-700 text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
             18+ only • Video chat with strangers
           </p>
         </div>
