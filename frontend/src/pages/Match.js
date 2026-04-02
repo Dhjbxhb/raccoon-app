@@ -633,7 +633,15 @@ const Match = () => {
             className="video-panel__video video-panel__video--mirrored"
           />
           
-          {!isGameActive && (
+          {/* Connecting overlay for local video - shows when no stream */}
+          {!localStream && (
+            <div className="video-panel__connecting">
+              <div className="video-panel__connecting-spinner" />
+              <span className="video-panel__connecting-text">Starting camera...</span>
+            </div>
+          )}
+          
+          {!isGameActive && localStream && (
             <div className="video-panel__label video-panel__label--top-left">
               <div className="video-panel__indicator bg-green-500" />
               <span>You</span>
@@ -653,18 +661,17 @@ const Match = () => {
             className="video-panel__video"
           />
           
-          {!remoteStream && !isGameActive && (
-            <div className="video-panel__placeholder">
-              <div className="video-panel__placeholder-content">
-                <Loader2 size={32} className="video-panel__spinner" />
-                <p className="video-panel__placeholder-text">
-                  Connecting to {partner?.username}...
-                </p>
-              </div>
+          {/* Connecting overlay for remote video */}
+          {!remoteStream && (
+            <div className="video-panel__connecting">
+              <div className="video-panel__connecting-spinner" />
+              <span className="video-panel__connecting-text">
+                {isGameActive ? 'Connecting...' : `Connecting to ${partner?.username || 'Stranger'}...`}
+              </span>
             </div>
           )}
 
-          {!isGameActive && (
+          {!isGameActive && remoteStream && (
             <div className="video-panel__label video-panel__label--top-right">
               <div className="video-panel__indicator bg-blue-500" />
               <span>{partner?.username || 'Stranger'}</span>
