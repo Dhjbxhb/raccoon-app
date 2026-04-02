@@ -914,8 +914,23 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             await sio.emit('feud_guess_result', result, room=player1_socket)
             await sio.emit('feud_guess_result', result, room=player2_socket)
             
-            # Check if game ended
-            if result['game_state']['status'] == 'finished':
+            # Check if round ended (all answers claimed)
+            if result.get('round_ended'):
+                # End the round
+                round_result = feud_service._end_round(
+                    feud_service.active_games.get(session_id), 
+                    reason='all_claimed'
+                )
+                await sio.emit('feud_round_ended', round_result, room=player1_socket)
+                await sio.emit('feud_round_ended', round_result, room=player2_socket)
+                
+                if round_result.get('game_over'):
+                    await feud_service.save_to_db(session_id)
+                    await _emit_feud_game_ended(sio, session_data, round_result)
+                    logger.info(f"Feud game ended: {round_result.get('winner_username')} wins!")
+            
+            # Check if game ended via submit_guess (status change)
+            elif result['game_state']['status'] == 'finished':
                 # Save result to DB
                 await feud_service.save_to_db(session_id)
                 
@@ -985,6 +1000,144 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         except Exception as e:
             logger.error(f"Error ending Feud game: {e}")
+    
+    @sio.event
+    async def feud_skip_round(sid):
+        """Skip the current round in Speed Feud"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            result = feud_service.skip_round(session_id)
+            
+            if 'error' in result:
+                await sio.emit('feud_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('feud_round_ended', result, room=player1_socket)
+            await sio.emit('feud_round_ended', result, room=player2_socket)
+            
+            # Check if game ended
+            if result.get('game_over'):
+                await feud_service.save_to_db(session_id)
+                await _emit_feud_game_ended(sio, session_data, result)
+            
+            logger.info(f"Feud round skipped in session {session_id}")
+        
+        except Exception as e:
+            logger.error(f"Error in feud_skip_round: {e}")
+    
+    @sio.event
+    async def feud_time_up(sid):
+        """Handle round timeout in Speed Feud"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            result = feud_service.time_up(session_id)
+            
+            if 'error' in result:
+                return  # Round already ended
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('feud_round_ended', result, room=player1_socket)
+            await sio.emit('feud_round_ended', result, room=player2_socket)
+            
+            # Check if game ended
+            if result.get('game_over'):
+                await feud_service.save_to_db(session_id)
+                await _emit_feud_game_ended(sio, session_data, result)
+            
+            logger.info(f"Feud round timed out in session {session_id}")
+        
+        except Exception as e:
+            logger.error(f"Error in feud_time_up: {e}")
+    
+    @sio.event
+    async def feud_next_round(sid):
+        """Start next round in Speed Feud"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            result = feud_service.next_round(session_id)
+            
+            if 'error' in result:
+                await sio.emit('feud_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Notify both players
+            player1_socket = session_data['user1']['socket_id']
+            player2_socket = session_data['user2']['socket_id']
+            
+            await sio.emit('feud_round_started', {
+                'round': result['round'],
+                'game_state': result['game_state']
+            }, room=player1_socket)
+            
+            await sio.emit('feud_round_started', {
+                'round': result['round'],
+                'game_state': result['game_state']
+            }, room=player2_socket)
+            
+            logger.info(f"Feud round {result['round']} started in session {session_id}")
+        
+        except Exception as e:
+            logger.error(f"Error in feud_next_round: {e}")
+    
+    async def _emit_feud_game_ended(sio, session_data, result):
+        """Helper to emit feud game ended event"""
+        player1_socket = session_data['user1']['socket_id']
+        player2_socket = session_data['user2']['socket_id']
+        
+        # Track games won for the winner
+        winner_id = result.get('winner_id')
+        if winner_id and winner_id != 'tie':
+            winner_is_guest = False
+            if winner_id == session_data['user1']['user_id']:
+                winner_is_guest = session_data['user1'].get('is_guest', False)
+            else:
+                winner_is_guest = session_data['user2'].get('is_guest', False)
+            await stats_service.increment_games_won(winner_id, winner_is_guest)
+        
+        game_end_data = {
+            'winner_id': result.get('winner_id'),
+            'winner_username': result.get('winner_username'),
+            'player1_score': result.get('player1_score', 0),
+            'player2_score': result.get('player2_score', 0),
+            'game_state': result.get('game_state')
+        }
+        
+        await sio.emit('feud_game_ended', game_end_data, room=player1_socket)
+        await sio.emit('feud_game_ended', game_end_data, room=player2_socket)
     
     # ============================================
     # WEBRTC SIGNALING HANDLERS

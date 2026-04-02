@@ -31,8 +31,45 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ## ✅ LATEST UPDATES (April 2025)
 
+### Raccoon Feud → SPEED MODE Conversion (April 2, 2025) ✅
+**Complete redesign from turn-based to fast-paced typing competition:**
+
+1. **Backend game_service_v2.py - Speed Mode Logic:**
+   - REMOVED: Turn-based gameplay, strike system, steal mechanics
+   - ADDED: Simultaneous typing (both players compete at once)
+   - First correct guess LOCKS the answer and awards points
+   - 5 answers per question (with varying points: 7, 5, 5, 5, 3 style)
+   - 5 rounds total, 30 seconds per round
+   - New handlers: `skip_round`, `time_up`, `next_round`
+   - Winner determined by total score across all rounds
+
+2. **Socket handlers updated:**
+   - `feud_skip_round` - Skip current round
+   - `feud_time_up` - Handle round timeout
+   - `feud_next_round` - Move to next round
+   - `feud_round_ended` - Broadcast round end with revealed answers
+   - `feud_round_started` - Broadcast new round start
+
+3. **FeudGame.jsx - Complete Rewrite:**
+   - Clean UI matching reference images
+   - Player cards with scores at top
+   - Round counter with timer
+   - Question box with purple gradient
+   - 5 answers board with locked status
+   - Instant feedback on correct guesses
+   - Round end overlay showing scores
+   - Game end overlay with winner celebration
+   - Mobile keyboard viewport handling
+
+4. **Game Feel:**
+   - Fast, competitive, addictive
+   - Zero delay on guess submissions
+   - Instant visual feedback
+   - "TYPE FAST OR LOSE" energy
+
 ### Draw & Guess Game Implementation (April 2, 2025) ✅
 **Complete real-time multiplayer drawing game added:**
+(details from previous update)
 
 1. **DrawGame.jsx - Full Implementation:**
    - Real-time drawing canvas with WebSocket sync

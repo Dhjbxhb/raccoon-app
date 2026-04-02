@@ -365,20 +365,27 @@ def fuzzy_match_answer(guess: str, answer_data: dict, threshold: float = 65) -> 
 
 
 # ============================================================
-# RACCOON FEUD GAME SERVICE
+# RACCOON FEUD GAME SERVICE - SPEED MODE
 # ============================================================
 
 class FeudGameService:
     """
-    Manages Raccoon Feud games with full DB persistence
+    Raccoon Feud SPEED MODE - Fast typing competition:
+    - NO TURNS - All players type simultaneously
+    - First to type correct answer LOCKS it and gets points
+    - 5 answers per question, 5 rounds total
+    - Fast transitions, instant gameplay
     """
+    
+    ROUND_TIME_SECONDS = 30  # Seconds per round
+    TOTAL_ROUNDS = 5
     
     def __init__(self):
         self.active_games: Dict[str, dict] = {}
     
     def create_game(self, session_id: str, player1_id: str, player2_id: str,
                     player1_username: str = "", player2_username: str = "") -> dict:
-        """Create new Feud game"""
+        """Create new Speed Feud game"""
         
         # Check for existing active game
         if session_id in self.active_games:
@@ -388,8 +395,8 @@ class FeudGameService:
         
         game_id = str(uuid.uuid4())
         
-        # Select 5 random questions
-        selected = random.sample(FEUD_QUESTIONS, min(5, len(FEUD_QUESTIONS)))
+        # Select 5 random questions for 5 rounds
+        selected = random.sample(FEUD_QUESTIONS, min(self.TOTAL_ROUNDS, len(FEUD_QUESTIONS)))
         
         questions = []
         for q in selected:
@@ -403,7 +410,8 @@ class FeudGameService:
                         'alt': a.get('alt', []),
                         'points': a['points'],
                         'revealed': False,
-                        'guessed_by': None
+                        'claimed_by_id': None,
+                        'claimed_by_username': None
                     }
                     for a in q['answers']
                 ]
@@ -412,10 +420,11 @@ class FeudGameService:
         game = {
             'game_id': game_id,
             'session_id': session_id,
-            'game_type': 'feud',
+            'game_type': 'feud_speed',
             
             'questions': questions,
-            'current_question_index': 0,
+            'current_round': 1,
+            'total_rounds': self.TOTAL_ROUNDS,
             'current_question': self._prepare_question(questions[0]),
             
             'player1_id': player1_id,
@@ -423,17 +432,16 @@ class FeudGameService:
             'player1_username': player1_username or 'Player 1',
             'player2_username': player2_username or 'Player 2',
             
+            # Total scores across all rounds
             'player1_score': 0,
             'player2_score': 0,
-            'player1_strikes': 0,
-            'player2_strikes': 0,
-            'player1_round_score': 0,
-            'player2_round_score': 0,
             
-            'current_player': player1_id,
-            'is_steal_attempt': False,
+            # Round timing
+            'round_start_time': datetime.now(timezone.utc).isoformat(),
+            'round_time_limit': self.ROUND_TIME_SECONDS,
             
             'status': 'active',
+            'round_active': True,
             'winner_id': None,
             'winner_username': None,
             
@@ -445,23 +453,26 @@ class FeudGameService:
         }
         
         self.active_games[session_id] = game
-        logger.info(f"Created Feud game {game_id} for session {session_id}")
+        logger.info(f"Created Speed Feud game {game_id} for session {session_id}")
         
         return self._get_public_state(game)
     
     def _prepare_question(self, q: dict) -> dict:
-        """Prepare question state"""
+        """Prepare question state for a round"""
         return {
             'question_id': q['question_id'],
             'question': q['question'],
             'category': q.get('category', 'general'),
             'answers': q['answers'],
             'total_points': sum(a['points'] for a in q['answers']),
-            'revealed_count': 0
+            'claimed_count': 0
         }
     
     def submit_guess(self, session_id: str, player_id: str, guess: str) -> dict:
-        """Submit a guess"""
+        """
+        Submit a guess - SPEED MODE
+        Any player can guess at any time. First correct guess locks the answer.
+        """
         game = self.active_games.get(session_id)
         if not game:
             return {'error': 'Game not found'}
@@ -469,39 +480,40 @@ class FeudGameService:
         if game['status'] != 'active':
             return {'error': 'Game not active'}
         
-        if game['current_player'] != player_id:
-            return {'error': 'Not your turn'}
+        if not game['round_active']:
+            return {'error': 'Round not active'}
         
         guess = guess.strip()
         if not guess:
             return {'error': 'Empty guess'}
         
         current_q = game['current_question']
+        player_username = game['player1_username'] if player_id == game['player1_id'] else game['player2_username']
         
-        # Find match
+        # Find match among UNCLAIMED answers only
         matched = None
         match_score = 0
+        matched_idx = -1
         
-        for ans in current_q['answers']:
-            if ans['revealed']:
-                continue
+        for idx, ans in enumerate(current_q['answers']):
+            if ans['claimed_by_id']:
+                continue  # Already claimed
             
             is_match, score = fuzzy_match_answer(guess, ans)
             if is_match and score > match_score:
                 matched = ans
                 match_score = score
+                matched_idx = idx
         
         result = {
             'player_id': player_id,
-            'player_username': game['player1_username'] if player_id == game['player1_id'] else game['player2_username'],
+            'player_username': player_username,
             'guess': guess,
             'correct': False,
             'matched_answer': None,
+            'matched_index': -1,
             'points': 0,
-            'strike': False,
-            'question_ended': False,
-            'steal_opportunity': False,
-            'round_winner': None
+            'round_ended': False
         }
         
         # Record guess
@@ -509,93 +521,114 @@ class FeudGameService:
             'player_id': player_id,
             'guess': guess,
             'correct': matched is not None,
+            'round': game['current_round'],
             'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
         if matched:
-            # Correct!
+            # CORRECT! Lock the answer for this player
+            matched['claimed_by_id'] = player_id
+            matched['claimed_by_username'] = player_username
             matched['revealed'] = True
-            matched['guessed_by'] = player_id
             points = matched['points']
             
+            # Award points
             if player_id == game['player1_id']:
                 game['player1_score'] += points
-                game['player1_round_score'] += points
-                game['player1_strikes'] = 0
             else:
                 game['player2_score'] += points
-                game['player2_round_score'] += points
-                game['player2_strikes'] = 0
             
-            current_q['revealed_count'] = sum(1 for a in current_q['answers'] if a['revealed'])
+            current_q['claimed_count'] = sum(1 for a in current_q['answers'] if a['claimed_by_id'])
             
             result['correct'] = True
             result['matched_answer'] = matched['answer']
+            result['matched_index'] = matched_idx
             result['points'] = points
             
-            # Check all revealed
-            if all(a['revealed'] for a in current_q['answers']):
-                result['question_ended'] = True
-                result['reason'] = 'all_revealed'
-                result['round_winner'] = self._get_round_winner(game)
-                self._next_question(game)
-        else:
-            # Wrong
-            result['strike'] = True
-            
-            if player_id == game['player1_id']:
-                game['player1_strikes'] += 1
-                strikes = game['player1_strikes']
-            else:
-                game['player2_strikes'] += 1
-                strikes = game['player2_strikes']
-            
-            if strikes >= 3:
-                if not game['is_steal_attempt']:
-                    game['is_steal_attempt'] = True
-                    game['current_player'] = game['player2_id'] if player_id == game['player1_id'] else game['player1_id']
-                    result['steal_opportunity'] = True
-                    result['steal_player'] = game['current_player']
-                else:
-                    result['question_ended'] = True
-                    result['reason'] = 'steal_failed'
-                    result['round_winner'] = self._get_round_winner(game)
-                    for a in current_q['answers']:
-                        a['revealed'] = True
-                    self._next_question(game)
-            else:
-                game['current_player'] = game['player2_id'] if player_id == game['player1_id'] else game['player1_id']
+            # Check if all answers claimed = round ends
+            if all(a['claimed_by_id'] for a in current_q['answers']):
+                result['round_ended'] = True
+                result['reason'] = 'all_claimed'
         
         result['game_state'] = self._get_public_state(game)
         return result
     
-    def _get_round_winner(self, game: dict) -> dict:
-        """Get round winner"""
-        if game['player1_round_score'] > game['player2_round_score']:
-            return {'player_id': game['player1_id'], 'username': game['player1_username'], 'score': game['player1_round_score']}
-        elif game['player2_round_score'] > game['player1_round_score']:
-            return {'player_id': game['player2_id'], 'username': game['player2_username'], 'score': game['player2_round_score']}
-        return {'player_id': 'tie', 'username': 'Tie', 'score': game['player1_round_score']}
+    def skip_round(self, session_id: str) -> dict:
+        """Skip to next round (either player can trigger)"""
+        game = self.active_games.get(session_id)
+        if not game:
+            return {'error': 'Game not found'}
+        
+        return self._end_round(game, reason='skipped')
     
-    def _next_question(self, game: dict):
-        """Move to next question"""
-        game['player1_round_score'] = 0
-        game['player2_round_score'] = 0
-        game['player1_strikes'] = 0
-        game['player2_strikes'] = 0
-        game['is_steal_attempt'] = False
+    def time_up(self, session_id: str) -> dict:
+        """Handle round timeout"""
+        game = self.active_games.get(session_id)
+        if not game:
+            return {'error': 'Game not found'}
         
-        game['current_question_index'] += 1
+        if not game['round_active']:
+            return {'error': 'Round already ended'}
         
-        if game['current_question_index'] >= len(game['questions']):
+        return self._end_round(game, reason='timeout')
+    
+    def _end_round(self, game: dict, reason: str = 'timeout') -> dict:
+        """End current round and reveal all answers"""
+        game['round_active'] = False
+        
+        # Reveal all unclaimed answers
+        current_q = game['current_question']
+        for ans in current_q['answers']:
+            ans['revealed'] = True
+        
+        result = {
+            'round': game['current_round'],
+            'reason': reason,
+            'player1_score': game['player1_score'],
+            'player2_score': game['player2_score'],
+            'answers': current_q['answers'],
+            'game_over': False
+        }
+        
+        # Check if game is over
+        if game['current_round'] >= game['total_rounds']:
             self._finish_game(game)
-        else:
-            game['current_question'] = self._prepare_question(game['questions'][game['current_question_index']])
-            game['current_player'] = game['player2_id'] if game['current_question_index'] % 2 else game['player1_id']
+            result['game_over'] = True
+            result['winner_id'] = game['winner_id']
+            result['winner_username'] = game['winner_username']
+        
+        result['game_state'] = self._get_public_state(game)
+        return result
+    
+    def next_round(self, session_id: str) -> dict:
+        """Move to next round"""
+        game = self.active_games.get(session_id)
+        if not game:
+            return {'error': 'Game not found'}
+        
+        if game['status'] != 'active':
+            return {'error': 'Game not active'}
+        
+        if game['current_round'] >= game['total_rounds']:
+            return {'error': 'Game already complete'}
+        
+        # Move to next round
+        game['current_round'] += 1
+        game['current_question'] = self._prepare_question(game['questions'][game['current_round'] - 1])
+        game['round_active'] = True
+        game['round_start_time'] = datetime.now(timezone.utc).isoformat()
+        
+        logger.info(f"Feud game moving to round {game['current_round']}")
+        
+        return {
+            'round': game['current_round'],
+            'game_state': self._get_public_state(game)
+        }
     
     def _finish_game(self, game: dict):
-        """Finish game"""
+        """Finish game and determine winner"""
         game['status'] = 'finished'
+        game['round_active'] = False
         game['finished_at'] = datetime.now(timezone.utc).isoformat()
         
         if game['player1_score'] > game['player2_score']:
@@ -608,7 +641,7 @@ class FeudGameService:
             game['winner_id'] = 'tie'
             game['winner_username'] = 'Tie'
         
-        logger.info(f"Feud game finished: {game['winner_username']} wins")
+        logger.info(f"Speed Feud game finished: {game['winner_username']} wins with {max(game['player1_score'], game['player2_score'])} points")
     
     async def save_to_db(self, session_id: str):
         """Save game to MongoDB"""
@@ -631,7 +664,7 @@ class FeudGameService:
                 'winner_id': game.get('winner_id'),
                 'winner_username': game.get('winner_username'),
                 'status': game['status'],
-                'questions_played': game['current_question_index'] + 1,
+                'rounds_played': game['current_round'],
                 'guess_history': game['guess_history'],
                 'created_at': game['created_at'],
                 'finished_at': game.get('finished_at')
@@ -643,19 +676,19 @@ class FeudGameService:
                 upsert=True
             )
             
-            logger.info(f"Saved Feud game {game['game_id']} to DB")
+            logger.info(f"Saved Speed Feud game {game['game_id']} to DB")
             return doc
         except Exception as e:
-            logger.error(f"Error saving Feud game: {e}")
+            logger.error(f"Error saving Speed Feud game: {e}")
             return None
     
     def _get_public_state(self, game: dict) -> dict:
-        """Get public game state"""
+        """Get public game state for Speed Feud"""
         cq = game['current_question']
         
         return {
             'game_id': game['game_id'],
-            'game_type': 'feud',
+            'game_type': 'feud_speed',
             
             'current_question': {
                 'question_id': cq['question_id'],
@@ -664,18 +697,19 @@ class FeudGameService:
                 'answers': [
                     {
                         'answer': a['answer'] if a['revealed'] else '???',
-                        'points': a['points'] if a['revealed'] else '?',
+                        'points': a['points'],
                         'revealed': a['revealed'],
-                        'guessed_by': a.get('guessed_by')
+                        'claimed_by_id': a.get('claimed_by_id'),
+                        'claimed_by_username': a.get('claimed_by_username')
                     }
                     for a in cq['answers']
                 ],
                 'total_points': cq['total_points'],
-                'revealed_count': cq.get('revealed_count', 0)
+                'claimed_count': cq.get('claimed_count', 0)
             },
             
-            'question_number': game['current_question_index'] + 1,
-            'total_questions': len(game['questions']),
+            'current_round': game['current_round'],
+            'total_rounds': game['total_rounds'],
             
             'player1_id': game['player1_id'],
             'player2_id': game['player2_id'],
@@ -684,13 +718,10 @@ class FeudGameService:
             
             'player1_score': game['player1_score'],
             'player2_score': game['player2_score'],
-            'player1_strikes': game['player1_strikes'],
-            'player2_strikes': game['player2_strikes'],
-            'player1_round_score': game.get('player1_round_score', 0),
-            'player2_round_score': game.get('player2_round_score', 0),
             
-            'current_player': game['current_player'],
-            'is_steal_attempt': game.get('is_steal_attempt', False),
+            'round_start_time': game['round_start_time'],
+            'round_time_limit': game['round_time_limit'],
+            'round_active': game['round_active'],
             
             'status': game['status'],
             'winner_id': game.get('winner_id'),
@@ -715,9 +746,6 @@ class FeudGameService:
         game = self.active_games.get(session_id)
         return game is not None and game['status'] == 'active'
 
-
-# ============================================================
-# TRUTH OR DARE PROMPTS BANK
 
 # Global service instances
 feud_service = FeudGameService()
