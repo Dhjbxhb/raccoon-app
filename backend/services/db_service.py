@@ -2,21 +2,42 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from typing import Optional
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
+
+# Local MongoDB URL as fallback when Atlas is unreachable
+LOCAL_MONGO_URL = "mongodb://localhost:27017"
 
 class DatabaseService:
     client: Optional[AsyncIOMotorClient] = None
     db = None
     _indexes_created = False
+    _using_local = False
+    _connectivity_checked = False
     
     @classmethod
-    def get_db(cls):
-        if cls.db is None:
-            mongo_url = os.environ['MONGO_URL']
+    async def _check_and_fallback(cls):
+        """Check Atlas connectivity and fallback to local if needed"""
+        if cls._connectivity_checked:
+            return
+        
+        mongo_url = os.environ.get('MONGO_URL', LOCAL_MONGO_URL)
+        db_name = os.environ.get('DB_NAME', 'raccoon_app')
+        
+        # Try primary (Atlas) first
+        try:
+            test_client = AsyncIOMotorClient(
+                mongo_url,
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000
+            )
+            # Test connection with ping
+            await asyncio.wait_for(test_client.admin.command('ping'), timeout=3.0)
+            
             cls.client = AsyncIOMotorClient(
                 mongo_url,
-                maxPoolSize=50,  # Connection pool for performance
+                maxPoolSize=50,
                 minPoolSize=10,
                 maxIdleTimeMS=45000,
                 waitQueueTimeoutMS=10000,
@@ -24,7 +45,64 @@ class DatabaseService:
                 connectTimeoutMS=5000,
                 socketTimeoutMS=30000
             )
-            cls.db = cls.client[os.environ['DB_NAME']]
+            cls.db = cls.client[db_name]
+            logger.info("Connected to MongoDB Atlas")
+            cls._connectivity_checked = True
+            return
+        except Exception as e:
+            logger.warning(f"MongoDB Atlas unavailable: {e}")
+        
+        # Fallback to local MongoDB
+        try:
+            cls.client = AsyncIOMotorClient(
+                LOCAL_MONGO_URL,
+                serverSelectionTimeoutMS=2000,
+                connectTimeoutMS=2000,
+                maxPoolSize=50,
+                minPoolSize=5
+            )
+            await asyncio.wait_for(cls.client.admin.command('ping'), timeout=2.0)
+            cls.db = cls.client[db_name]
+            cls._using_local = True
+            cls._connectivity_checked = True
+            logger.info("Using local MongoDB fallback")
+        except Exception as e2:
+            logger.error(f"Failed to connect to local MongoDB fallback: {e2}")
+            # Last resort - keep the Atlas client, operations will timeout but app runs
+            cls.client = AsyncIOMotorClient(
+                mongo_url,
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=5000
+            )
+            cls.db = cls.client[db_name]
+            cls._connectivity_checked = True
+    
+    @classmethod
+    def get_db(cls):
+        """Get database instance - may need async check first"""
+        if cls.db is None:
+            # Synchronous initial setup - async check happens on first operation
+            mongo_url = os.environ.get('MONGO_URL', LOCAL_MONGO_URL)
+            db_name = os.environ.get('DB_NAME', 'raccoon_app')
+            
+            cls.client = AsyncIOMotorClient(
+                mongo_url,
+                maxPoolSize=50,
+                minPoolSize=10,
+                maxIdleTimeMS=45000,
+                waitQueueTimeoutMS=10000,
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=5000,
+                socketTimeoutMS=30000
+            )
+            cls.db = cls.client[db_name]
+        return cls.db
+    
+    @classmethod
+    async def get_db_async(cls):
+        """Get database instance with connectivity check"""
+        if not cls._connectivity_checked:
+            await cls._check_and_fallback()
         return cls.db
     
     @classmethod

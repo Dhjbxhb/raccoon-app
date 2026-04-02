@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy } from 'lucide-react';
+import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/Button';
@@ -262,7 +262,7 @@ const Dashboard = () => {
                 </span>
               )}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Raccoon Feud Card */}
               <div 
                 className={`group relative p-8 bg-gradient-to-br from-[#1a237e]/50 to-[#0d1442]/50 backdrop-blur-xl border ${isPremium ? 'border-[#ffd700]/30 hover:border-[#ffd700]/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(255,215,0,0.2)]`}
@@ -318,6 +318,36 @@ const Dashboard = () => {
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-purple-500/60 text-sm">
                   <span>🎴 Card Game</span>
+                  <span>•</span>
+                  <span>2 Players</span>
+                </div>
+              </div>
+              
+              {/* Draw & Guess Card */}
+              <div 
+                className={`group relative p-8 bg-gradient-to-br from-[#06b6d4]/40 to-[#0891b2]/40 backdrop-blur-xl border ${isPremium ? 'border-cyan-500/30 hover:border-cyan-500/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]`}
+                onClick={() => handleGameClick('Draw & Guess')}
+                data-testid="draw-game-card"
+              >
+                {!isPremium && (
+                  <div className="absolute top-4 right-4 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center border border-yellow-400/30">
+                    <Lock size={16} className="text-yellow-400" />
+                  </div>
+                )}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-[#06b6d4] to-[#22d3ee] rounded-2xl flex items-center justify-center">
+                    <Pencil size={28} className="text-white" />
+                  </div>
+                  <span className={`px-3 py-1 ${isPremium ? 'bg-cyan-500/20 text-cyan-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
+                    {isPremium ? 'PLAY NOW' : 'PREMIUM'}
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Draw & Guess</h3>
+                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  {isPremium ? 'Draw and guess words in real-time!' : 'Unlock with Premium to play!'}
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-cyan-500/60 text-sm">
+                  <span>✏️ Drawing Game</span>
                   <span>•</span>
                   <span>2 Players</span>
                 </div>

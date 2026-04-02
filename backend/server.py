@@ -85,7 +85,17 @@ logger = logging.getLogger(__name__)
 async def startup_event():
     import asyncio
     
-    # Create database indexes with timeout (non-blocking)
+    # Check MongoDB connectivity and setup fallback if needed
+    try:
+        from services.db_service import DatabaseService
+        await asyncio.wait_for(DatabaseService.get_db_async(), timeout=10.0)
+        logger.info("Database connection established")
+    except asyncio.TimeoutError:
+        logger.warning("Database connection check timed out - using default")
+    except Exception as e:
+        logger.warning(f"Database connection check failed: {e} - using default")
+    
+    # Create database indexes (non-blocking)
     try:
         from services.db_service import DatabaseService
         await asyncio.wait_for(DatabaseService.create_indexes(), timeout=10.0)
@@ -95,7 +105,7 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Database index creation failed: {e} - continuing without indexes")
     
-    # Initialize database with timeout (non-blocking)
+    # Initialize database (non-blocking)
     try:
         from services.db_init_service import initialize_database
         await asyncio.wait_for(initialize_database(), timeout=15.0)
