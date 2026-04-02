@@ -223,6 +223,25 @@ const Match = () => {
       toast.error(data.message || 'An error occurred');
     };
     
+    // Game-specific error handlers
+    const handleUnoError = (data) => {
+      console.log('UNO Error:', data);
+      setGameLoading(null);
+      toast.error(data.message || 'UNO game error');
+    };
+    
+    const handleDrawError = (data) => {
+      console.log('Draw Error:', data);
+      setGameLoading(null);
+      toast.error(data.message || 'Draw game error');
+    };
+    
+    const handleFeudError = (data) => {
+      console.log('Feud Error:', data);
+      setGameLoading(null);
+      toast.error(data.message || 'Feud game error');
+    };
+    
     const handleSessionRestored = (data) => {
       if (data.active_game?.game_type) {
         const type = data.active_game.game_type;
@@ -244,6 +263,9 @@ const Match = () => {
     socket.on('premium_required', handlePremiumRequired);
     socket.on('session_restored', handleSessionRestored);
     socket.on('error', handleError);
+    socket.on('uno_error', handleUnoError);
+    socket.on('draw_error', handleDrawError);
+    socket.on('feud_error', handleFeudError);
     
     return () => {
       socket.off('feud_game_started', handleFeudStarted);
@@ -257,6 +279,9 @@ const Match = () => {
       socket.off('premium_required', handlePremiumRequired);
       socket.off('session_restored', handleSessionRestored);
       socket.off('error', handleError);
+      socket.off('uno_error', handleUnoError);
+      socket.off('draw_error', handleDrawError);
+      socket.off('feud_error', handleFeudError);
     };
   }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal]);
 
@@ -327,8 +352,12 @@ const Match = () => {
   };
 
   // ========== GAME CONTROL FUNCTIONS ==========
+  const gameTimeoutRef = useRef(null);
+  const gameRetryCountRef = useRef(0);
+  const MAX_GAME_RETRIES = 2;
+  
   const startGame = useCallback((gameType) => {
-    console.log('=== START GAME ===', gameType);
+    console.log('=== START GAME ===', gameType, 'Retry:', gameRetryCountRef.current);
     
     if (!isPremium) {
       const gameNames = { 'feud': 'Raccoon Feud', 'uno': 'UNO', 'draw': 'Draw & Guess' };
@@ -351,6 +380,12 @@ const Match = () => {
       return;
     }
     
+    // Clear any existing timeout
+    if (gameTimeoutRef.current) {
+      clearTimeout(gameTimeoutRef.current);
+      gameTimeoutRef.current = null;
+    }
+    
     // Set loading state for visual feedback
     setGameLoading(gameType);
     
@@ -364,14 +399,53 @@ const Match = () => {
     socket.emit(eventMap[gameType]);
     console.log('EMITTED:', eventMap[gameType]);
     
-    // Timeout for loading state
-    setTimeout(() => {
-      if (gameLoading === gameType) {
-        setGameLoading(null);
-      }
-    }, 5000);
+    // Timeout with retry logic - 3 seconds
+    gameTimeoutRef.current = setTimeout(() => {
+      // Use functional update to get current state
+      setGameLoading((currentLoading) => {
+        if (currentLoading === gameType) {
+          // Game didn't start - try retry
+          if (gameRetryCountRef.current < MAX_GAME_RETRIES) {
+            gameRetryCountRef.current++;
+            console.log('Game start timeout, retrying...', gameRetryCountRef.current);
+            toast.info('Connecting to game server...', { duration: 1500 });
+            socket.emit(eventMap[gameType]);
+            
+            // Set another timeout for retry
+            gameTimeoutRef.current = setTimeout(() => {
+              setGameLoading((stillLoading) => {
+                if (stillLoading === gameType) {
+                  toast.error('Failed to start game. Please try again.');
+                  gameRetryCountRef.current = 0;
+                  return null;
+                }
+                return stillLoading;
+              });
+            }, 3000);
+            
+            return currentLoading; // Keep loading
+          } else {
+            toast.error('Failed to start game. Please try again.');
+            gameRetryCountRef.current = 0;
+            return null;
+          }
+        }
+        return currentLoading;
+      });
+    }, 3000);
     
-  }, [isPremium, isGameActive, state, socket, sessionId, showPremiumModal, gameLoading]);
+  }, [isPremium, isGameActive, state, socket, sessionId, showPremiumModal]);
+  
+  // Reset retry count when game starts successfully
+  useEffect(() => {
+    if (activeGame) {
+      gameRetryCountRef.current = 0;
+      if (gameTimeoutRef.current) {
+        clearTimeout(gameTimeoutRef.current);
+        gameTimeoutRef.current = null;
+      }
+    }
+  }, [activeGame]);
   
   const closeGame = useCallback(() => {
     if (socket && activeGame) {

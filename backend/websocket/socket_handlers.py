@@ -850,7 +850,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:
-                await sio.emit('error', {'message': 'No active match session'}, room=sid)
+                logger.warning(f"No session found for user {user_id} trying to start Feud game")
+                await sio.emit('feud_error', {'message': 'No active match session. Please reconnect.'}, room=sid)
                 return
             
             session_id = session_data['session_id']
@@ -895,7 +896,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         except Exception as e:
             logger.error(f"Error starting Feud game: {e}")
-            await sio.emit('error', {'message': 'Failed to start game'}, room=sid)
+            await sio.emit('feud_error', {'message': 'Failed to start game'}, room=sid)
     
     @sio.event
     async def feud_guess(sid, data):
@@ -1268,14 +1269,19 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
+                is_premium = session.get('is_premium', False)
+                
                 if not user_id:
                     await sio.emit('uno_error', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            # Check premium status
-            users_collection = get_users_collection()
-            user_data = await users_collection.find_one({'user_id': user_id})
-            is_premium = user_data.get('premium_status', False) if user_data else False
+            # Check premium status from session (already validated during auth)
+            # For non-guests, also do a fresh check to ensure subscription hasn't expired
+            if not is_guest and not is_premium:
+                users_collection = get_users_collection()
+                user_data = await users_collection.find_one({'user_id': user_id})
+                is_premium = user_data.get('premium_status', False) if user_data else False
             
             if not is_premium:
                 await sio.emit('premium_required', {
@@ -1287,7 +1293,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Get active session
             session_data = matching_queue.get_session(user_id)
             if not session_data:
-                await sio.emit('uno_error', {'message': 'No active match session'}, room=sid)
+                logger.warning(f"No session found for user {user_id} trying to start UNO")
+                await sio.emit('uno_error', {'message': 'No active match session. Please reconnect.'}, room=sid)
                 return
             
             room_id = session_data['session_id']
@@ -1809,7 +1816,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             session_data = matching_queue.get_session(user_id)
             if not session_data:
-                await sio.emit('draw_error', {'message': 'No active match session'}, room=sid)
+                logger.warning(f"No session found for user {user_id} trying to start Draw game")
+                await sio.emit('draw_error', {'message': 'No active match session. Please reconnect.'}, room=sid)
                 return
             
             session_id = session_data['session_id']
