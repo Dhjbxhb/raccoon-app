@@ -6,8 +6,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * Features:
  * - Queue management (join, leave)
  * - Match state tracking (idle, searching, matched)
- * - Skip with clean state reset
- * - Auto-rejoin queue after skip
+ * - Skip with clean state reset and retry
+ * - Auto-rejoin queue after skip (3 sec timeout with retry)
  * - Block user functionality
  * - Prevents stale state leaking between matches
  * - Optimized socket listener management
@@ -23,8 +23,11 @@ export const useMatching = (socket) => {
   // Skip handling state
   const [isSkipping, setIsSkipping] = useState(false);
   const skipTimeoutRef = useRef(null);
+  const matchRetryTimeoutRef = useRef(null);
   const lastFiltersRef = useRef({ gender: 'any', country: 'ANY' });
   const autoRejoinRef = useRef(true);
+  const skipRetryCountRef = useRef(0);
+  const MAX_SKIP_RETRIES = 2;
   
   // Track if component is mounted to prevent state updates after unmount
   const mountedRef = useRef(true);
@@ -62,59 +65,99 @@ export const useMatching = (socket) => {
 
   const handleMatchFound = useCallback((data) => {
     if (!mountedRef.current) return;
+    
+    console.log('[Matching] Match found:', data.session_id);
+    
     setState('matched');
     setPartner(data.partner);
     setSessionId(data.session_id);
     setQueuePosition(null);
     setIsSkipping(false);
+    skipRetryCountRef.current = 0;
     
-    // Clear any pending skip timeout
+    // Clear any pending timeouts
     if (skipTimeoutRef.current) {
       clearTimeout(skipTimeoutRef.current);
       skipTimeoutRef.current = null;
+    }
+    if (matchRetryTimeoutRef.current) {
+      clearTimeout(matchRetryTimeoutRef.current);
+      matchRetryTimeoutRef.current = null;
     }
   }, []);
 
   const handleMatchEnded = useCallback((data) => {
     if (!mountedRef.current) return;
     
+    console.log('[Matching] Match ended:', data.reason);
+    
     // Clean up state
     resetMatchState();
+    skipRetryCountRef.current = 0;
+    
+    // Clear any pending timeouts
+    if (skipTimeoutRef.current) {
+      clearTimeout(skipTimeoutRef.current);
+      skipTimeoutRef.current = null;
+    }
     
     // Auto-rejoin queue if we were the one who skipped
-    if (data.reason === 'skipped' && autoRejoinRef.current) {
-      // Small delay to ensure clean state transition
-      setTimeout(() => {
-        if (mountedRef.current && socket?.connected) {
-          setState('searching');
-          socket.emit('join_queue', {
-            gender_filter: lastFiltersRef.current.gender,
-            country_filter: lastFiltersRef.current.country
-          });
-        }
-      }, 100);
+    if ((data.reason === 'skipped' || data.reason === 'no_session') && autoRejoinRef.current) {
+      // Immediate rejoin for fast matching
+      if (mountedRef.current && socket?.connected) {
+        console.log('[Matching] Auto-rejoining queue after skip');
+        setState('searching');
+        socket.emit('join_queue', {
+          gender_filter: lastFiltersRef.current.gender,
+          country_filter: lastFiltersRef.current.country
+        });
+        
+        // Set a retry timeout in case no match found in 3 seconds
+        matchRetryTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current && socket?.connected) {
+            const currentState = state;
+            if (currentState === 'searching') {
+              console.log('[Matching] No match in 3s, re-emitting join_queue');
+              socket.emit('join_queue', {
+                gender_filter: lastFiltersRef.current.gender,
+                country_filter: lastFiltersRef.current.country
+              });
+            }
+          }
+        }, 3000);
+      }
+    } else if (data.reason === 'partner_skipped' && autoRejoinRef.current) {
+      // Partner skipped us - also auto-rejoin
+      if (mountedRef.current && socket?.connected) {
+        console.log('[Matching] Partner skipped, auto-rejoining queue');
+        setState('searching');
+        socket.emit('join_queue', {
+          gender_filter: lastFiltersRef.current.gender,
+          country_filter: lastFiltersRef.current.country
+        });
+      }
     } else {
-      // Partner skipped or other reason - return to idle
+      // Other reason - return to idle
       setState('idle');
     }
-  }, [socket, resetMatchState]);
+  }, [socket, resetMatchState, state]);
 
   const handlePartnerDisconnected = useCallback((data) => {
     if (!mountedRef.current) return;
     
-    resetMatchState();
+    console.log('[Matching] Partner disconnected');
     
-    // Auto-rejoin queue
+    resetMatchState();
+    skipRetryCountRef.current = 0;
+    
+    // Auto-rejoin queue immediately
     if (autoRejoinRef.current && socket?.connected) {
-      setTimeout(() => {
-        if (mountedRef.current) {
-          setState('searching');
-          socket.emit('join_queue', {
-            gender_filter: lastFiltersRef.current.gender,
-            country_filter: lastFiltersRef.current.country
-          });
-        }
-      }, 100);
+      console.log('[Matching] Auto-rejoining after partner disconnect');
+      setState('searching');
+      socket.emit('join_queue', {
+        gender_filter: lastFiltersRef.current.gender,
+        country_filter: lastFiltersRef.current.country
+      });
     } else {
       setState('idle');
     }
@@ -141,10 +184,31 @@ export const useMatching = (socket) => {
   }, []);
 
   const handleError = useCallback((data) => {
-    console.error('Socket error:', data);
+    console.error('[Matching] Socket error:', data);
     if (!mountedRef.current) return;
     setIsSkipping(false);
+    skipRetryCountRef.current = 0;
   }, []);
+  
+  // Handle skip failure - retry automatically
+  const handleSkipFailed = useCallback((data) => {
+    console.error('[Matching] Skip failed:', data);
+    if (!mountedRef.current) return;
+    
+    // Retry skip if under limit
+    if (skipRetryCountRef.current < MAX_SKIP_RETRIES && socket?.connected) {
+      skipRetryCountRef.current++;
+      console.log('[Matching] Retrying skip, attempt:', skipRetryCountRef.current);
+      socket.emit('skip_match');
+    } else {
+      // Max retries reached - force reset state
+      console.warn('[Matching] Max skip retries reached, forcing reset');
+      setIsSkipping(false);
+      resetMatchState();
+      setState('idle');
+      skipRetryCountRef.current = 0;
+    }
+  }, [socket, resetMatchState]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -156,6 +220,11 @@ export const useMatching = (socket) => {
         clearTimeout(skipTimeoutRef.current);
         skipTimeoutRef.current = null;
       }
+      if (matchRetryTimeoutRef.current) {
+        clearTimeout(matchRetryTimeoutRef.current);
+        matchRetryTimeoutRef.current = null;
+      }
+      skipRetryCountRef.current = 0;
     };
   }, []);
 
@@ -175,6 +244,7 @@ export const useMatching = (socket) => {
     socket.on('session_restored', handleSessionRestored);
     socket.on('partner_reconnected', handlePartnerReconnected);
     socket.on('error', handleError);
+    socket.on('skip_failed', handleSkipFailed);
 
     return () => {
       socket.off('queue_joined', handleQueueJoined);
@@ -185,9 +255,10 @@ export const useMatching = (socket) => {
       socket.off('session_restored', handleSessionRestored);
       socket.off('partner_reconnected', handlePartnerReconnected);
       socket.off('error', handleError);
+      socket.off('skip_failed', handleSkipFailed);
       socketIdRef.current = null;
     };
-  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handlePartnerDisconnected, handleSessionRestored, handlePartnerReconnected, handleError]);
+  }, [socket, handleQueueJoined, handleQueueLeft, handleMatchFound, handleMatchEnded, handlePartnerDisconnected, handleSessionRestored, handlePartnerReconnected, handleError, handleSkipFailed]);
 
   // Start matching
   const startMatching = useCallback((genderFilter = 'any', countryFilter = 'ANY') => {
@@ -214,28 +285,71 @@ export const useMatching = (socket) => {
     setQueuePosition(null);
   }, [socket]);
 
-  // Skip current match - MAIN SKIP LOGIC
+  // Skip current match - MAIN SKIP LOGIC with retry
   const skipMatch = useCallback(() => {
-    if (!socket || state !== 'matched' || isSkipping) return;
+    if (!socket || state !== 'matched' || isSkipping) {
+      console.log('[Matching] Skip blocked:', { hasSocket: !!socket, state, isSkipping });
+      return;
+    }
     
+    console.log('[Matching] Skip match requested');
     setIsSkipping(true);
+    skipRetryCountRef.current = 0;
     
     // Emit skip event
     socket.emit('skip_match');
     
-    // Safety timeout - if no response in 3 seconds, force reset
+    // Safety timeout - if no response in 3 seconds, retry or force reset
     skipTimeoutRef.current = setTimeout(() => {
       if (!mountedRef.current) return;
-      console.warn('Skip timeout - forcing state reset');
-      resetMatchState();
-      setState('searching');
       
-      if (socket?.connected) {
-        socket.emit('join_queue', {
-          gender_filter: lastFiltersRef.current.gender,
-          country_filter: lastFiltersRef.current.country
-        });
-      }
+      // Check if still skipping (no match_ended received)
+      setIsSkipping((currentlySkipping) => {
+        if (currentlySkipping) {
+          if (skipRetryCountRef.current < MAX_SKIP_RETRIES && socket?.connected) {
+            skipRetryCountRef.current++;
+            console.log('[Matching] Skip timeout, retrying:', skipRetryCountRef.current);
+            socket.emit('skip_match');
+            
+            // Set another timeout
+            skipTimeoutRef.current = setTimeout(() => {
+              setIsSkipping((stillSkipping) => {
+                if (stillSkipping) {
+                  console.warn('[Matching] Skip failed after retries, forcing reset');
+                  resetMatchState();
+                  setState('searching');
+                  skipRetryCountRef.current = 0;
+                  
+                  if (socket?.connected) {
+                    socket.emit('join_queue', {
+                      gender_filter: lastFiltersRef.current.gender,
+                      country_filter: lastFiltersRef.current.country
+                    });
+                  }
+                  return false;
+                }
+                return stillSkipping;
+              });
+            }, 3000);
+            
+            return true; // Keep skipping
+          } else {
+            console.warn('[Matching] Skip timeout - forcing state reset');
+            resetMatchState();
+            setState('searching');
+            skipRetryCountRef.current = 0;
+            
+            if (socket?.connected) {
+              socket.emit('join_queue', {
+                gender_filter: lastFiltersRef.current.gender,
+                country_filter: lastFiltersRef.current.country
+              });
+            }
+            return false;
+          }
+        }
+        return currentlySkipping;
+      });
     }, 3000);
     
   }, [socket, state, isSkipping, resetMatchState]);

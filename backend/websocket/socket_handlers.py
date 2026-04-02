@@ -433,13 +433,17 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     @sio.event
     async def skip_match(sid):
-        """Skip current match"""
+        """Skip current match - fast and reliable"""
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id')
                 is_guest = session.get('is_guest', False)
                 if not user_id:
+                    logger.warning(f"Skip match called with no user_id for sid {sid}")
+                    await sio.emit('skip_failed', {'message': 'Not authenticated'}, room=sid)
                     return
+            
+            logger.info(f"Skip match requested by user {user_id}")
             
             # Get partner info before ending
             partner_socket = matching_queue.get_partner_socket(user_id)
@@ -461,12 +465,14 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if partner_id:
                     await stats_service.end_match_session(partner_id, partner_is_guest)
                 
-                # Notify both users
-                await sio.emit('match_ended', {'reason': 'skipped'}, room=sid)
+                # Notify the skipper FIRST with confirmation
+                await sio.emit('match_ended', {'reason': 'skipped', 'success': True}, room=sid)
+                
+                # Notify partner
                 if partner_socket:
                     await sio.emit('match_ended', {'reason': 'partner_skipped'}, room=partner_socket)
                 
-                # Update session in DB
+                # Update session in DB (async, don't block)
                 sessions = get_sessions_collection()
                 await sessions.update_one(
                     {'session_id': result['session_id']},
@@ -480,10 +486,15 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     }}
                 )
                 
-                logger.info(f"Match skipped by {user_id}")
+                logger.info(f"Match skipped successfully by {user_id}")
+            else:
+                # No active session but user requested skip - just acknowledge
+                logger.warning(f"Skip requested but no active session for user {user_id}")
+                await sio.emit('match_ended', {'reason': 'no_session', 'success': True}, room=sid)
         
         except Exception as e:
             logger.error(f"Error skipping match: {e}")
+            await sio.emit('skip_failed', {'message': 'Skip failed, please try again'}, room=sid)
     
     @sio.event
     async def block_user(sid, data):

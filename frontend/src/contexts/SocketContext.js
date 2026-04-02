@@ -29,6 +29,29 @@ export const SocketProvider = ({ children }) => {
     authPendingRef.current = false;
   }, []);
 
+  // Force reconnect - clean disconnect and reconnect fresh
+  const forceReconnect = useCallback(() => {
+    console.log('[Socket] Force reconnect requested');
+    
+    // Disconnect current socket
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    
+    // Reset state
+    setSocket(null);
+    setConnected(false);
+    connectingRef.current = false;
+    authPendingRef.current = false;
+    
+    // Small delay before reconnecting
+    setTimeout(() => {
+      connectingRef.current = false; // Allow reconnection
+    }, 100);
+  }, []);
+
   useEffect(() => {
     // No token = no connection
     if (!token) {
@@ -134,7 +157,7 @@ export const SocketProvider = ({ children }) => {
   }, [token, disconnect]);
 
   return (
-    <SocketContext.Provider value={{ socket, connected, disconnect }}>
+    <SocketContext.Provider value={{ socket, connected, disconnect, forceReconnect }}>
       {children}
     </SocketContext.Provider>
   );
