@@ -33,7 +33,7 @@ const PremiumFeatureList = ({ compact = false }) => {
     {
       icon: Gamepad2,
       title: "Exclusive Games",
-      description: "Access fun mini-games like Raccoon Feud and Truth or Dare",
+      description: "Access fun mini-games like Raccoon Feud and UNO",
       color: "green"
     },
     {

@@ -292,36 +292,6 @@ const Dashboard = () => {
                   <span>2 Players</span>
                 </div>
               </div>
-
-              {/* Truth or Dare Card */}
-              <div 
-                className={`group relative p-8 bg-gradient-to-br from-[#4a1a6b]/50 to-[#2d1b4e]/50 backdrop-blur-xl border ${isPremium ? 'border-pink-500/30 hover:border-pink-500/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(236,72,153,0.2)]`}
-                onClick={() => handleGameClick('Truth or Dare')}
-                data-testid="tod-game-card"
-              >
-                {!isPremium && (
-                  <div className="absolute top-4 right-4 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center border border-yellow-400/30">
-                    <Lock size={16} className="text-yellow-400" />
-                  </div>
-                )}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center">
-                    <Sparkles size={28} className="text-white" />
-                  </div>
-                  <span className={`px-3 py-1 ${isPremium ? 'bg-pink-500/20 text-pink-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
-                    {isPremium ? 'PLAY NOW' : 'PREMIUM'}
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Truth or Dare</h3>
-                <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  {isPremium ? 'Spin the bottle and challenge your match!' : 'Unlock with Premium to play!'}
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-pink-500/60 text-sm">
-                  <span>🍾 Bottle Spin</span>
-                  <span>•</span>
-                  <span>2 Players</span>
-                </div>
-              </div>
               
               {/* Raccoon UNO Card */}
               <div 

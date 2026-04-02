@@ -15,7 +15,6 @@ import ReportModal from '@/components/match/ReportModal';
 import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
 import FeudGame from '@/components/games/FeudGame';
-import TruthOrDare from '@/components/games/TruthOrDare';
 import UnoGame from '@/components/games/UnoGame';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/match.css';
@@ -69,7 +68,7 @@ const Match = () => {
   const [showChat, setShowChat] = useState(true);
   
   // Game loading states
-  const [gameLoading, setGameLoading] = useState(null); // 'uno' | 'feud' | 'truthordare' | null
+  const [gameLoading, setGameLoading] = useState(null); // 'uno' | 'feud' | null
   
   // Responsive state
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
@@ -84,7 +83,6 @@ const Match = () => {
   const [gameSessionId, setGameSessionId] = useState(null);
   
   // Store actual game state from backend
-  const [todGameState, setTodGameState] = useState(null);
   const [feudGameState, setFeudGameState] = useState(null);
   const [unoGameState, setUnoGameState] = useState(null);
   
@@ -94,7 +92,6 @@ const Match = () => {
   
   // Derived game visibility states
   const showFeud = activeGame === 'feud';
-  const showTruthOrDare = activeGame === 'truthordare';
   const showUno = activeGame === 'uno';
   const isGameActive = activeGame !== null;
   
@@ -168,14 +165,6 @@ const Match = () => {
       if (data.game_state) setFeudGameState(data.game_state);
     };
     
-    const handleTodStarted = (data) => {
-      console.log('=== TOD_GAME_STARTED ===');
-      setGameLoading(null);
-      setActiveGame('truthordare');
-      setGameSessionId(sessionId);
-      if (data.game_state) setTodGameState(data.game_state);
-    };
-    
     const handleUnoStarted = (data) => {
       console.log('=== UNO_GAME_STARTED ===');
       setGameLoading(null);
@@ -190,14 +179,6 @@ const Match = () => {
         setActiveGame(null);
         setGameSessionId(null);
         setFeudGameState(null);
-      }
-    };
-    
-    const handleTodEnded = () => {
-      if (activeGame === 'truthordare') {
-        setActiveGame(null);
-        setGameSessionId(null);
-        setTodGameState(null);
       }
     };
     
@@ -227,17 +208,14 @@ const Match = () => {
       if (data.active_game?.game_type) {
         const type = data.active_game.game_type;
         if (type === 'feud') setActiveGame('feud');
-        else if (type === 'tod') setActiveGame('truthordare');
         else if (type === 'uno') setActiveGame('uno');
         setGameSessionId(sessionId);
       }
     };
     
     socket.on('feud_game_started', handleFeudStarted);
-    socket.on('tod_game_started', handleTodStarted);
     socket.on('uno_game_started', handleUnoStarted);
     socket.on('feud_game_ended', handleFeudEnded);
-    socket.on('tod_game_ended', handleTodEnded);
     socket.on('uno_game_ended', handleUnoEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
@@ -247,10 +225,8 @@ const Match = () => {
     
     return () => {
       socket.off('feud_game_started', handleFeudStarted);
-      socket.off('tod_game_started', handleTodStarted);
       socket.off('uno_game_started', handleUnoStarted);
       socket.off('feud_game_ended', handleFeudEnded);
-      socket.off('tod_game_ended', handleTodEnded);
       socket.off('uno_game_ended', handleUnoEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
@@ -331,7 +307,7 @@ const Match = () => {
     console.log('=== START GAME ===', gameType);
     
     if (!isPremium) {
-      const gameNames = { 'feud': 'Raccoon Feud', 'truthordare': 'Truth or Dare', 'uno': 'UNO' };
+      const gameNames = { 'feud': 'Raccoon Feud', 'uno': 'UNO' };
       showPremiumModal(gameNames[gameType] || gameType);
       return;
     }
@@ -357,7 +333,6 @@ const Match = () => {
     // Emit game start event
     const eventMap = {
       'feud': 'start_feud_game',
-      'truthordare': 'start_tod_game',
       'uno': 'start_uno_game'
     };
     
@@ -377,7 +352,6 @@ const Match = () => {
     if (socket && activeGame) {
       const eventMap = {
         'feud': 'end_feud_game',
-        'truthordare': 'end_tod_game',
         'uno': 'end_uno_game'
       };
       socket.emit(eventMap[activeGame]);
@@ -610,21 +584,6 @@ const Match = () => {
         </div>
       )}
       
-      {showTruthOrDare && (
-        <div className="game-fullscreen-container">
-          <TruthOrDare
-            isOpen={showTruthOrDare}
-            onClose={closeGame}
-            socket={socket}
-            myUserId={user?.user_id || user?.guest_id}
-            partnerUsername={partner?.username || 'Stranger'}
-            sessionId={sessionId}
-            isMobile={isMobile}
-            initialGameState={todGameState}
-          />
-        </div>
-      )}
-      
       {showUno && (
         <div className="game-fullscreen-container">
           <UnoGame
@@ -687,24 +646,6 @@ const Match = () => {
                     <>
                       <Trophy size={14} />
                       <span className="match-bottombar__game-label">Feud</span>
-                    </>
-                  )}
-                  {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}
-                </button>
-
-                {/* Truth or Dare */}
-                <button
-                  onClick={() => toggleGame('truthordare')}
-                  disabled={gameLoading === 'truthordare'}
-                  className={`match-bottombar__game-btn match-bottombar__game-btn--tod ${gameLoading === 'truthordare' ? 'match-bottombar__game-btn--loading' : ''}`}
-                  data-testid="tod-btn"
-                >
-                  {gameLoading === 'truthordare' ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles size={14} />
-                      <span className="match-bottombar__game-label">T/D</span>
                     </>
                   )}
                   {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}
