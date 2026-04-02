@@ -12,3 +12,4 @@
 ## Testing Notes
 - Premium purchase activation without payment is intentionally blocked.
 - `/api/admin/dev/set-premium` is intentionally disabled and should return `403`.
+- `/api/auth/me` now exposes `currentSessionId` for session-state verification during testing.

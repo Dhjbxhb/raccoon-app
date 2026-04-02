@@ -1,5 +1,25 @@
 # RACCOON APP - Product Requirements Document
 
+> Active project docs were split for maintainability on 2026-04-02.
+> - Implementation history: `/app/memory/CHANGELOG.md`
+> - Prioritized backlog: `/app/memory/ROADMAP.md`
+
+## Latest Stabilization Snapshot (April 2, 2026)
+
+### Final stabilization status
+- Room system is locked to **exactly 2 players** end-to-end, with frontend display using **X/2** only.
+- Premium access is **backend-controlled only** for room creation and premium-only features; dev bypass endpoints remain blocked.
+- Session cleanup now tracks **`currentSessionId`** for users/guests, sets it on active match creation, and clears it on skip/disconnect/cleanup.
+- Skip flow now guarantees both users receive cleanup signals and can rejoin with a fresh session.
+- Private-room group matching now requires **exactly 2 players** before it can start.
+- Camera placeholders now show **"Connecting..."** instead of leaving users with a black-screen style state.
+
+### Verification completed this run
+- Self-test: live socket integration validated shared session creation, synced skip cleanup, `currentSessionId` clearing, and immediate rematch with a new session.
+- Backend validation: `26` pytest checks passed against the preview URL.
+- Testing agent: `/app/test_reports/iteration_17.json` reported **100% pass** on mandatory room, premium, currentSessionId, and mobile CTA checks.
+
+
 ## Original Problem Statement
 Build a premium real-time social matching platform for text and video chat. The app must feel instant, alive, smooth, and addictive with production-level UX, performance, and monetization. Features a cool raccoon mascot (sunglasses, gold chain, cigar) with a cinematic dark space aesthetic.
 
