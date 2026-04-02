@@ -8,7 +8,7 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Loader2, Trophy, 
-  Sparkles, Filter, X, MessageCircle, Crown
+  Sparkles, Filter, X, MessageCircle, Crown, Pencil
 } from 'lucide-react';
 import MatchTopBar from '@/components/match/MatchTopBar';
 import ReportModal from '@/components/match/ReportModal';
@@ -16,6 +16,7 @@ import ChatPanel from '@/components/match/ChatPanel';
 import MatchingFilters from '@/components/MatchingFilters';
 import FeudGame from '@/components/games/FeudGame';
 import UnoGame from '@/components/games/UnoGame';
+import DrawGame from '@/components/games/DrawGame';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/match.css';
 import '@/styles/chat.css';
@@ -85,6 +86,7 @@ const Match = () => {
   // Store actual game state from backend
   const [feudGameState, setFeudGameState] = useState(null);
   const [unoGameState, setUnoGameState] = useState(null);
+  const [drawGameState, setDrawGameState] = useState(null);
   
   // Premium prompt modal state
   const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
@@ -93,6 +95,7 @@ const Match = () => {
   // Derived game visibility states
   const showFeud = activeGame === 'feud';
   const showUno = activeGame === 'uno';
+  const showDraw = activeGame === 'draw';
   const isGameActive = activeGame !== null;
   
   // Session duration tracking
@@ -121,9 +124,9 @@ const Match = () => {
   const resetAllGameState = useCallback(() => {
     setActiveGame(null);
     setGameSessionId(null);
-    setTodGameState(null);
     setFeudGameState(null);
     setUnoGameState(null);
+    setDrawGameState(null);
     setGameLoading(null);
     setMessageInput('');
     setSessionDuration(0);
@@ -173,6 +176,14 @@ const Match = () => {
       if (data.game_state) setUnoGameState(data.game_state);
     };
     
+    const handleDrawStarted = (data) => {
+      console.log('=== DRAW_GAME_STARTED ===');
+      setGameLoading(null);
+      setActiveGame('draw');
+      setGameSessionId(sessionId);
+      if (data.game_state) setDrawGameState(data.game_state);
+    };
+    
     // Game end handlers
     const handleFeudEnded = () => {
       if (activeGame === 'feud') {
@@ -187,6 +198,14 @@ const Match = () => {
         setActiveGame(null);
         setGameSessionId(null);
         setUnoGameState(null);
+      }
+    };
+    
+    const handleDrawEnded = () => {
+      if (activeGame === 'draw') {
+        setActiveGame(null);
+        setGameSessionId(null);
+        setDrawGameState(null);
       }
     };
     
@@ -209,14 +228,17 @@ const Match = () => {
         const type = data.active_game.game_type;
         if (type === 'feud') setActiveGame('feud');
         else if (type === 'uno') setActiveGame('uno');
+        else if (type === 'draw') setActiveGame('draw');
         setGameSessionId(sessionId);
       }
     };
     
     socket.on('feud_game_started', handleFeudStarted);
     socket.on('uno_game_started', handleUnoStarted);
+    socket.on('draw_game_started', handleDrawStarted);
     socket.on('feud_game_ended', handleFeudEnded);
     socket.on('uno_game_ended', handleUnoEnded);
+    socket.on('draw_game_ended', handleDrawEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
     socket.on('premium_required', handlePremiumRequired);
@@ -226,8 +248,10 @@ const Match = () => {
     return () => {
       socket.off('feud_game_started', handleFeudStarted);
       socket.off('uno_game_started', handleUnoStarted);
+      socket.off('draw_game_started', handleDrawStarted);
       socket.off('feud_game_ended', handleFeudEnded);
       socket.off('uno_game_ended', handleUnoEnded);
+      socket.off('draw_game_ended', handleDrawEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
       socket.off('premium_required', handlePremiumRequired);
@@ -307,7 +331,7 @@ const Match = () => {
     console.log('=== START GAME ===', gameType);
     
     if (!isPremium) {
-      const gameNames = { 'feud': 'Raccoon Feud', 'uno': 'UNO' };
+      const gameNames = { 'feud': 'Raccoon Feud', 'uno': 'UNO', 'draw': 'Draw & Guess' };
       showPremiumModal(gameNames[gameType] || gameType);
       return;
     }
@@ -333,7 +357,8 @@ const Match = () => {
     // Emit game start event
     const eventMap = {
       'feud': 'start_feud_game',
-      'uno': 'start_uno_game'
+      'uno': 'start_uno_game',
+      'draw': 'start_draw_game'
     };
     
     socket.emit(eventMap[gameType]);
@@ -352,7 +377,8 @@ const Match = () => {
     if (socket && activeGame) {
       const eventMap = {
         'feud': 'end_feud_game',
-        'uno': 'end_uno_game'
+        'uno': 'end_uno_game',
+        'draw': 'end_draw_game'
       };
       socket.emit(eventMap[activeGame]);
     }
@@ -598,6 +624,22 @@ const Match = () => {
           />
         </div>
       )}
+      
+      {showDraw && (
+        <div className="game-fullscreen-container">
+          <DrawGame
+            socket={socket}
+            sessionId={sessionId}
+            userId={user?.user_id || user?.guest_id}
+            username={user?.username || 'You'}
+            partnerUsername={partner?.username || 'Stranger'}
+            localStream={localStream}
+            remoteStream={remoteStream}
+            onClose={closeGame}
+            initialGameState={drawGameState}
+          />
+        </div>
+      )}
 
       {/* ===== BOTTOM ACTION BAR (hidden during games) ===== */}
       {!isGameActive && (
@@ -646,6 +688,24 @@ const Match = () => {
                     <>
                       <Trophy size={14} />
                       <span className="match-bottombar__game-label">Feud</span>
+                    </>
+                  )}
+                  {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}
+                </button>
+                
+                {/* Draw & Guess */}
+                <button
+                  onClick={() => toggleGame('draw')}
+                  disabled={gameLoading === 'draw'}
+                  className={`match-bottombar__game-btn match-bottombar__game-btn--draw ${gameLoading === 'draw' ? 'match-bottombar__game-btn--loading' : ''}`}
+                  data-testid="draw-btn"
+                >
+                  {gameLoading === 'draw' ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Pencil size={14} />
+                      <span className="match-bottombar__game-label">Draw</span>
                     </>
                   )}
                   {!isPremium && <Crown size={10} className="match-bottombar__premium-badge" />}

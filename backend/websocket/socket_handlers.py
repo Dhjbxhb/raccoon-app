@@ -1608,3 +1608,419 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
         except Exception as e:
             logger.error(f"Error getting room state: {e}")
+
+
+
+    # ============================================
+    # DRAW & GUESS GAME HANDLERS
+    # ============================================
+    
+    from services.draw_game_service import draw_game_service
+    
+    @sio.event
+    async def start_draw_game(sid):
+        """Start a Draw & Guess game between matched users - PREMIUM ONLY"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
+                if not user_id:
+                    await sio.emit('draw_error', {'message': 'Not authenticated'}, room=sid)
+                    return
+            
+            # ========== PREMIUM GAME ENFORCEMENT ==========
+            allowed, message = await premium_guard.validate_game_access(user_id, 'Draw & Guess', is_guest)
+            if not allowed:
+                await sio.emit('premium_required', {
+                    'feature': 'mini_games',
+                    'game': 'Draw & Guess',
+                    'message': message
+                }, room=sid)
+                logger.info(f"Non-premium user {user_id} blocked from starting Draw game")
+                return
+            # ========== END PREMIUM ENFORCEMENT ==========
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('draw_error', {'message': 'No active match session'}, room=sid)
+                return
+            
+            session_id = session_data['session_id']
+            
+            # Build players list
+            players = [
+                {
+                    'user_id': session_data['user1']['user_id'],
+                    'username': session_data['user1'].get('username', 'Player 1'),
+                    'socket_id': session_data['user1']['socket_id']
+                },
+                {
+                    'user_id': session_data['user2']['user_id'],
+                    'username': session_data['user2'].get('username', 'Player 2'),
+                    'socket_id': session_data['user2']['socket_id']
+                }
+            ]
+            
+            # Increment games_played for both players
+            player1_is_guest = session_data['user1'].get('is_guest', False)
+            player2_is_guest = session_data['user2'].get('is_guest', False)
+            await stats_service.increment_games_played(players[0]['user_id'], player1_is_guest)
+            await stats_service.increment_games_played(players[1]['user_id'], player2_is_guest)
+            
+            # Create game
+            game = draw_game_service.create_game(session_id, players)
+            
+            if 'error' in game:
+                await sio.emit('draw_error', {'message': game['error']}, room=sid)
+                return
+            
+            # Send game started to both players with their respective states
+            for player in players:
+                player_state = draw_game_service.get_player_state(session_id, player['user_id'])
+                player_socket = matching_queue.get_socket_id(player['user_id'])
+                if player_socket:
+                    await sio.emit('draw_game_started', {
+                        'game_state': player_state,
+                        'started_by': user_id
+                    }, room=player_socket)
+            
+            logger.info(f"Draw & Guess game started for session {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error starting Draw game: {e}")
+            await sio.emit('draw_error', {'message': 'Failed to start game'}, room=sid)
+    
+    @sio.event
+    async def draw_stroke(sid, data):
+        """Handle drawing stroke from drawer - broadcast to all players"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            stroke_data = data.get('stroke', {})
+            
+            result = draw_game_service.add_stroke(session_id, user_id, stroke_data)
+            
+            if 'error' in result:
+                await sio.emit('draw_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Broadcast stroke to partner (drawer already has it locally)
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            if partner_socket:
+                await sio.emit('draw_stroke_received', {
+                    'stroke': result['stroke']
+                }, room=partner_socket)
+            
+        except Exception as e:
+            logger.error(f"Error in draw_stroke: {e}")
+    
+    @sio.event
+    async def draw_undo(sid):
+        """Handle undo action from drawer"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            result = draw_game_service.undo_stroke(session_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('draw_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Broadcast undo to all players
+            await _emit_to_both_players(sio, session_data, 'draw_undo', {
+                'removed_stroke_id': result.get('removed_stroke_id')
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in draw_undo: {e}")
+    
+    @sio.event
+    async def draw_clear(sid):
+        """Handle clear canvas action from drawer"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            result = draw_game_service.clear_canvas(session_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('draw_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Broadcast clear to all players
+            await _emit_to_both_players(sio, session_data, 'draw_canvas_cleared', {})
+            
+        except Exception as e:
+            logger.error(f"Error in draw_clear: {e}")
+    
+    @sio.event
+    async def draw_guess(sid, data):
+        """Handle guess submission"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            guess = data.get('guess', '').strip()
+            
+            if not guess:
+                await sio.emit('draw_error', {'message': 'Empty guess'}, room=sid)
+                return
+            
+            result = draw_game_service.submit_guess(session_id, user_id, guess)
+            
+            if 'error' in result:
+                await sio.emit('draw_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Emit guess result to all players
+            await _emit_draw_state_to_both(sio, session_data, session_id, 'draw_guess_result', {
+                'player_id': result['player_id'],
+                'player_username': result.get('player_username'),
+                'guess': result['guess'],
+                'correct': result['correct'],
+                'points_earned': result['points_earned'],
+                'scores': result['scores']
+            })
+            
+            # Check if round ended
+            if result.get('round_complete'):
+                await _emit_draw_state_to_both(sio, session_data, session_id, 'draw_round_ended', {
+                    'reason': result.get('reason', 'all_guessed'),
+                    'word': draw_game_service.active_games[session_id]['current_word'],
+                    'scores': result['scores']
+                })
+            
+        except Exception as e:
+            logger.error(f"Error in draw_guess: {e}")
+            await sio.emit('draw_error', {'message': 'Failed to process guess'}, room=sid)
+    
+    @sio.event
+    async def draw_skip_turn(sid):
+        """Drawer skips their turn"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            result = draw_game_service.skip_turn(session_id, user_id)
+            
+            if 'error' in result:
+                await sio.emit('draw_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Emit round ended to all players
+            await _emit_draw_state_to_both(sio, session_data, session_id, 'draw_round_ended', {
+                'reason': 'skipped',
+                'word': result.get('word'),
+                'scores': result.get('scores', {})
+            })
+            
+            # Check if game is over
+            if result.get('game_over'):
+                await _emit_draw_game_ended(sio, session_data, result)
+            
+        except Exception as e:
+            logger.error(f"Error in draw_skip_turn: {e}")
+    
+    @sio.event
+    async def draw_next_round(sid):
+        """Start the next round"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            result = draw_game_service.next_round(session_id)
+            
+            if 'error' in result:
+                await sio.emit('draw_error', {'message': result['error']}, room=sid)
+                return
+            
+            # Send updated state to both players
+            for player_id in [session_data['user1']['user_id'], session_data['user2']['user_id']]:
+                player_state = draw_game_service.get_player_state(session_id, player_id)
+                player_socket = matching_queue.get_socket_id(player_id)
+                if player_socket:
+                    await sio.emit('draw_round_started', {
+                        'round': result['round'],
+                        'drawer_id': result['drawer_id'],
+                        'game_state': player_state
+                    }, room=player_socket)
+            
+            logger.info(f"Draw & Guess round {result['round']} started in session {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error in draw_next_round: {e}")
+    
+    @sio.event
+    async def draw_time_up(sid):
+        """Handle round timeout"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            # Only process if game is still active
+            game = draw_game_service.get_game(session_id)
+            if not game or not game.get('round_active'):
+                return
+            
+            result = draw_game_service.end_round(session_id, reason='timeout')
+            
+            if 'error' in result:
+                return
+            
+            # Emit round ended to all players
+            await _emit_draw_state_to_both(sio, session_data, session_id, 'draw_round_ended', {
+                'reason': 'timeout',
+                'word': result.get('word'),
+                'scores': result.get('scores', {})
+            })
+            
+            # Check if game is over
+            if result.get('game_over'):
+                await _emit_draw_game_ended(sio, session_data, result)
+            
+        except Exception as e:
+            logger.error(f"Error in draw_time_up: {e}")
+    
+    @sio.event
+    async def end_draw_game(sid):
+        """End the Draw & Guess game early"""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    return
+            
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                return
+            
+            session_id = session_data['session_id']
+            
+            draw_game_service.end_game(session_id)
+            
+            # Notify both players
+            await _emit_to_both_players(sio, session_data, 'draw_game_ended', {
+                'ended_by': user_id,
+                'reason': 'quit'
+            })
+            
+            logger.info(f"Draw & Guess game ended in session {session_id} by {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error ending Draw game: {e}")
+    
+    async def _emit_to_both_players(sio, session_data, event_name, data):
+        """Helper to emit event to both players"""
+        player1_socket = matching_queue.get_socket_id(session_data['user1']['user_id'])
+        player2_socket = matching_queue.get_socket_id(session_data['user2']['user_id'])
+        
+        if player1_socket:
+            await sio.emit(event_name, data, room=player1_socket)
+        if player2_socket:
+            await sio.emit(event_name, data, room=player2_socket)
+    
+    async def _emit_draw_state_to_both(sio, session_data, session_id, event_name, extra_data=None):
+        """Helper to emit Draw game state to both players"""
+        player1_id = session_data['user1']['user_id']
+        player2_id = session_data['user2']['user_id']
+        
+        player1_state = draw_game_service.get_player_state(session_id, player1_id)
+        player2_state = draw_game_service.get_player_state(session_id, player2_id)
+        
+        player1_socket = matching_queue.get_socket_id(player1_id)
+        player2_socket = matching_queue.get_socket_id(player2_id)
+        
+        payload1 = {'game_state': player1_state}
+        payload2 = {'game_state': player2_state}
+        
+        if extra_data:
+            payload1.update(extra_data)
+            payload2.update(extra_data)
+        
+        if player1_socket:
+            await sio.emit(event_name, payload1, room=player1_socket)
+        if player2_socket:
+            await sio.emit(event_name, payload2, room=player2_socket)
+    
+    async def _emit_draw_game_ended(sio, session_data, result):
+        """Helper to emit game ended event"""
+        player1_socket = matching_queue.get_socket_id(session_data['user1']['user_id'])
+        player2_socket = matching_queue.get_socket_id(session_data['user2']['user_id'])
+        
+        # Track games won for winner
+        winner_id = result.get('winner_id')
+        if winner_id:
+            winner_is_guest = False
+            if session_data['user1']['user_id'] == winner_id:
+                winner_is_guest = session_data['user1'].get('is_guest', False)
+            elif session_data['user2']['user_id'] == winner_id:
+                winner_is_guest = session_data['user2'].get('is_guest', False)
+            await stats_service.increment_games_won(winner_id, winner_is_guest)
+        
+        game_end_data = {
+            'winner_id': result.get('winner_id'),
+            'winner_username': result.get('winner_username'),
+            'final_scores': result.get('final_scores', {}),
+            'reason': 'complete'
+        }
+        
+        if player1_socket:
+            await sio.emit('draw_game_ended', game_end_data, room=player1_socket)
+        if player2_socket:
+            await sio.emit('draw_game_ended', game_end_data, room=player2_socket)

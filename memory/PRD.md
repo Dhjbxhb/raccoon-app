@@ -29,7 +29,50 @@ Build a premium real-time social matching platform for text and video chat. The 
 
 ---
 
-## ✅ LATEST UPDATES (March 2025)
+## ✅ LATEST UPDATES (April 2025)
+
+### Draw & Guess Game Implementation (April 2, 2025) ✅
+**Complete real-time multiplayer drawing game added:**
+
+1. **DrawGame.jsx - Full Implementation:**
+   - Real-time drawing canvas with WebSocket sync
+   - Drawing tools: Pen, Eraser, Color palette (8 colors), Brush size slider
+   - Undo and Clear canvas functionality
+   - 30-second countdown timer per round
+   - Role-based views: Drawer sees word, Guessers see blank spaces
+   - Guess submission via text input
+   - Correct guess detection with fuzzy matching
+   - Round progression with automatic drawer rotation
+   - Win/lose screens with final scores
+   - Responsive layout: Desktop (sidebar panels) / Mobile (stacked)
+   - Premium game (requires subscription)
+
+2. **Backend draw_game_service.py:**
+   - 100+ word bank (animals, food, objects, nature, etc.)
+   - In-memory game state management
+   - Scoring: 100pts for correct guess, 50pts for drawer
+   - Levenshtein distance for typo tolerance
+   - Round tracking with drawer rotation
+
+3. **Socket handlers added:**
+   - `start_draw_game`, `draw_stroke`, `draw_undo`, `draw_clear`
+   - `draw_guess`, `draw_skip_turn`, `draw_next_round`, `draw_time_up`
+   - `end_draw_game`
+   - Real-time stroke broadcasting to all players
+
+4. **Match.js Integration:**
+   - Draw button added to bottom bar (cyan/teal color)
+   - Game renders in fullscreen overlay
+   - State management for drawGameState
+
+5. **match.css:**
+   - .match-bottombar__game-btn--draw styling added
+
+**Note:** MongoDB Atlas connection timeouts in preview environment (network constraints). App handles gracefully and runs without issue.
+
+---
+
+## ✅ PREVIOUS UPDATES (March 2025)
 
 ### Complete UNO Rewrite + Family Feud Mobile Fix (March 30, 2025) ✅
 **Full Implementation Completed:**
