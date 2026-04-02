@@ -198,6 +198,7 @@ class UserResponse(BaseModel):
     gender: str = "any"
     age_verified: bool = False
     premium_status: bool = False
+    is_premium: bool = False  # Computed premium status for frontend
     premium_tier: str = "free"
     premium_expires_at: Optional[str] = None
     is_admin: bool = False

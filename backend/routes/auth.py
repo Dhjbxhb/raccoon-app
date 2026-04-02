@@ -171,6 +171,7 @@ async def signup(data: SignupRequest, request: Request):
         gender=data.gender.lower(),
         age_verified=False,
         premium_status=False,
+        is_premium=False,  # New users are not premium
         premium_tier="free",
         is_admin=False,
         is_moderator=False,
@@ -255,6 +256,7 @@ async def login(data: LoginRequest):
         gender=user_dict['gender'],
         age_verified=user_dict.get('age_verified', False),
         premium_status=is_premium,
+        is_premium=is_premium,  # Computed premium status for frontend
         premium_tier=premium_tier,
         premium_expires_at=premium_expires_at,
         is_admin=user_dict.get('is_admin', False),
