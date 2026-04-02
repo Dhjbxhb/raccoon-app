@@ -43,25 +43,39 @@ const DrawingCanvas = memo(({
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentStroke, setCurrentStroke] = useState(null);
   const lastPointRef = useRef(null);
+  const rafRef = useRef(null);
   
-  // Redraw canvas when strokes change
+  // PERFORMANCE: Use requestAnimationFrame for smooth redraw
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Cancel any pending animation frame
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
     
-    // Draw all strokes
-    strokes.forEach(stroke => {
-      drawStroke(ctx, stroke);
+    rafRef.current = requestAnimationFrame(() => {
+      const ctx = canvas.getContext('2d', { alpha: false });  // Disable alpha for speed
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw all strokes
+      strokes.forEach(stroke => {
+        drawStroke(ctx, stroke);
+      });
+      
+      // Draw current stroke if any
+      if (currentStroke) {
+        drawStroke(ctx, currentStroke);
+      }
     });
     
-    // Draw current stroke if any
-    if (currentStroke) {
-      drawStroke(ctx, currentStroke);
-    }
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, [strokes, currentStroke]);
   
   const drawStroke = (ctx, stroke) => {

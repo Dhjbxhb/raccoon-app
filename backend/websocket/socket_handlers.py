@@ -1,12 +1,13 @@
 """
 Socket.IO Event Handlers for the Raccoon App
+PERFORMANCE OPTIMIZED - Target: <100ms game response
 
 Handles all real-time communication including:
 - Authentication
 - Matching queue management
 - Chat messaging with moderation
 - WebRTC signaling
-- Game events (Raccoon Feud, UNO)
+- Game events (Raccoon Feud, UNO, Draw & Guess)
 - Private Rooms
 - Premium feature enforcement
 """
@@ -15,6 +16,7 @@ import socketio
 import logging
 from datetime import datetime, timezone
 import uuid
+import asyncio
 from services.matching_service import matching_queue
 from services.auth_service import AuthService
 from services.ban_service import ban_service
@@ -33,7 +35,18 @@ from services.moderation_service import content_moderator
 from services.chat_moderation import filter_message, is_message_allowed
 import services.room_service as room_service
 
+# PERFORMANCE: Reduce logging overhead
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)  # Only warnings and errors
+
+
+# PERFORMANCE: Async helper for parallel emissions
+async def emit_to_both_fast(sio, event, data, socket1, socket2):
+    """Emit to both players in parallel for faster delivery"""
+    await asyncio.gather(
+        sio.emit(event, data, room=socket1),
+        sio.emit(event, data, room=socket2)
+    )
 
 
 async def get_active_game_state(session_id: str) -> dict:
@@ -1525,14 +1538,14 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def create_room(sid, data=None):
         """Create a private room (premium only)"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
-                return
-            
-            user_id = session.get('user_id') or session.get('guest_id')
-            username = session.get('username', 'Player')
-            is_premium = session.get('is_premium', False)
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
+                    return
+                
+                username = session.get('username', 'Player')
+                is_premium = session.get('is_premium', False)
             
             result = room_service.create_room(user_id, username, is_premium)
             
@@ -1546,7 +1559,6 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Join socket room
             sio.enter_room(sid, f"room_{room_code}")
             
-            logger.info(f"Room {room_code} created by {username}")
             await sio.emit('room_created', room, room=sid)
             
         except Exception as e:
@@ -1557,18 +1569,18 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def join_room(sid, data):
         """Join a private room by code"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
+                    return
+                
+                username = session.get('username', 'Player')
             
             room_code = data.get('code', '').upper()
             if not room_code:
                 await sio.emit('room_error', {'message': 'Room code required'}, room=sid)
                 return
-            
-            user_id = session.get('user_id') or session.get('guest_id')
-            username = session.get('username', 'Player')
             
             result = room_service.join_room(room_code, user_id, username)
             
@@ -1589,8 +1601,6 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'room': room
             }, room=f"room_{room_code}")
             
-            logger.info(f"Player {username} joined room {room_code}")
-            
         except Exception as e:
             logger.error(f"Error joining room: {e}")
             await sio.emit('room_error', {'message': 'Failed to join room'}, room=sid)
@@ -1599,11 +1609,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def leave_room(sid, data=None):
         """Leave current room"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    return
             
-            user_id = session.get('user_id') or session.get('guest_id')
             room_code = room_service.get_player_room_code(user_id)
             
             if not room_code:
@@ -1625,8 +1635,6 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 }, room=f"room_{room_code}")
                 await sio.emit('room_updated', result.get('room'), room=f"room_{room_code}")
             
-            logger.info(f"Player left room {room_code}")
-            
         except Exception as e:
             logger.error(f"Error leaving room: {e}")
     
@@ -1634,12 +1642,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def start_room_game(sid, data):
         """Start a game inside the room"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
+                    return
             
-            user_id = session.get('user_id') or session.get('guest_id')
             game_type = data.get('game_type', 'uno')
             room_code = room_service.get_player_room_code(user_id)
             
@@ -1659,8 +1667,6 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'room': result['room']
             }, room=f"room_{room_code}")
             
-            logger.info(f"Game {game_type} started in room {room_code}")
-            
         except Exception as e:
             logger.error(f"Error starting room game: {e}")
             await sio.emit('room_error', {'message': 'Failed to start game'}, room=sid)
@@ -1669,11 +1675,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def end_room_game(sid, data=None):
         """End current game in room"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    return
             
-            user_id = session.get('user_id') or session.get('guest_id')
             room_code = room_service.get_player_room_code(user_id)
             
             if not room_code:
@@ -1691,12 +1697,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def start_group_matching(sid, data=None):
         """Start matchmaking for the entire room as a group"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
+                    return
             
-            user_id = session.get('user_id') or session.get('guest_id')
             room_code = room_service.get_player_room_code(user_id)
             
             if not room_code:
@@ -1715,8 +1721,6 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'group_size': result['group_size']
             }, room=f"room_{room_code}")
             
-            logger.info(f"Group matching started for room {room_code}")
-            
         except Exception as e:
             logger.error(f"Error starting group matching: {e}")
             await sio.emit('room_error', {'message': 'Failed to start matching'}, room=sid)
@@ -1725,11 +1729,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def stop_group_matching(sid, data=None):
         """Stop group matching"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    return
             
-            user_id = session.get('user_id') or session.get('guest_id')
             room_code = room_service.get_player_room_code(user_id)
             
             if not room_code:
@@ -1747,11 +1751,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     async def get_room_state(sid, data=None):
         """Get current room state"""
         try:
-            session = connected_users.get(sid)
-            if not session:
-                return
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id') or session.get('guest_id')
+                if not user_id:
+                    return
             
-            user_id = session.get('user_id') or session.get('guest_id')
             room = room_service.get_player_room(user_id)
             
             if room:
