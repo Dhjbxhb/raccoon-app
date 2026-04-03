@@ -267,8 +267,24 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         }
         return context
 
-    async def get_realtime_context(user_id: str):
+    async def get_realtime_context(user_id: str, requested_context_type: str | None = None):
+        if requested_context_type == 'room':
+            return await build_room_context_for_user(user_id)
+
         active_session = matching_queue.get_session(user_id)
+        if requested_context_type == 'match':
+            if not active_session:
+                return None
+            return {
+                'context_type': 'match',
+                'room_code': None,
+                'session_id': active_session['session_id'],
+                'created_at': active_session.get('created_at'),
+                'room': None,
+                'user1': active_session['user1'],
+                'user2': active_session['user2'],
+            }
+
         if active_session:
             return {
                 'context_type': 'match',
@@ -1013,7 +1029,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 }, room=sid)
                 return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, data.get('context_type'))
             if not context:
                 await sio.emit('message_failed', {
                     'temp_id': temp_id,
@@ -1137,7 +1153,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, data.get('context_type'))
             if not context:
                 await sio.emit('chat_history', {'messages': [], 'session_id': None}, room=sid)
                 return
@@ -1179,7 +1195,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             active_user_sockets[user_id] = sid
 
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, data.get('context_type'))
             if not context:
                 await sio.emit('session_not_found', {'message': 'No active session or room'}, room=sid)
                 return
@@ -1230,7 +1246,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             await sio.emit('error', {'message': 'Failed to rejoin session'}, room=sid)
     
     @sio.event
-    async def typing_start(sid):
+    async def typing_start(sid, data=None):
         """Notify partner that user is typing"""
         try:
             async with sio.session(sid) as session:
@@ -1238,7 +1254,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, (data or {}).get('context_type'))
             partner = get_partner_from_context(context, user_id)
             partner_socket = partner.get('socket_id') if partner else None
             if partner_socket:
@@ -1247,7 +1263,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             logger.error(f"Error in typing_start: {e}")
     
     @sio.event
-    async def typing_stop(sid):
+    async def typing_stop(sid, data=None):
         """Notify partner that user stopped typing"""
         try:
             async with sio.session(sid) as session:
@@ -1255,7 +1271,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, (data or {}).get('context_type'))
             partner = get_partner_from_context(context, user_id)
             partner_socket = partner.get('socket_id') if partner else None
             if partner_socket:
@@ -1349,7 +1365,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     logger.warning("Feud guess: No user_id in session")
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 logger.warning(f"Feud guess: No active session for user {user_id}")
                 return
@@ -1442,7 +1458,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1475,7 +1491,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1512,7 +1528,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1548,7 +1564,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1617,7 +1633,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, data.get('context_type'))
             partner = get_partner_from_context(context, user_id)
             if not partner or not partner.get('socket_id'):
                 return
@@ -1642,7 +1658,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, data.get('context_type'))
             partner = get_partner_from_context(context, user_id)
             if not partner or not partner.get('socket_id'):
                 return
@@ -1667,7 +1683,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            context = await get_realtime_context(user_id)
+            context = await get_realtime_context(user_id, data.get('context_type'))
             partner = get_partner_from_context(context, user_id)
             if not partner or not partner.get('socket_id'):
                 return
@@ -1800,7 +1816,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1855,7 +1871,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1886,7 +1902,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1899,7 +1915,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 return
             
             # Notify both players
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_data = get_partner_from_context(session_data, user_id)
+            partner_socket = partner_data.get('socket_id') if partner_data else None
             
             await sio.emit('uno_called', {
                 'player_id': user_id,
@@ -1924,7 +1941,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -1933,7 +1950,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             uno_service.end_game(room_id)
             
             # Notify both players
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_data = get_partner_from_context(session_data, user_id)
+            partner_socket = partner_data.get('socket_id') if partner_data else None
             
             await sio.emit('uno_game_ended', {
                 'ended_by': user_id,
@@ -1959,8 +1977,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         player1_state = uno_service.get_player_state(room_id, player1_id)
         player2_state = uno_service.get_player_state(room_id, player2_id)
         
-        player1_socket = matching_queue.get_socket_id(player1_id)
-        player2_socket = matching_queue.get_socket_id(player2_id)
+        player1_socket = session_data['user1'].get('socket_id') or matching_queue.get_socket_id(player1_id)
+        player2_socket = session_data['user2'].get('socket_id') or matching_queue.get_socket_id(player2_id)
         
         payload1 = {'game_state': player1_state}
         payload2 = {'game_state': player2_state}
@@ -2417,7 +2435,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2431,7 +2449,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 return
             
             # Broadcast stroke to partner (drawer already has it locally)
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_data = get_partner_from_context(session_data, user_id)
+            partner_socket = partner_data.get('socket_id') if partner_data else None
             if partner_socket:
                 await sio.emit('draw_stroke_received', {
                     'stroke': result['stroke']
@@ -2449,7 +2468,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2478,7 +2497,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2505,7 +2524,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2553,7 +2572,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2603,7 +2622,10 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Send updated state to both players
             for player_id in [session_data['user1']['user_id'], session_data['user2']['user_id']]:
                 player_state = draw_game_service.get_player_state(session_id, player_id)
-                player_socket = matching_queue.get_socket_id(player_id)
+                player_socket = (
+                    session_data['user1'].get('socket_id') if session_data['user1']['user_id'] == player_id
+                    else session_data['user2'].get('socket_id')
+                ) or matching_queue.get_socket_id(player_id)
                 if player_socket:
                     await sio.emit('draw_round_started', {
                         'round': result['round'],
@@ -2625,7 +2647,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2664,7 +2686,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
+            session_data = await get_realtime_context(user_id)
             if not session_data:
                 return
             
@@ -2685,8 +2707,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
     
     async def _emit_to_both_players(sio, session_data, event_name, data):
         """Helper to emit event to both players"""
-        player1_socket = matching_queue.get_socket_id(session_data['user1']['user_id'])
-        player2_socket = matching_queue.get_socket_id(session_data['user2']['user_id'])
+        player1_socket = session_data['user1'].get('socket_id') or matching_queue.get_socket_id(session_data['user1']['user_id'])
+        player2_socket = session_data['user2'].get('socket_id') or matching_queue.get_socket_id(session_data['user2']['user_id'])
         
         if player1_socket:
             await sio.emit(event_name, data, room=player1_socket)

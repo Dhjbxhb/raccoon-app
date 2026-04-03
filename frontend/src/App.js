@@ -2,6 +2,7 @@ import React, { useEffect, lazy, Suspense, memo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SocketProvider } from '@/contexts/SocketContext';
+import { RoomLobbyProvider } from '@/contexts/RoomLobbyContext';
 import { Toaster } from 'sonner';
 import '@/App.css';
 
@@ -236,21 +237,23 @@ function App() {
     <div className="App">
       <AuthProvider>
         <SocketProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <Toaster 
-              position="top-right"
-              toastOptions={{
-                style: {
-                  background: 'rgba(18, 18, 18, 0.9)',
-                  color: '#fff',
-                  border: '1px solid rgba(124, 58, 237, 0.3)',
-                  backdropFilter: 'blur(16px)',
-                  fontFamily: 'Manrope, sans-serif'
-                }
-              }}
-            />
-          </BrowserRouter>
+          <RoomLobbyProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <Toaster 
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    background: 'rgba(18, 18, 18, 0.9)',
+                    color: '#fff',
+                    border: '1px solid rgba(124, 58, 237, 0.3)',
+                    backdropFilter: 'blur(16px)',
+                    fontFamily: 'Manrope, sans-serif'
+                  }
+                }}
+              />
+            </BrowserRouter>
+          </RoomLobbyProvider>
         </SocketProvider>
       </AuthProvider>
     </div>

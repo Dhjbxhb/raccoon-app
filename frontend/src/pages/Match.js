@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRoomLobby } from '@/contexts/RoomLobbyContext';
 import { useMatching } from '@/hooks/useMatching';
 import { useChat } from '@/hooks/useChat';
 import { useWebRTC } from '@/hooks/useWebRTC';
@@ -46,6 +47,7 @@ const Match = () => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { socket, connected } = useSocket();
+  const { roomState, setPendingMatchReturn, clearPendingMatchReturn } = useRoomLobby();
   const seededRoomMatch = location.state?.sessionId && location.state?.partner
     ? {
         sessionId: location.state.sessionId,
@@ -189,8 +191,13 @@ const Match = () => {
   useEffect(() => {
     if (privateRoomLaunch) {
       setAutoRejoin(false);
+      setPendingMatchReturn(privateRoomCode || roomState?.code || null);
     }
-  }, [privateRoomLaunch, setAutoRejoin]);
+    return () => {
+      if (!privateRoomLaunch) return;
+      clearPendingMatchReturn();
+    };
+  }, [privateRoomLaunch, privateRoomCode, roomState?.code, setAutoRejoin, setPendingMatchReturn, clearPendingMatchReturn]);
   
   // ========== SESSION CHANGE DETECTION ==========
   useEffect(() => {
@@ -333,7 +340,7 @@ const Match = () => {
       toast.info(data.reason === 'game_ended_by_user' ? 'Game ended for both players' : 'Your partner ended the game', {
         duration: 1800
       });
-      navigate('/dashboard');
+      navigate(privateRoomLaunch ? '/private-room' : '/dashboard');
     };
     
     // Game-specific error handlers
@@ -398,7 +405,7 @@ const Match = () => {
       socket.off('draw_error', handleDrawError);
       socket.off('feud_error', handleFeudError);
     };
-  }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal, endCall, navigate, setAutoRejoin]);
+  }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal, endCall, navigate, setAutoRejoin, privateRoomLaunch]);
 
   // Track session duration
   useEffect(() => {

@@ -30,7 +30,7 @@ const MessageStatus = {
  * - Proper deduplication
  * - Typing indicators with debounce
  */
-export const useChat = (socket, sessionId, currentUserId) => {
+export const useChat = (socket, sessionId, currentUserId, contextType = 'match') => {
   // Messages keyed by message_id for O(1) dedup
   const [messagesMap, setMessagesMap] = useState(new Map());
   const [partnerTyping, setPartnerTyping] = useState(false);
@@ -63,10 +63,10 @@ export const useChat = (socket, sessionId, currentUserId) => {
       
       // If we have a valid session, request chat history
       if (socket && sessionId) {
-        socket.emit('fetch_chat_history', { session_id: sessionId });
+        socket.emit('fetch_chat_history', { session_id: sessionId, context_type: contextType });
       }
     }
-  }, [sessionId, socket]);
+  }, [sessionId, socket, contextType]);
   
   // ========== MOUNT TRACKING ==========
   useEffect(() => {
@@ -354,7 +354,8 @@ export const useChat = (socket, sessionId, currentUserId) => {
     socket.emit('send_message', {
       content: trimmedContent,
       temp_id: tempId,
-      session_id: sessionId
+      session_id: sessionId,
+      context_type: contextType
     });
     
     // Set timeout for failure detection (10 seconds)
@@ -368,7 +369,7 @@ export const useChat = (socket, sessionId, currentUserId) => {
       }
     }, 10000);
     
-  }, [socket, sessionId, currentUserId, addMessage, updatePendingMessage]);
+  }, [socket, sessionId, currentUserId, contextType, addMessage, updatePendingMessage]);
 
   // ========== RETRY FAILED MESSAGE ==========
   const retryMessage = useCallback((tempId) => {
@@ -382,9 +383,10 @@ export const useChat = (socket, sessionId, currentUserId) => {
     socket.emit('send_message', {
       content: pending.content,
       temp_id: tempId,
-      session_id: sessionId
+      session_id: sessionId,
+      context_type: contextType
     });
-  }, [socket, sessionId, updatePendingMessage]);
+  }, [socket, sessionId, contextType, updatePendingMessage]);
 
   // ========== TYPING INDICATORS ==========
   const startTyping = useCallback(() => {
@@ -393,21 +395,21 @@ export const useChat = (socket, sessionId, currentUserId) => {
     // Debounce to prevent spamming
     if (typingDebounceRef.current) return;
     
-    socket.emit('typing_start');
+    socket.emit('typing_start', { context_type: contextType });
     typingDebounceRef.current = setTimeout(() => {
       typingDebounceRef.current = null;
     }, 1000);
-  }, [socket]);
+  }, [socket, contextType]);
 
   const stopTyping = useCallback(() => {
     if (socket) {
-      socket.emit('typing_stop');
+      socket.emit('typing_stop', { context_type: contextType });
     }
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current);
       typingDebounceRef.current = null;
     }
-  }, [socket]);
+  }, [socket, contextType]);
 
   // ========== CLEAR MESSAGES ==========
   const clearMessages = useCallback(() => {
@@ -419,9 +421,9 @@ export const useChat = (socket, sessionId, currentUserId) => {
   // ========== FETCH HISTORY (manual trigger) ==========
   const fetchHistory = useCallback(() => {
     if (socket && sessionId) {
-      socket.emit('fetch_chat_history', { session_id: sessionId });
+      socket.emit('fetch_chat_history', { session_id: sessionId, context_type: contextType });
     }
-  }, [socket, sessionId]);
+  }, [socket, sessionId, contextType]);
 
   return {
     messages,

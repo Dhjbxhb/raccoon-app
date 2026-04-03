@@ -2,11 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRoomLobby } from '@/contexts/RoomLobbyContext';
 import { toast } from 'sonner';
 import { 
   Copy, Users, Play, Zap, LogOut, Crown, 
   Plus, ArrowRight, Check, X
 } from 'lucide-react';
+import DrawGame from '@/components/games/DrawGame';
+import FeudGame from '@/components/games/FeudGame';
+import UnoGame from '@/components/games/UnoGame';
 
 /**
  * PrivateRoom - Create/Join Private Rooms
@@ -18,17 +22,26 @@ const PrivateRoom = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket, connected: isConnected } = useSocket();
+  const {
+    roomState: lobbyRoomState,
+    roomGameState,
+    roomVoice,
+    roomChat,
+    resetRoomGameState,
+  } = useRoomLobby();
   
   const [mode, setMode] = useState('menu'); // menu, create, join, room
   const [joinCode, setJoinCode] = useState('');
   const [room, setRoom] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [roomMessage, setRoomMessage] = useState('');
   const privateMatchSessionRef = useRef(null);
   
   // Premium status - from backend's computed is_premium field
   const isPremium = user?.is_premium === true;
   const myId = user?.user_id || user?.guest_id;
+  const activeRoom = lobbyRoomState || room;
   
   // Socket event handlers
   useEffect(() => {
@@ -165,7 +178,21 @@ const PrivateRoom = () => {
   const handleLeave = useCallback(() => {
     if (!socket) return;
     socket.emit('leave_room');
+    resetRoomGameState();
   }, [socket]);
+
+  const handleEndRoomGame = useCallback(() => {
+    if (!socket) return;
+    socket.emit('end_room_game');
+    resetRoomGameState();
+  }, [socket, resetRoomGameState]);
+
+  const handleRoomSendMessage = useCallback((e) => {
+    e.preventDefault();
+    if (!roomMessage.trim()) return;
+    roomChat.sendMessage(roomMessage);
+    setRoomMessage('');
+  }, [roomMessage, roomChat]);
   
   // Copy room code
   const handleCopyCode = useCallback(() => {
@@ -196,8 +223,8 @@ const PrivateRoom = () => {
   }, [socket]);
   
   // Check if current user is creator
-  const isCreator = room?.players?.find(p => p.id === myId)?.is_creator;
-  const playerCount = room?.player_count || room?.players?.length || 0;
+  const isCreator = activeRoom?.players?.find(p => p.id === myId)?.is_creator;
+  const playerCount = activeRoom?.player_count || activeRoom?.players?.length || 0;
   const isRoomReady = playerCount === 2;
   
   // Get camera layout based on player count
@@ -315,12 +342,12 @@ const PrivateRoom = () => {
         )}
         
         {/* === ROOM MODE === */}
-        {mode === 'room' && room && (
+        {mode === 'room' && activeRoom && (
           <div className="flex flex-col min-h-[70vh]">
             
             {/* Camera Grid */}
-            <div className={`grid ${getCameraLayout(room.players?.length || 1)} gap-4 mb-8`}>
-              {room.players?.map((player, idx) => (
+            <div className={`grid ${getCameraLayout(activeRoom.players?.length || 1)} gap-4 mb-8`}>
+              {activeRoom.players?.map((player, idx) => (
                 <div 
                   key={player.id}
                   className="relative aspect-video bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-2xl border-2 border-purple-500/30 overflow-hidden"
@@ -330,9 +357,30 @@ const PrivateRoom = () => {
                 >
                   {/* Camera placeholder */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-purple-600/30 flex items-center justify-center">
-                      <span className="text-2xl">{player.username?.[0]?.toUpperCase() || '?'}</span>
-                    </div>
+                    {idx === 0 && roomVoice.localStream ? (
+                      <video
+                        autoPlay
+                        muted
+                        playsInline
+                        ref={(el) => {
+                          if (el && el.srcObject !== roomVoice.localStream) el.srcObject = roomVoice.localStream;
+                        }}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : idx === 1 && roomVoice.remoteStream ? (
+                      <video
+                        autoPlay
+                        playsInline
+                        ref={(el) => {
+                          if (el && el.srcObject !== roomVoice.remoteStream) el.srcObject = roomVoice.remoteStream;
+                        }}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-purple-600/30 flex items-center justify-center">
+                        <span className="text-2xl">{player.username?.[0]?.toUpperCase() || '?'}</span>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Creator badge */}
@@ -360,7 +408,7 @@ const PrivateRoom = () => {
               {/* Room Code */}
               <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl mb-4">
                 <span className="text-3xl font-mono tracking-[0.3em] font-bold">
-                  {room.code}
+                  {activeRoom.code}
                 </span>
                 <button 
                   onClick={handleCopyCode}
@@ -384,23 +432,23 @@ const PrivateRoom = () => {
                     {isRoomReady ? 'Room full and ready.' : 'Waiting for 1 more player...'}
                   </span>
                 )}
-                {room.status === 'matching' && (
+                {activeRoom.status === 'matching' && (
                   <span className="text-blue-400">Connecting your private match...</span>
                 )}
-                {room.status === 'in_game' && (
-                  <span className="text-green-400">Playing {room.current_game}</span>
+                {activeRoom.status === 'in_game' && (
+                  <span className="text-green-400">Playing {activeRoom.current_game}</span>
                 )}
               </p>
             </div>
             
             {/* Game Selection */}
-            {room.status === 'waiting' && isCreator && (
+            {activeRoom.status === 'waiting' && isCreator && (
               <div className="mb-8">
                 <p className="text-center text-sm text-gray-400 mb-3">Select Game</p>
                 <div className="flex justify-center gap-3 flex-wrap">
                   <button
                     onClick={() => handleStartGame('uno')}
-                    disabled={room.players?.length < 2}
+                    disabled={activeRoom.players?.length < 2}
                     className="px-4 py-2 bg-red-500/20 border border-red-500/40 rounded-xl text-sm font-medium hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     data-testid="game-uno-btn"
                   >
@@ -408,7 +456,7 @@ const PrivateRoom = () => {
                   </button>
                   <button
                     onClick={() => handleStartGame('feud')}
-                    disabled={room.players?.length < 2}
+                    disabled={activeRoom.players?.length < 2}
                     className="px-4 py-2 bg-yellow-500/20 border border-yellow-500/40 rounded-xl text-sm font-medium hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     data-testid="game-feud-btn"
                   >
@@ -416,7 +464,7 @@ const PrivateRoom = () => {
                   </button>
                   <button
                     onClick={() => handleStartGame('draw')}
-                    disabled={room.players?.length < 2}
+                    disabled={activeRoom.players?.length < 2}
                     className="px-4 py-2 bg-cyan-500/20 border border-cyan-500/40 rounded-xl text-sm font-medium hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     data-testid="game-draw-btn"
                   >
@@ -425,10 +473,52 @@ const PrivateRoom = () => {
                 </div>
               </div>
             )}
+
+            <div className="mb-8 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">Lobby Chat</p>
+                  <p className="text-xs text-gray-400">Voice + chat stay active while you are in the room.</p>
+                </div>
+                <div className="text-xs text-green-300">
+                  Mic {roomVoice.localStream ? 'ON' : 'Connecting'} · Chat ON
+                </div>
+              </div>
+
+              <div className="mb-3 h-40 overflow-y-auto rounded-xl bg-black/20 p-3 space-y-2">
+                {roomChat.messages.length === 0 ? (
+                  <p className="text-sm text-gray-500">Room chat is ready.</p>
+                ) : roomChat.messages.map((message) => (
+                  <div key={message.message_id || message.temp_id} className="rounded-xl bg-white/5 px-3 py-2">
+                    <div className="text-xs font-semibold text-purple-300">{message.sender_username || 'User'}</div>
+                    <div className="text-sm text-white/90">{message.content}</div>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleRoomSendMessage} className="flex gap-2">
+                <input
+                  value={roomMessage}
+                  onChange={(e) => setRoomMessage(e.target.value)}
+                  onFocus={roomChat.startTyping}
+                  onBlur={roomChat.stopTyping}
+                  placeholder="Send a room message"
+                  className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500"
+                  data-testid="room-chat-input"
+                />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white"
+                  data-testid="room-chat-send"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
             
             {/* Action Buttons */}
             <div className="mt-auto flex flex-col sm:flex-row gap-3">
-              {isCreator && room.status === 'waiting' && (
+              {isCreator && activeRoom.status === 'waiting' && (
                 <>
                   <button
                     onClick={handleStartMatching}
@@ -442,7 +532,7 @@ const PrivateRoom = () => {
                 </>
               )}
               
-              {isCreator && room.status === 'matching' && (
+              {isCreator && activeRoom.status === 'matching' && (
                 <button
                   onClick={handleStopMatching}
                   className="flex-1 flex items-center justify-center gap-2 p-4 bg-orange-500/20 border border-orange-500/40 rounded-xl font-semibold hover:bg-orange-500/30 transition-all"
@@ -461,6 +551,50 @@ const PrivateRoom = () => {
                 Leave Room
               </button>
             </div>
+
+            {roomGameState.activeGame === 'draw' && (
+              <DrawGame
+                isOpen={true}
+                onClose={handleEndRoomGame}
+                socket={socket}
+                userId={myId}
+                username={user?.username || 'You'}
+                partnerUsername={roomPartner?.username || 'Partner'}
+                sessionId={activeRoom.room_id}
+                localStream={roomVoice.localStream}
+                remoteStream={roomVoice.remoteStream}
+                initialGameState={roomGameState.draw}
+              />
+            )}
+
+            {roomGameState.activeGame === 'feud' && (
+              <FeudGame
+                isOpen={true}
+                onClose={handleEndRoomGame}
+                socket={socket}
+                myUserId={myId}
+                partnerUsername={roomPartner?.username || 'Partner'}
+                sessionId={activeRoom.room_id}
+                initialGameState={roomGameState.feud}
+                localStream={roomVoice.localStream}
+                remoteStream={roomVoice.remoteStream}
+              />
+            )}
+
+            {roomGameState.activeGame === 'uno' && (
+              <UnoGame
+                isOpen={true}
+                onClose={handleEndRoomGame}
+                socket={socket}
+                myUserId={myId}
+                partnerUsername={roomPartner?.username || 'Partner'}
+                myUsername={user?.username || 'You'}
+                sessionId={activeRoom.room_id}
+                initialGameState={roomGameState.uno}
+                localStream={roomVoice.localStream}
+                remoteStream={roomVoice.remoteStream}
+              />
+            )}
           </div>
         )}
         

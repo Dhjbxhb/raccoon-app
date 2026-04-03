@@ -17,7 +17,7 @@ import {
  * - Bitrate control based on device capabilities
  * - Memory leak prevention
  */
-export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
+export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contextType = 'match') => {
   // Performance mode state
   const [performanceMode, setPerformanceMode] = useState(() => getAutoPerformanceMode());
   const performanceModeRef = useRef(performanceMode);
@@ -103,7 +103,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       if (event.candidate && socket && sessionId) {
         socket.emit('webrtc_ice_candidate', {
           candidate: event.candidate,
-          session_id: sessionId
+          session_id: sessionId,
+          context_type: contextType
         });
       }
     };
@@ -186,7 +187,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
         if (socket && sessionId) {
           socket.emit('webrtc_offer', {
             offer: pc.localDescription,
-            session_id: sessionId
+            session_id: sessionId,
+            context_type: contextType
           });
         }
       } catch (err) {
@@ -374,7 +376,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
       if (socket && sessionId) {
         socket.emit('webrtc_answer', {
           answer: pc.localDescription,
-          session_id: sessionId
+          session_id: sessionId,
+          context_type: contextType
         });
         console.log('[WebRTC] Sent answer');
       }
@@ -500,9 +503,9 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true) => {
     performCallCleanup();
 
     if (notifyPeer && socket && sessionId) {
-      socket.emit('webrtc_end_call', { session_id: sessionId });
+      socket.emit('webrtc_end_call', { session_id: sessionId, context_type: contextType });
     }
-  }, [performCallCleanup, socket, sessionId]);
+  }, [performCallCleanup, socket, sessionId, contextType]);
 
   // Restart camera - useful for recovery from black screen
   const restartCamera = useCallback(async () => {
