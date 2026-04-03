@@ -280,11 +280,11 @@ const FeudGame = memo(({
       data-testid="feud-game-overlay"
     >
       {/* === PLAYER CARDS AT TOP === */}
-      <div className={`relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 ${keyboardVisible ? 'pt-2' : 'pt-4'}`}>
+      <div className={`relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 pb-2 border-b border-white/5 ${keyboardVisible ? 'pt-2' : 'pt-4'}`}>
         {/* My Card */}
         <div className="flex flex-col items-center">
           <div 
-            className={`w-full max-w-[16rem] h-20 sm:w-36 sm:h-[5.25rem] lg:w-44 lg:h-[5.75rem] rounded-2xl overflow-hidden border-2 ${
+            className={`w-full max-w-[16rem] h-[4.5rem] sm:w-36 sm:h-[4.75rem] lg:w-44 lg:h-[5rem] rounded-2xl overflow-hidden border-2 ${
               feedback?.isMe && feedback?.type === 'correct' ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-purple-500/50'
             }`}
             style={{
@@ -317,7 +317,7 @@ const FeudGame = memo(({
         {/* Partner Card */}
         <div className="flex flex-col items-center">
           <div 
-            className={`w-full max-w-[16rem] h-20 sm:w-36 sm:h-[5.25rem] lg:w-44 lg:h-[5.75rem] rounded-2xl overflow-hidden border-2 ${
+            className={`w-full max-w-[16rem] h-[4.5rem] sm:w-36 sm:h-[4.75rem] lg:w-44 lg:h-[5rem] rounded-2xl overflow-hidden border-2 ${
               feedback && !feedback.isMe && feedback?.type === 'correct' ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-purple-500/50'
             }`}
             style={{

@@ -410,7 +410,7 @@ const PlayerVideoGrid = memo(({
                 ? 'border-purple-500 shadow-lg shadow-purple-500/30' 
                 : 'border-purple-500/30'
             }`}
-            style={{ aspectRatio: compact ? '16/8.2' : '16/9' }}
+            style={{ aspectRatio: compact ? '16/7.4' : '16/8.4' }}
           >
             {/* Video placeholder or actual video */}
             <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
@@ -750,7 +750,7 @@ const DrawGame = ({
       
       {/* Main content - responsive layout */}
       <div className="relative z-10 flex-1 flex flex-col gap-4 p-4 overflow-hidden">
-        <div className={`${isDesktop ? 'mx-auto w-full max-w-6xl' : ''} flex-shrink-0`}>
+        <div className={`${isDesktop ? 'mx-auto w-full max-w-6xl' : ''} flex-shrink-0 border-b border-white/5 pb-2`}>
           <PlayerVideoGrid 
             players={players}
             localStream={localStream}
