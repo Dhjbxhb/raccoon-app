@@ -41,7 +41,7 @@ Premium live video social matching platform. Users connect randomly for video ch
 - [x] Full authentication (Firebase + Guest)
 - [x] Random video matching with WebRTC
 - [x] Private rooms as persistent lobbies
-- [x] UNO game (full backend + frontend)
+- [x] UNO game (full backend + frontend) — Fixed in call mode (Apr 3)
 - [x] Draw & Guess game (canvas + sync)
 - [x] Raccoon Feud game (quiz format)
 - [x] Premium subscription system (Stripe test mode)
@@ -57,3 +57,9 @@ Premium live video social matching platform. Users connect randomly for video ch
 - [ ] Google Login domain verification (P1)
 - [ ] Modularize socket_handlers.py (P1)
 - [ ] Twilio SMS OTP (P2)
+
+## Bug Fix Log
+### UNO Not Working in Call Mode (Fixed Apr 3, 2026)
+- **Root Cause**: `uno_service.get_player_state()` did not return `player1_id`/`player2_id`. Frontend `handleUnoStarted` in Match.js validated for these fields, always rejecting game state.
+- **Fix**: Added fields to backend return + changed frontend validation to check `my_hand`/`top_card`.
+- **Test**: 40/40 unit tests pass, 9 dedicated bug fix tests created.
