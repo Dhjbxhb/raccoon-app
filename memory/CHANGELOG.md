@@ -1,5 +1,11 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Cross-game camera/info layout fix
+- Standardized Draw, Feud, and UNO to keep cameras in the top section and game UI below.
+- Aligned username/info blocks under the correct camera across all three games.
+- Rebalanced desktop cameras to be slightly shorter and wider, while mobile stacks camera sections vertically.
+- Verified by testing agent report `iteration_24.json`.
+
 ## 2026-04-03 — Duplicate camera visibility fix
 - Hid the base Match camera layer during game mode and cleared its video `srcObject` values while games are active.
 - Reattached streams automatically after game exit or skip so the standard match cameras restore cleanly.

@@ -26,6 +26,7 @@
 - Draw tools validation: `/app/test_reports/iteration_21.json` confirmed larger mobile tool controls, better spacing, and tools rendered before the canvas without overlap.
 - UNO render-guard validation: `/app/test_reports/iteration_22.json` confirmed UNO now blocks invalid/empty opens and clears stale state before re-open.
 - Duplicate-camera validation: `/app/test_reports/iteration_23.json` confirmed only one visible camera per user remains during game mode and cameras restore cleanly after game exit/skip.
+- Cross-game camera-layout validation: `/app/test_reports/iteration_24.json` confirmed Draw, Feud, and UNO now keep cameras in the top section with metadata correctly aligned below and game UI below on desktop/mobile.
 
 
 ## Original Problem Statement
