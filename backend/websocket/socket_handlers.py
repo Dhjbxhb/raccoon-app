@@ -236,6 +236,18 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
 
         return match, None
 
+    async def restore_room_waiting_state_for_user(user_id: str):
+        room = room_service.get_player_room(user_id)
+        if not room:
+            return None
+
+        if room.get('status') == 'matching':
+            updated_room = room_service.stop_group_matching(room['code'])
+            await sio.emit('room_updated', updated_room, room=f"room_{room['code']}")
+            return updated_room
+
+        return room
+
     async def build_room_context_for_user(user_id: str):
         room = room_service.get_player_room(user_id)
         if not room:
@@ -778,6 +790,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             if result:
                 await sync_users_current_session(get_session_participants(session_data), None)
+                await restore_room_waiting_state_for_user(user_id)
+                if partner_id:
+                    await restore_room_waiting_state_for_user(partner_id)
                 # End match sessions and update stats for BOTH users
                 await stats_service.end_match_session(user_id, is_guest)
                 if partner_id:
@@ -902,6 +917,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 return
 
             await sync_users_current_session(get_session_participants(session_data), None)
+            await restore_room_waiting_state_for_user(user_id)
+            if partner_id:
+                await restore_room_waiting_state_for_user(partner_id)
             await stats_service.end_match_session(user_id, is_guest)
             if partner_id:
                 await stats_service.end_match_session(partner_id, partner_is_guest)

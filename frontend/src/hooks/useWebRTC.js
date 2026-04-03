@@ -17,7 +17,7 @@ import {
  * - Bitrate control based on device capabilities
  * - Memory leak prevention
  */
-export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contextType = 'match') => {
+export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contextType = 'match', mediaMode = 'audio-video') => {
   // Performance mode state
   const [performanceMode, setPerformanceMode] = useState(() => getAutoPerformanceMode());
   const performanceModeRef = useRef(performanceMode);
@@ -224,6 +224,9 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
       const mode = performanceModeRef.current;
       const settings = PERFORMANCE_MODES[mode] || PERFORMANCE_MODES.balanced;
       const constraints = getMediaConstraints(settings);
+      if (mediaMode === 'audio-only') {
+        constraints.video = false;
+      }
       
       console.log('[WebRTC] Requesting camera with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -253,7 +256,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
       setError('Camera access failed');
       throw err;
     }
-  }, []);
+  }, [mediaMode]);
 
   // Start the call
   const startCall = useCallback(async () => {

@@ -259,6 +259,7 @@ const Match = () => {
     // Game start handlers
     const handleFeudStarted = (data) => {
       console.log('=== FEUD_GAME_STARTED ===');
+      if (data?.context_type === 'room') return;
       setGameLoading(null);
       setActiveGame('feud');
       setGameSessionId(sessionId);
@@ -267,6 +268,7 @@ const Match = () => {
     
     const handleUnoStarted = (data) => {
       console.log('=== UNO_GAME_STARTED ===');
+      if (data?.context_type === 'room') return;
       if (!data?.game_state?.player1_id || !data?.game_state?.player2_id) {
         setGameLoading(null);
         setUnoGameState(null);
@@ -282,6 +284,7 @@ const Match = () => {
     
     const handleDrawStarted = (data) => {
       console.log('=== DRAW_GAME_STARTED ===');
+      if (data?.context_type === 'room') return;
       setGameLoading(null);
       setActiveGame('draw');
       setGameSessionId(sessionId);

@@ -28,7 +28,7 @@ export const RoomLobbyProvider = ({ children }) => {
 
   const roomSessionId = roomState?.room_id || null;
   const roomChat = useChat(socket, roomSessionId, myId, 'room');
-  const roomVoice = useWebRTC(socket, roomSessionId, roomPartner?.id || null, Boolean(roomSessionId && roomPartner?.id), 'room');
+  const roomVoice = useWebRTC(socket, roomSessionId, roomPartner?.id || null, Boolean(roomSessionId && roomPartner?.id), 'room', 'audio-only');
 
   const resetRoomGameState = useCallback(() => {
     setRoomGameState({

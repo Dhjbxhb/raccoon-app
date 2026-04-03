@@ -27,6 +27,7 @@ const PrivateRoom = () => {
     roomGameState,
     roomVoice,
     roomChat,
+    roomPartner,
     resetRoomGameState,
   } = useRoomLobby();
   
@@ -42,6 +43,8 @@ const PrivateRoom = () => {
   const isPremium = user?.is_premium === true;
   const myId = user?.user_id || user?.guest_id;
   const activeRoom = lobbyRoomState || room;
+  const hasRoomLocalVideo = Boolean(roomVoice.localStream?.getVideoTracks?.().length);
+  const hasRoomRemoteVideo = Boolean(roomVoice.remoteStream?.getVideoTracks?.().length);
   
   // Socket event handlers
   useEffect(() => {
@@ -357,7 +360,7 @@ const PrivateRoom = () => {
                 >
                   {/* Camera placeholder */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    {idx === 0 && roomVoice.localStream ? (
+                    {idx === 0 && hasRoomLocalVideo ? (
                       <video
                         autoPlay
                         muted
@@ -367,7 +370,7 @@ const PrivateRoom = () => {
                         }}
                         className="h-full w-full object-cover"
                       />
-                    ) : idx === 1 && roomVoice.remoteStream ? (
+                    ) : idx === 1 && hasRoomRemoteVideo ? (
                       <video
                         autoPlay
                         playsInline
