@@ -224,10 +224,17 @@ const Match = () => {
     
     const handleUnoStarted = (data) => {
       console.log('=== UNO_GAME_STARTED ===');
+      if (!data?.game_state?.player1_id || !data?.game_state?.player2_id) {
+        setGameLoading(null);
+        setUnoGameState(null);
+        toast.error('UNO is not ready yet. Please try again.');
+        return;
+      }
+
       setGameLoading(null);
+      setUnoGameState(data.game_state);
       setActiveGame('uno');
       setGameSessionId(sessionId);
-      if (data.game_state) setUnoGameState(data.game_state);
     };
     
     const handleDrawStarted = (data) => {
@@ -464,7 +471,7 @@ const Match = () => {
       return;
     }
     
-    if (!socket || !sessionId) {
+    if (!socket || !sessionId || !partner?.user_id) {
       toast.error('Connection issue - please try again');
       return;
     }
@@ -523,7 +530,7 @@ const Match = () => {
       });
     }, 3000);
     
-  }, [isPremium, isGameActive, state, socket, sessionId, showPremiumModal]);
+  }, [isPremium, isGameActive, state, socket, sessionId, partner?.user_id, showPremiumModal]);
 
   useEffect(() => {
     if (!privateRoomLaunch || !privateRoomAutoGame || state !== 'matched') {
@@ -572,6 +579,17 @@ const Match = () => {
       };
       socket.emit(eventMap[activeGame]);
     }
+
+    if (activeGame === 'feud') {
+      setFeudGameState(null);
+    }
+    if (activeGame === 'uno') {
+      setUnoGameState(null);
+    }
+    if (activeGame === 'draw') {
+      setDrawGameState(null);
+    }
+
     setActiveGame(null);
     setGameSessionId(null);
     setGameLoading(null);

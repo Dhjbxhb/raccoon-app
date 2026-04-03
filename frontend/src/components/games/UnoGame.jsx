@@ -364,6 +364,13 @@ const UnoGame = memo(({
     if (initialGameState) {
       setGameState(initialGameState);
       setGameEnded(initialGameState.status === 'finished');
+      if (initialGameState.status !== 'finished') {
+        setWinner(null);
+      }
+    } else {
+      setGameState(null);
+      setGameEnded(false);
+      setWinner(null);
     }
   }, [initialGameState]);
   
@@ -421,6 +428,9 @@ const UnoGame = memo(({
   }, [startGame]);
   
   if (!isOpen) return null;
+
+  const hasSessionContext = Boolean(sessionId && myUserId && partnerUsername);
+  if (!hasSessionContext) return null;
   
   const isMyTurn = gameState?.is_my_turn || false;
   const myHand = gameState?.my_hand || [];
