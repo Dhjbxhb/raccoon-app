@@ -1,5 +1,11 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Draw mobile toolbar usability fix
+- Enlarged Draw mobile tool controls for pen/eraser, colors, brush slider, undo, and clear.
+- Increased spacing in the mobile tools panel to reduce accidental taps.
+- Moved drawer tools before the canvas in mobile flow so they stay visible without covering the drawing area.
+- Verified by testing agent report `iteration_21.json`.
+
 ## 2026-04-03 — Draw role-based chat visibility fix
 - Removed the Draw chat panel entirely for the drawer role so nothing can overlap or block the canvas.
 - Kept the chat panel visible for guessers only, with preserved mobile usability.
