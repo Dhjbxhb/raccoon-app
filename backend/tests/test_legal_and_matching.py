@@ -134,7 +134,7 @@ class TestPaymentsEndpoints:
             f"{BASE_URL}/api/payments/checkout",
             json={
                 "package_id": "monthly",
-                "origin_url": "https://live-social-video.preview.emergentagent.com"
+                "origin_url": "https://raccoon-lobby.preview.emergentagent.com"
             },
             headers={"Authorization": f"Bearer {token}"}
         )

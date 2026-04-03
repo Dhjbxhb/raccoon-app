@@ -19,7 +19,7 @@ from typing import Dict, Any, Optional
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://live-social-video.preview.emergentagent.com"
+BASE_URL = "https://raccoon-lobby.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials

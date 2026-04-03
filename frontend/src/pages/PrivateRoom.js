@@ -43,8 +43,15 @@ const PrivateRoom = () => {
   const isPremium = user?.is_premium === true;
   const myId = user?.user_id || user?.guest_id;
   const activeRoom = lobbyRoomState || room;
+  const isRoomMode = mode === 'room' || Boolean(activeRoom);
   const hasRoomLocalVideo = Boolean(roomVoice.localStream?.getVideoTracks?.().length);
   const hasRoomRemoteVideo = Boolean(roomVoice.remoteStream?.getVideoTracks?.().length);
+
+  useEffect(() => {
+    if (activeRoom) {
+      setMode('room');
+    }
+  }, [activeRoom]);
   
   // Socket event handlers
   useEffect(() => {
@@ -261,7 +268,7 @@ const PrivateRoom = () => {
       <div className="relative z-10 max-w-4xl mx-auto p-6">
         
         {/* === MENU MODE === */}
-        {mode === 'menu' && (
+        {mode === 'menu' && !activeRoom && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
             <div className="text-center mb-8">
               <div className="text-6xl mb-4">🦝</div>
@@ -308,7 +315,7 @@ const PrivateRoom = () => {
         )}
         
         {/* === JOIN MODE === */}
-        {mode === 'join' && (
+        {mode === 'join' && !activeRoom && (
           <div className="flex flex-col items-center justify-center min-h-[60vh]">
             <div className="w-full max-w-sm">
               <button 
@@ -345,7 +352,7 @@ const PrivateRoom = () => {
         )}
         
         {/* === ROOM MODE === */}
-        {mode === 'room' && activeRoom && (
+        {isRoomMode && activeRoom && (
           <div className="flex flex-col min-h-[70vh]">
             
             {/* Camera Grid */}

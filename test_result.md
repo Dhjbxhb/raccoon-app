@@ -103,7 +103,7 @@
 #====================================================================================================
 
 user_problem_statement: |
-  Test the RACCOON APP backend against https://live-social-video.preview.emergentagent.com.
+  Test the RACCOON APP backend against https://raccoon-lobby.preview.emergentagent.com.
   Verify these exact critical behaviors:
   1. Premium security
      - GET /api/auth/me should return backend-controlled premium state.
@@ -392,7 +392,7 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: |
-      Comprehensive backend testing completed for RACCOON APP against https://live-social-video.preview.emergentagent.com
+      Comprehensive backend testing completed for RACCOON APP against https://raccoon-lobby.preview.emergentagent.com
       
       🛡️ CRITICAL SECURITY VERIFICATION - ALL PASSING:
       ✅ GET /api/auth/me returns backend-controlled premium state (Admin: True, Guest: False)
