@@ -1,5 +1,10 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Premium CTA click + room repeatability fix
+- Added an explicit click handler to the dashboard `upgrade-now` premium CTA so it reliably redirects to `/premium` every time.
+- Re-verified private room create/leave/re-enter/start flow repeatability without stuck state.
+- Verified by testing agent report `iteration_27.json`.
+
 ## 2026-04-03 — Shared end-game session exit
 - Added a shared game-mode `End Game` button that ends the full match session for both users, not just the local overlay.
 - Backend now closes active UNO/Feud/Draw state, clears `currentSessionId` for both users, emits `session_ended` to both sides, and updates the session record.

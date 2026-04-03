@@ -29,6 +29,7 @@
 - Cross-game camera-layout validation: `/app/test_reports/iteration_24.json` confirmed Draw, Feud, and UNO now keep cameras in the top section with metadata correctly aligned below and game UI below on desktop/mobile.
 - Draw/Feud overlap validation: `/app/test_reports/iteration_25.json` confirmed Draw camera/canvas separation and reduced Feud camera height keep game UI visible without overlap.
 - Shared end-game validation: `/app/test_reports/iteration_26.json` confirmed the game-mode End Game button terminates the full session for both users, clears `currentSessionId`, and supports immediate rematching.
+- Premium CTA + room repeatability validation: `/app/test_reports/iteration_27.json` confirmed the dashboard premium button redirects reliably on repeated clicks and private room create/leave/re-enter flow remains smooth.
 
 
 ## Original Problem Statement
