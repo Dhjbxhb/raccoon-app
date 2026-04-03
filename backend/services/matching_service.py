@@ -257,9 +257,9 @@ class MatchingQueue:
         
         return True
     
-    def _create_session(self, user1: QueueEntry, user2: QueueEntry) -> dict:
+    def _create_session(self, user1: QueueEntry, user2: QueueEntry, session_id_override: Optional[str] = None) -> dict:
         """Create a new match session."""
-        session_id = str(uuid.uuid4())
+        session_id = session_id_override or str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         
         session = ActiveSession(
@@ -306,7 +306,7 @@ class MatchingQueue:
             'created_at': now.isoformat()
         }
 
-    def create_direct_session(self, user1_data: dict, user2_data: dict) -> dict:
+    def create_direct_session(self, user1_data: dict, user2_data: dict, session_id_override: Optional[str] = None) -> dict:
         """Create a direct session between two known users without using the queue."""
         with self._lock:
             participants = [user1_data, user2_data]
@@ -353,7 +353,7 @@ class MatchingQueue:
             if entry2.socket_id:
                 self.socket_users[entry2.socket_id] = entry2.user_id
 
-            return self._create_session(entry1, entry2)
+            return self._create_session(entry1, entry2, session_id_override=session_id_override)
     
     def _remove_entry_from_queue(self, entry: QueueEntry) -> None:
         """Remove a specific entry from all queues (internal use)."""

@@ -225,6 +225,62 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             await sio.emit('private_room_match_started', payload, room=current_user['socket_id'])
 
         return match, None
+
+    async def build_room_context_for_user(user_id: str):
+        room = room_service.get_player_room(user_id)
+        if not room:
+            return None
+
+        room_code = room['code']
+        room_players = room_service.get_room_players(room_code)
+        if not room_players:
+            return None
+
+        resolved_players = []
+        for room_player in room_players:
+            resolved_player, error = await get_live_user_payload(room_player['id'], room_player.get('username', 'Player'))
+            if error:
+                continue
+            resolved_players.append(resolved_player)
+
+        if not resolved_players:
+            return None
+
+        context = {
+            'context_type': 'room',
+            'room_code': room_code,
+            'session_id': room['room_id'],
+            'room': room,
+            'user1': resolved_players[0],
+            'user2': resolved_players[1] if len(resolved_players) > 1 else None,
+        }
+        return context
+
+    async def get_realtime_context(user_id: str):
+        active_session = matching_queue.get_session(user_id)
+        if active_session:
+            return {
+                'context_type': 'match',
+                'room_code': None,
+                'session_id': active_session['session_id'],
+                'room': None,
+                'user1': active_session['user1'],
+                'user2': active_session['user2'],
+            }
+
+        return await build_room_context_for_user(user_id)
+
+    def get_partner_from_context(context: dict | None, user_id: str):
+        if not context:
+            return None
+
+        user1 = context.get('user1')
+        user2 = context.get('user2')
+        if user1 and user1.get('user_id') == user_id:
+            return user2
+        if user2 and user2.get('user_id') == user_id:
+            return user1
+        return None
     
     # ============================================
     # CONNECTION HANDLERS
