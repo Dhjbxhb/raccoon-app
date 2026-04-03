@@ -24,6 +24,7 @@ const PrivateRoom = () => {
   const [room, setRoom] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const privateMatchSessionRef = useRef(null);
   
   // Premium status - from backend's computed is_premium field
   const isPremium = user?.is_premium === true;
@@ -75,10 +76,17 @@ const PrivateRoom = () => {
 
     const handlePrivateMatchStarted = (data) => {
       console.log('[ROOM] Private match started:', data);
+      if (privateMatchSessionRef.current === data.session_id) {
+        return;
+      }
+
+      privateMatchSessionRef.current = data.session_id;
       navigate('/match', {
         state: {
           privateRoomLaunch: true,
           roomCode: data.room_code,
+          sessionId: data.session_id,
+          partner: data.partner,
           autoStartGame: data.auto_start_game || null,
           autoStartGameInitiatorId: data.initiator_id || null,
         }

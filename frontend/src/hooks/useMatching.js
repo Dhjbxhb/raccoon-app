@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * - Prevents stale state leaking between matches
  * - Optimized socket listener management
  */
-export const useMatching = (socket) => {
+export const useMatching = (socket, initialMatchData = null) => {
   // Core state
   const [state, setState] = useState('idle'); // idle, searching, matched
   const [partner, setPartner] = useState(null);
@@ -35,6 +35,7 @@ export const useMatching = (socket) => {
   // Track current socket to prevent stale listeners
   const socketIdRef = useRef(null);
   const stateRef = useRef('idle');
+  const initialSessionAppliedRef = useRef(false);
 
   useEffect(() => {
     stateRef.current = state;
@@ -235,6 +236,25 @@ export const useMatching = (socket) => {
       autoRejoinInFlightRef.current = false;
     }
   }, [socket, resetMatchState]);
+
+  useEffect(() => {
+    if (!initialMatchData?.sessionId || !initialMatchData?.partner) {
+      return;
+    }
+
+    if (initialSessionAppliedRef.current) {
+      return;
+    }
+
+    initialSessionAppliedRef.current = true;
+    setState('matched');
+    setPartner(initialMatchData.partner);
+    setSessionId(initialMatchData.sessionId);
+    setQueuePosition(null);
+    setIsSkipping(false);
+    autoRejoinInFlightRef.current = false;
+    clearTimers();
+  }, [initialMatchData, clearTimers]);
 
   useEffect(() => {
     mountedRef.current = true;

@@ -46,6 +46,12 @@ const Match = () => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { socket, connected } = useSocket();
+  const seededRoomMatch = location.state?.sessionId && location.state?.partner
+    ? {
+        sessionId: location.state.sessionId,
+        partner: location.state.partner,
+      }
+    : null;
   const { 
     state, 
     partner, 
@@ -57,7 +63,7 @@ const Match = () => {
     endSession,
     setAutoRejoin,
     rejoinSession
-  } = useMatching(socket);
+  } = useMatching(socket, seededRoomMatch);
   const { messages, partnerTyping, sendMessage, retryMessage, startTyping, stopTyping, clearMessages, MessageStatus } = useChat(socket, sessionId, user?.user_id || user?.guest_id);
   
   // Form states
@@ -367,7 +373,7 @@ const Match = () => {
   }, [state, user, matchingFilters, startMatching, privateRoomLaunch]);
 
   useEffect(() => {
-    if (!privateRoomLaunch || !socket?.connected || state !== 'idle') {
+    if (!privateRoomLaunch || seededRoomMatch || !socket?.connected || state !== 'idle') {
       return;
     }
 
@@ -380,7 +386,7 @@ const Match = () => {
     toast.info(privateRoomCode ? `Joining private room ${privateRoomCode}...` : 'Joining private room...', {
       duration: 1800
     });
-  }, [privateRoomLaunch, privateRoomCode, socket?.connected, state, rejoinSession]);
+  }, [privateRoomLaunch, seededRoomMatch, privateRoomCode, socket?.connected, state, rejoinSession]);
 
   useEffect(() => {
     if (!privateRoomLaunch) {
