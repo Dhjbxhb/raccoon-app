@@ -427,6 +427,20 @@ const UnoGame = memo(({
     setGameState(null);
     startGame();
   }, [startGame]);
+
+  // UNO alert when opponent reaches 1 card
+  const prevOpponentCount = useRef(opponentCardCount);
+  useEffect(() => {
+    if (opponentCardCount === 1 && prevOpponentCount.current !== 1) {
+      showNotification(`${partnerUsername} has UNO!`);
+      setShowUnoFlash(true);
+      const t = setTimeout(() => {
+        if (mountedRef.current) setShowUnoFlash(false);
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+    prevOpponentCount.current = opponentCardCount;
+  }, [opponentCardCount, partnerUsername, showNotification]);
   
   if (!isOpen) return null;
 
@@ -665,6 +679,27 @@ const UnoGame = memo(({
                       lineHeight: 1
                     }}>
                       {camera.username}
+                    </div>
+
+                    {/* Card count badge */}
+                    <div style={{
+                      position: 'absolute',
+                      right: 12,
+                      bottom: 12,
+                      padding: isDesktop ? '0.45rem 1rem' : '0.35rem 0.75rem',
+                      borderRadius: 999,
+                      background: camera.active 
+                        ? 'linear-gradient(145deg, #8b5cf6, #6d28d9)' 
+                        : 'rgba(0, 0, 0, 0.7)',
+                      color: 'white',
+                      fontSize: isDesktop ? 15 : 13,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      border: '1px solid rgba(139, 92, 246, 0.4)'
+                    }}
+                    data-testid={`uno-card-count-${camera.key}`}
+                    >
+                      {camera.infoLabel}
                     </div>
                   </div>
                 </div>
