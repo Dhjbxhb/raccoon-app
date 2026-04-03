@@ -28,6 +28,7 @@
 - Duplicate-camera validation: `/app/test_reports/iteration_23.json` confirmed only one visible camera per user remains during game mode and cameras restore cleanly after game exit/skip.
 - Cross-game camera-layout validation: `/app/test_reports/iteration_24.json` confirmed Draw, Feud, and UNO now keep cameras in the top section with metadata correctly aligned below and game UI below on desktop/mobile.
 - Draw/Feud overlap validation: `/app/test_reports/iteration_25.json` confirmed Draw camera/canvas separation and reduced Feud camera height keep game UI visible without overlap.
+- Shared end-game validation: `/app/test_reports/iteration_26.json` confirmed the game-mode End Game button terminates the full session for both users, clears `currentSessionId`, and supports immediate rematching.
 
 
 ## Original Problem Statement

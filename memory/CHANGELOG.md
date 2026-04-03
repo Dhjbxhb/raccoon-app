@@ -1,5 +1,11 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Shared end-game session exit
+- Added a shared game-mode `End Game` button that ends the full match session for both users, not just the local overlay.
+- Backend now closes active UNO/Feud/Draw state, clears `currentSessionId` for both users, emits `session_ended` to both sides, and updates the session record.
+- Frontend now performs WebRTC cleanup and redirects both users back to `/dashboard` when the shared end-game event lands.
+- Verified by testing agent report `iteration_26.json`.
+
 ## 2026-04-03 — Draw/Feud overlap separation fix
 - Shortened the Draw top camera strip and added a clear divider so the canvas stays visually separate.
 - Reduced Feud camera heights again and added a clear divider above the answers area.
