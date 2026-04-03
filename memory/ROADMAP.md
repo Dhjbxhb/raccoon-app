@@ -9,6 +9,7 @@
 - Mobile CTA clickability / no overlap regressions on core flows
 - Private-room live session launch and room-triggered game bridge
 - Draw / UNO / Feud gameplay polish for cleaner desktop/mobile presentation
+- Unified cinematic game background with one shared lightweight mount across games
 
 ## P1 — Next priority
 - Google Login production-domain verification and any remaining authorized-domain/session edge fixes
@@ -22,4 +23,4 @@
 
 ## Notes
 - Stripe remains **MOCKED** in test mode.
-- Current validation sources of truth: `/app/test_reports/iteration_17.json` and `/app/test_reports/iteration_18.json`.
+- Current validation sources of truth: `/app/test_reports/iteration_17.json`, `/app/test_reports/iteration_18.json`, and `/app/test_reports/iteration_19.json`.

@@ -1,5 +1,12 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Global game background system
+- Added a single shared `GameBackground` component for all in-game screens, mounted once from `Match.js` only while a game is active.
+- Replaced per-game cosmic backgrounds in Draw, UNO, and Feud with one unified cinematic deep-space layer.
+- Implemented low-CPU CSS gradients, three slow-moving glow layers, and eight subtle particles using GPU-friendly transforms.
+- Added mobile-specific reductions for glow size/blur to protect smoothness and camera performance.
+- Verified by testing agent report `iteration_19.json` with no frontend or backend regressions.
+
 ## 2026-04-03 — Final UI + gameplay polish pass
 - Added a private-room to live-match bridge so room start actions now launch real sessions instead of dead room states.
 - Room-triggered game launches can now carry auto-start instructions into Match.

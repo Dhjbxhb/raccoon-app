@@ -14,12 +14,14 @@
 - Private-room group matching now requires **exactly 2 players** before it can start.
 - Camera placeholders now show **"Connecting..."** instead of leaving users with a black-screen style state.
 - Final UI polish pass added live private-room session launching, cleaner Draw/UNO/Feud game layouts, and restored clickable premium upgrade CTAs.
+- A single lightweight cinematic **global game background system** now powers all games with shared gradients, subtle particles, and mobile-safe performance tuning.
 
 ### Verification completed this run
 - Self-test: live socket integration validated shared session creation, synced skip cleanup, `currentSessionId` clearing, and immediate rematch with a new session.
 - Backend validation: `26` pytest checks passed against the preview URL.
 - Testing agent: `/app/test_reports/iteration_17.json` reported **100% pass** on mandatory room, premium, currentSessionId, and mobile CTA checks.
 - Final polish validation: `/app/test_reports/iteration_18.json` reported **100% frontend/backend pass** for private-room flow, premium CTA clickability, and polished game UI verification.
+- Shared background validation: `/app/test_reports/iteration_19.json` confirmed the single-mount game background, removed duplicate game backgrounds, and verified mobile-safe performance notes.
 
 
 ## Original Problem Statement
