@@ -459,122 +459,6 @@ const UnoGame = memo(({
       }}
       data-testid="uno-game"
     >
-      {/* === CAMERA SECTION (TOP) === */}
-      <div style={{
-        position: 'absolute',
-        top: 20,
-        left: 20,
-        right: 20,
-        display: 'flex',
-        justifyContent: 'space-between',
-        zIndex: 10
-      }}>
-        {/* Opponent Camera (Left) */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 160,
-            height: 120,
-            borderRadius: 16,
-            overflow: 'hidden',
-            border: '3px solid',
-            borderColor: !isMyTurn ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
-            boxShadow: !isMyTurn 
-              ? '0 0 30px rgba(139, 92, 246, 0.6), inset 0 0 20px rgba(139, 92, 246, 0.2)'
-              : '0 4px 20px rgba(0,0,0,0.5)',
-            background: '#1a1a2e',
-            position: 'relative'
-          }}>
-            {remoteVideoRef?.current?.srcObject ? (
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              <div style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
-              }}>
-                <div style={{
-                  width: 32,
-                  height: 32,
-                  border: '2px solid rgba(139, 92, 246, 0.5)',
-                  borderTopColor: '#8b5cf6',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-              </div>
-            )}
-          </div>
-          <p style={{
-            color: 'rgba(255,255,255,0.9)',
-            fontSize: 14,
-            marginTop: 8,
-            fontWeight: 500
-          }}>
-            {partnerUsername}
-          </p>
-        </div>
-        
-        {/* My Camera (Right) */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 160,
-            height: 120,
-            borderRadius: 16,
-            overflow: 'hidden',
-            border: '3px solid',
-            borderColor: isMyTurn ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
-            boxShadow: isMyTurn 
-              ? '0 0 30px rgba(139, 92, 246, 0.6), inset 0 0 20px rgba(139, 92, 246, 0.2)'
-              : '0 4px 20px rgba(0,0,0,0.5)',
-            background: '#1a1a2e',
-            position: 'relative'
-          }}>
-            {localVideoRef?.current?.srcObject ? (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-              />
-            ) : (
-              <div style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
-              }}>
-                <div style={{
-                  width: 32,
-                  height: 32,
-                  border: '2px solid rgba(139, 92, 246, 0.5)',
-                  borderTopColor: '#8b5cf6',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-              </div>
-            )}
-          </div>
-          <p style={{
-            color: 'rgba(255,255,255,0.9)',
-            fontSize: 14,
-            marginTop: 8,
-            fontWeight: 500
-          }}>
-            {myUsername}
-          </p>
-        </div>
-      </div>
-      
       {/* === START SCREEN === */}
       {!gameState && !gameEnded && (
         <div style={{
@@ -704,74 +588,75 @@ const UnoGame = memo(({
             padding: isDesktop ? '1.5rem 2rem 1.25rem' : '1rem 0.75rem 0.75rem',
             gap: isDesktop ? 20 : 14
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  width: isDesktop ? 220 : 150,
-                  height: isDesktop ? 118 : 92,
-                  borderRadius: 18,
-                  overflow: 'hidden',
-                  border: '3px solid',
-                  borderColor: !isMyTurn ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
-                  boxShadow: !isMyTurn
-                    ? '0 0 30px rgba(139, 92, 246, 0.45), inset 0 0 20px rgba(139, 92, 246, 0.16)'
-                    : '0 4px 20px rgba(0,0,0,0.45)',
-                  background: '#1a1a2e',
-                  position: 'relative'
-                }}>
-                  {remoteStream ? (
-                    <video
-                      autoPlay
-                      playsInline
-                      ref={el => {
-                        if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream;
-                      }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
-                    }}>
-                      <div style={{ width: 32, height: 32, border: '2px solid rgba(139, 92, 246, 0.5)', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    </div>
-                  )}
+            <div style={{
+              display: 'flex',
+              flexDirection: isDesktop ? 'row' : 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: isDesktop ? 20 : 12,
+              flexShrink: 0
+            }}>
+              {[
+                {
+                  key: 'opponent',
+                  stream: remoteStream,
+                  username: partnerUsername,
+                  infoLabel: `Cards: ${opponentCardCount}`,
+                  active: !isMyTurn,
+                  mirrored: false,
+                },
+                {
+                  key: 'me',
+                  stream: localStream,
+                  username: myUsername,
+                  infoLabel: `Cards: ${myHand.length}`,
+                  active: isMyTurn,
+                  mirrored: true,
+                }
+              ].map((camera) => (
+                <div key={camera.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: isDesktop ? 240 : '100%', maxWidth: isDesktop ? 240 : 220 }}>
+                  <div style={{
+                    width: '100%',
+                    height: isDesktop ? 104 : 86,
+                    borderRadius: 18,
+                    overflow: 'hidden',
+                    border: '3px solid',
+                    borderColor: camera.active ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
+                    boxShadow: camera.active
+                      ? '0 0 30px rgba(139, 92, 246, 0.45), inset 0 0 20px rgba(139, 92, 246, 0.16)'
+                      : '0 4px 20px rgba(0,0,0,0.45)',
+                    background: '#1a1a2e',
+                    position: 'relative'
+                  }}>
+                    {camera.stream ? (
+                      <video
+                        autoPlay
+                        playsInline
+                        muted={camera.key === 'me'}
+                        ref={el => {
+                          if (el && el.srcObject !== camera.stream) el.srcObject = camera.stream;
+                        }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: camera.mirrored ? 'scaleX(-1)' : 'none' }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
+                      }}>
+                        <div style={{ width: 32, height: 32, border: '2px solid rgba(139, 92, 246, 0.5)', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} data-testid={`uno-camera-meta-${camera.key}`}>
+                    <span style={{ color: 'rgba(255,255,255,0.92)', fontSize: isDesktop ? 15 : 13, fontWeight: 700 }}>{camera.username}</span>
+                    <span style={{ color: '#fbbf24', fontSize: isDesktop ? 13 : 12, fontWeight: 700 }}>{camera.infoLabel}</span>
+                  </div>
                 </div>
-                <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: isDesktop ? 15 : 13, marginTop: 8, fontWeight: 600 }}>
-                  {partnerUsername}
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  width: isDesktop ? 160 : 112,
-                  height: isDesktop ? 78 : 62
-                }}>
-                  {[...Array(Math.min(opponentCardCount, isDesktop ? 6 : 4))].map((_, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        position: 'absolute',
-                        left: i * (isDesktop ? 14 : 10),
-                        top: i * 1.5,
-                        transform: `rotate(${4 + i * 3}deg)`
-                      }}
-                    >
-                      <UnoCard isBack size="small" />
-                    </div>
-                  ))}
-                </div>
-                <span style={{ color: '#fbbf24', fontSize: isDesktop ? 18 : 15, fontWeight: 700 }}>
-                  {opponentCardCount} cards
-                </span>
-              </div>
+              ))}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isDesktop ? 18 : 14, flex: 1 }}>
@@ -881,48 +766,6 @@ const UnoGame = memo(({
                   UNO!
                 </button>
               )}
-
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  width: isDesktop ? 220 : 150,
-                  height: isDesktop ? 118 : 92,
-                  borderRadius: 18,
-                  overflow: 'hidden',
-                  border: '3px solid',
-                  borderColor: isMyTurn ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
-                  boxShadow: isMyTurn
-                    ? '0 0 30px rgba(139, 92, 246, 0.45), inset 0 0 20px rgba(139, 92, 246, 0.16)'
-                    : '0 4px 20px rgba(0,0,0,0.45)',
-                  background: '#1a1a2e',
-                  position: 'relative'
-                }}>
-                  {localStream ? (
-                    <video
-                      autoPlay
-                      playsInline
-                      muted
-                      ref={el => {
-                        if (el && el.srcObject !== localStream) el.srcObject = localStream;
-                      }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'linear-gradient(145deg, #1e1b4b, #0f0d1a)'
-                    }}>
-                      <div style={{ width: 32, height: 32, border: '2px solid rgba(139, 92, 246, 0.5)', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    </div>
-                  )}
-                </div>
-                <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: isDesktop ? 15 : 13, marginTop: 8, fontWeight: 600 }}>
-                  {myUsername}
-                </p>
-              </div>
 
               <div style={{
                 display: 'flex',

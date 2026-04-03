@@ -388,13 +388,14 @@ const PlayerVideoGrid = memo(({
   localStream, 
   remoteStream,
   currentDrawerId,
-  compact = false
+  compact = false,
+  playerScores = {}
 }) => {
   const playerCount = players.length;
   
   // Grid layout classes based on player count
   const getGridClasses = () => {
-    if (playerCount === 2) return 'grid-cols-2';
+    if (playerCount === 2) return compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2';
     if (playerCount === 3) return 'grid-cols-3';
     return 'grid-cols-4';
   };
@@ -402,52 +403,54 @@ const PlayerVideoGrid = memo(({
   return (
     <div className={`grid ${getGridClasses()} gap-3 w-full`}>
       {players.map((player, idx) => (
-        <div 
-          key={player.user_id} 
-          className={`relative rounded-xl overflow-hidden border-2 transition-all ${
-            player.user_id === currentDrawerId 
-              ? 'border-purple-500 shadow-lg shadow-purple-500/30' 
-              : 'border-purple-500/30'
-          }`}
-          style={{ aspectRatio: compact ? '16/8.5' : '4/3' }}
-        >
-          {/* Video placeholder or actual video */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
-            {idx === 0 && localStream ? (
-              <video
-                autoPlay
-                muted
-                playsInline
-                ref={el => { if (el) el.srcObject = localStream; }}
-                className="w-full h-full object-cover"
-              />
-            ) : idx === 1 && remoteStream ? (
-              <video
-                autoPlay
-                playsInline
-                ref={el => { if (el) el.srcObject = remoteStream; }}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className={`${compact ? 'w-12 h-12 text-lg' : 'w-16 h-16 text-2xl'} rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold`}>
-                  {player.username?.charAt(0)?.toUpperCase() || '?'}
+        <div key={player.user_id} className="flex flex-col items-center gap-2">
+          <div 
+            className={`relative w-full rounded-2xl overflow-hidden border-2 transition-all ${
+              player.user_id === currentDrawerId 
+                ? 'border-purple-500 shadow-lg shadow-purple-500/30' 
+                : 'border-purple-500/30'
+            }`}
+            style={{ aspectRatio: compact ? '16/8.2' : '16/9' }}
+          >
+            {/* Video placeholder or actual video */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
+              {idx === 0 && localStream ? (
+                <video
+                  autoPlay
+                  muted
+                  playsInline
+                  ref={el => { if (el) el.srcObject = localStream; }}
+                  className="w-full h-full object-cover"
+                />
+              ) : idx === 1 && remoteStream ? (
+                <video
+                  autoPlay
+                  playsInline
+                  ref={el => { if (el) el.srcObject = remoteStream; }}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className={`${compact ? 'w-12 h-12 text-lg' : 'w-16 h-16 text-2xl'} rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold`}>
+                    {player.username?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+            
+            {/* Mic icon */}
+            <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50">
+              <Mic size={14} className="text-white" />
+            </div>
           </div>
-          
-          {/* Mic icon */}
-          <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50">
-            <Mic size={14} className="text-white" />
-          </div>
-          
-          {/* Player name */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-            <span className="text-white text-sm font-medium">{player.username}</span>
-            {player.is_drawer && (
-              <span className="ml-2 text-xs text-purple-400">Drawing</span>
-            )}
+
+          <div className="flex flex-col items-center gap-1 text-center" data-testid={`draw-player-meta-${player.user_id}`}>
+            <span className="text-white text-sm font-semibold">{player.username}</span>
+            <div className="flex items-center gap-2 text-xs text-white/70">
+              <span>{player.is_drawer ? 'Drawer' : 'Guesser'}</span>
+              <span className="text-white/30">•</span>
+              <span>Score: {playerScores[player.user_id] ?? 0}</span>
+            </div>
           </div>
         </div>
       ))}
@@ -754,6 +757,7 @@ const DrawGame = ({
             remoteStream={remoteStream}
             currentDrawerId={gameState?.current_drawer_id}
             compact={isDesktop}
+            playerScores={gameState?.player_scores || {}}
           />
         </div>
 
