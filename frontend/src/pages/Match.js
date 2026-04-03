@@ -257,9 +257,10 @@ const Match = () => {
     };
     
     const handleUnoStarted = (data) => {
-      console.log('=== UNO_GAME_STARTED ===');
+      console.log('=== UNO_GAME_STARTED ===', data);
       if (data?.context_type === 'room') return;
-      if (!data?.game_state?.player1_id || !data?.game_state?.player2_id) {
+      if (!data?.game_state || !data.game_state.my_hand || !data.game_state.top_card) {
+        console.error('[UNO] Invalid game state received:', data?.game_state);
         setGameLoading(null);
         setUnoGameState(null);
         toast.error('UNO is not ready yet. Please try again.');

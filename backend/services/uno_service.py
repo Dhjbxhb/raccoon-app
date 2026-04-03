@@ -222,6 +222,8 @@ class UnoGameService:
             'session_id': session_id,
             'game_id': game['game_id'],
             'status': game['status'],
+            'player1_id': game['player1_id'],
+            'player2_id': game['player2_id'],
             'my_hand': my_hand,
             'my_hand_count': len(my_hand),
             'opponent_hand_count': opponent_hand_count,
