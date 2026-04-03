@@ -1,5 +1,10 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Draw/Feud overlap separation fix
+- Shortened the Draw top camera strip and added a clear divider so the canvas stays visually separate.
+- Reduced Feud camera heights again and added a clear divider above the answers area.
+- Verified by testing agent report `iteration_25.json`.
+
 ## 2026-04-03 — Cross-game camera/info layout fix
 - Standardized Draw, Feud, and UNO to keep cameras in the top section and game UI below.
 - Aligned username/info blocks under the correct camera across all three games.
