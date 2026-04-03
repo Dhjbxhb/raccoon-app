@@ -11,6 +11,7 @@ import {
 import DrawGame from '@/components/games/DrawGame';
 import FeudGame from '@/components/games/FeudGame';
 import UnoGame from '@/components/games/UnoGame';
+import '@/styles/match.css';
 
 /**
  * PrivateRoom - Create/Join Private Rooms
@@ -562,6 +563,7 @@ const PrivateRoom = () => {
             </div>
 
             {roomGameState.activeGame === 'draw' && (
+              <div className="game-fullscreen-container">
               <DrawGame
                 isOpen={true}
                 onClose={handleEndRoomGame}
@@ -574,9 +576,11 @@ const PrivateRoom = () => {
                 remoteStream={roomVoice.remoteStream}
                 initialGameState={roomGameState.draw}
               />
+              </div>
             )}
 
             {roomGameState.activeGame === 'feud' && (
+              <div className="game-fullscreen-container">
               <FeudGame
                 isOpen={true}
                 onClose={handleEndRoomGame}
@@ -588,9 +592,11 @@ const PrivateRoom = () => {
                 localStream={roomVoice.localStream}
                 remoteStream={roomVoice.remoteStream}
               />
+              </div>
             )}
 
             {roomGameState.activeGame === 'uno' && (
+              <div className="game-fullscreen-container">
               <UnoGame
                 isOpen={true}
                 onClose={handleEndRoomGame}
@@ -603,6 +609,7 @@ const PrivateRoom = () => {
                 localStream={roomVoice.localStream}
                 remoteStream={roomVoice.remoteStream}
               />
+              </div>
             )}
           </div>
         )}
