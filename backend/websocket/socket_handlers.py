@@ -150,6 +150,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             'premium': premium_status,
         }, None
 
+    async def get_live_room_players(room_code: str):
+        room_players = room_service.get_room_players(room_code)
+        resolved_players = []
+        for room_player in room_players:
+            resolved_player, error = await get_live_user_payload(room_player['id'], room_player.get('username', 'Player'))
+            if error:
+                return None, error
+            resolved_players.append(resolved_player)
+        return resolved_players, None
+
     async def ensure_private_room_session(room_code: str, initiator_id: str, auto_start_game: str | None = None):
         room_players = room_service.get_room_players(room_code)
         if len(room_players) != 2:
@@ -250,6 +260,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             'context_type': 'room',
             'room_code': room_code,
             'session_id': room['room_id'],
+            'created_at': room.get('created_at'),
             'room': room,
             'user1': resolved_players[0],
             'user2': resolved_players[1] if len(resolved_players) > 1 else None,
@@ -263,6 +274,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'context_type': 'match',
                 'room_code': None,
                 'session_id': active_session['session_id'],
+                'created_at': active_session.get('created_at'),
                 'room': None,
                 'user1': active_session['user1'],
                 'user2': active_session['user2'],
@@ -1001,16 +1013,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 }, room=sid)
                 return
             
-            # Get session FIRST to validate user is in active match
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
+            context = await get_realtime_context(user_id)
+            if not context:
                 await sio.emit('message_failed', {
                     'temp_id': temp_id,
-                    'error': 'No active session'
+                    'error': 'No active room or match'
                 }, room=sid)
                 return
             
-            room_id = session_data['session_id']
+            room_id = context['session_id']
+            partner_data = get_partner_from_context(context, user_id)
             
             # Apply chat moderation filter
             is_allowed, block_reason = is_message_allowed(content)
@@ -1040,12 +1052,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     }, room=sid)
             
             # Get sender info
-            if session_data['user1']['user_id'] == user_id:
-                sender = session_data['user1']
-                receiver_id = session_data['user2']['user_id']
+            if context['user1'] and context['user1']['user_id'] == user_id:
+                sender = context['user1']
             else:
-                sender = session_data['user2']
-                receiver_id = session_data['user1']['user_id']
+                sender = context.get('user2') or context['user1']
+            receiver_id = partner_data['user_id'] if partner_data else None
             
             # Create message with server-generated ID
             message_id = str(uuid.uuid4())
@@ -1090,11 +1101,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 }, room=sid)
                 return
             
-            # Add to in-memory session (for quick access)
-            matching_queue.add_message(user_id, confirmed_message)
+            # Add to in-memory session for active match contexts only
+            if context['context_type'] == 'match':
+                matching_queue.add_message(user_id, confirmed_message)
             
             # Get partner socket
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_socket = partner_data.get('socket_id') if partner_data else None
             
             # Emit to SENDER - message confirmed
             await sio.emit('message_confirmed', confirmed_message, room=sid)
@@ -1125,13 +1137,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            # Get active session
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
+            context = await get_realtime_context(user_id)
+            if not context:
                 await sio.emit('chat_history', {'messages': [], 'session_id': None}, room=sid)
                 return
             
-            room_id = session_data['session_id']
+            room_id = context['session_id']
             
             # Fetch messages from MongoDB
             messages_collection = get_messages_collection()
@@ -1166,23 +1177,18 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
                     return
             
-            # Check if user has active session
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
-                await sio.emit('session_not_found', {'message': 'No active session'}, room=sid)
-                return
-            
-            # Update socket ID in session
-            matching_queue.update_socket_id(user_id, sid)
             active_user_sockets[user_id] = sid
-            
-            room_id = session_data['session_id']
-            
-            # Determine partner
-            if session_data['user1']['user_id'] == user_id:
-                partner_data = session_data['user2']
-            else:
-                partner_data = session_data['user1']
+
+            context = await get_realtime_context(user_id)
+            if not context:
+                await sio.emit('session_not_found', {'message': 'No active session or room'}, room=sid)
+                return
+
+            if context['context_type'] == 'match':
+                matching_queue.update_socket_id(user_id, sid)
+
+            room_id = context['session_id']
+            partner_data = get_partner_from_context(context, user_id) or {}
             
             # Fetch chat history
             messages_collection = get_messages_collection()
@@ -1204,13 +1210,14 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'is_premium': partner_data.get('premium', False)
                 },
                 'messages': messages,
-                'created_at': session_data.get('created_at'),
-                # Include active game state if any
-                'active_game': await get_active_game_state(room_id)
+                'created_at': context.get('created_at'),
+                'active_game': await get_active_game_state(room_id) if context['context_type'] == 'match' else None,
+                'context_type': context['context_type'],
+                'room_code': context.get('room_code')
             }, room=sid)
             
             # Notify partner of reconnection
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_socket = partner_data.get('socket_id')
             if partner_socket:
                 await sio.emit('partner_reconnected', {
                     'user_id': user_id
@@ -1231,7 +1238,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            context = await get_realtime_context(user_id)
+            partner = get_partner_from_context(context, user_id)
+            partner_socket = partner.get('socket_id') if partner else None
             if partner_socket:
                 await sio.emit('partner_typing', room=partner_socket)
         except Exception as e:
@@ -1246,7 +1255,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            context = await get_realtime_context(user_id)
+            partner = get_partner_from_context(context, user_id)
+            partner_socket = partner.get('socket_id') if partner else None
             if partner_socket:
                 await sio.emit('partner_stopped_typing', room=partner_socket)
         except Exception as e:
@@ -1606,11 +1617,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
+            context = await get_realtime_context(user_id)
+            partner = get_partner_from_context(context, user_id)
+            if not partner or not partner.get('socket_id'):
                 return
             
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_socket = partner.get('socket_id')
             if partner_socket:
                 await sio.emit('webrtc_offer', {
                     'offer': data.get('offer'),
@@ -1630,11 +1642,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
+            context = await get_realtime_context(user_id)
+            partner = get_partner_from_context(context, user_id)
+            if not partner or not partner.get('socket_id'):
                 return
             
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_socket = partner.get('socket_id')
             if partner_socket:
                 await sio.emit('webrtc_answer', {
                     'answer': data.get('answer'),
@@ -1654,11 +1667,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            session_data = matching_queue.get_session(user_id)
-            if not session_data:
+            context = await get_realtime_context(user_id)
+            partner = get_partner_from_context(context, user_id)
+            if not partner or not partner.get('socket_id'):
                 return
             
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_socket = partner.get('socket_id')
             if partner_socket:
                 await sio.emit('webrtc_ice_candidate', {
                     'candidate': data.get('candidate'),
@@ -1677,7 +1691,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 if not user_id:
                     return
             
-            partner_socket = matching_queue.get_partner_socket(user_id)
+            context = await get_realtime_context(user_id)
+            partner = get_partner_from_context(context, user_id)
+            partner_socket = partner.get('socket_id') if partner else None
             if partner_socket:
                 await sio.emit('webrtc_end_call', {
                     'from_user': user_id
@@ -2093,6 +2109,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id') or session.get('guest_id')
+                is_guest = session.get('is_guest', False)
                 if not user_id:
                     await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
                     return
@@ -2116,10 +2133,84 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'room': result['room']
             }, room=f"room_{room_code}")
 
-            _match, error = await ensure_private_room_session(room_code, user_id, game_type)
-            if error:
-                await sio.emit('room_error', {'message': error}, room=sid)
+            live_players, players_error = await get_live_room_players(room_code)
+            if players_error:
+                await sio.emit('room_error', {'message': players_error}, room=sid)
+                room_service.end_room_game(room_code)
                 return
+
+            room = room_service.get_room(room_code)
+            if not room:
+                await sio.emit('room_error', {'message': 'Room not found'}, room=sid)
+                return
+
+            room_session_id = room['room_id']
+
+            if game_type == 'uno':
+                is_premium, _tier, _expires = await premium_service.check_premium_status(user_id, is_guest)
+                if not is_premium:
+                    await sio.emit('premium_required', {
+                        'game': 'UNO',
+                        'message': 'Premium subscription required to play UNO'
+                    }, room=sid)
+                    room_service.end_room_game(room_code)
+                    return
+
+                player1, player2 = live_players[0], live_players[1]
+                uno_service.create_game(
+                    session_id=room_session_id,
+                    player1_id=player1['user_id'],
+                    player2_id=player2['user_id'],
+                    player1_username=player1.get('username', 'Player 1'),
+                    player2_username=player2.get('username', 'Player 2')
+                )
+
+                for current_player in (player1, player2):
+                    player_state = uno_service.get_player_state(room_session_id, current_player['user_id'])
+                    await sio.emit('uno_game_started', {
+                        'game_state': player_state,
+                        'started_by': user_id,
+                        'room_code': room_code,
+                        'context_type': 'room'
+                    }, room=current_player['socket_id'])
+
+            elif game_type == 'feud':
+                player1, player2 = live_players[0], live_players[1]
+                feud_state = feud_service.create_game(
+                    room_session_id,
+                    player1['user_id'],
+                    player2['user_id'],
+                    player1.get('username', 'Player 1'),
+                    player2.get('username', 'Player 2')
+                )
+                if 'error' in feud_state:
+                    await sio.emit('room_error', {'message': feud_state['error']}, room=sid)
+                    room_service.end_room_game(room_code)
+                    return
+
+                for current_player in (player1, player2):
+                    await sio.emit('feud_game_started', {
+                        'game_state': feud_state,
+                        'started_by': user_id,
+                        'room_code': room_code,
+                        'context_type': 'room'
+                    }, room=current_player['socket_id'])
+
+            elif game_type == 'draw':
+                draw_state = draw_game_service.create_game(room_session_id, live_players)
+                if 'error' in draw_state:
+                    await sio.emit('room_error', {'message': draw_state['error']}, room=sid)
+                    room_service.end_room_game(room_code)
+                    return
+
+                for current_player in live_players:
+                    player_state = draw_game_service.get_player_state(room_session_id, current_player['user_id'])
+                    await sio.emit('draw_game_started', {
+                        'game_state': player_state,
+                        'started_by': user_id,
+                        'room_code': room_code,
+                        'context_type': 'room'
+                    }, room=current_player['socket_id'])
             
         except Exception as e:
             logger.error(f"Error starting room game: {e}")
@@ -2139,6 +2230,16 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if not room_code:
                 return
             
+            room = room_service.get_room(room_code)
+            room_session_id = room['room_id'] if room else None
+
+            if room and room.get('current_game') == 'uno' and room_session_id:
+                uno_service.end_game(room_session_id)
+            elif room and room.get('current_game') == 'feud' and room_session_id:
+                feud_service.end_game(room_session_id)
+            elif room and room.get('current_game') == 'draw' and room_session_id:
+                draw_game_service.end_game(room_session_id)
+
             result = room_service.end_room_game(room_code)
             
             if 'room' in result:
