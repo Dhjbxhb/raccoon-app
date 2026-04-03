@@ -314,46 +314,45 @@ const PrivateRoom = () => {
                 const hasVideo = isMe ? hasRoomLocalVideo : hasRoomRemoteVideo;
                 const stream = isMe ? roomVoice.localStream : roomVoice.remoteStream;
                 return (
-                <div 
-                  key={player.id}
-                  className="relative aspect-video bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-2xl border-2 border-purple-500/30 overflow-hidden"
-                  style={{
-                    boxShadow: '0 0 30px rgba(168, 85, 247, 0.2)'
-                  }}
-                >
-                  {/* Camera view */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {hasVideo && stream ? (
-                      <video
-                        autoPlay
-                        muted={isMe}
-                        playsInline
-                        ref={(el) => {
-                          if (el && el.srcObject !== stream) {
-                            el.srcObject = stream;
-                            el.play().catch(() => {});
-                          }
-                        }}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-purple-600/30 flex items-center justify-center">
-                        <span className="text-2xl">{player.username?.[0]?.toUpperCase() || '?'}</span>
-                      </div>
-                    )}
+                <div key={player.id} className="flex flex-col items-center gap-1.5">
+                  {/* Camera — fully clean, no overlays */}
+                  <div 
+                    className="relative w-full aspect-video bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-2xl border-2 border-purple-500/30 overflow-hidden"
+                    style={{
+                      boxShadow: '0 0 30px rgba(168, 85, 247, 0.2)'
+                    }}
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {hasVideo && stream ? (
+                        <video
+                          autoPlay
+                          muted={isMe}
+                          playsInline
+                          ref={(el) => {
+                            if (el && el.srcObject !== stream) {
+                              el.srcObject = stream;
+                              el.play().catch(() => {});
+                            }
+                          }}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-purple-600/30 flex items-center justify-center">
+                          <span className="text-2xl">{player.username?.[0]?.toUpperCase() || '?'}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
-                  {/* Creator badge */}
-                  {player.is_creator && (
-                    <div className="absolute top-2 left-2 px-2 py-1 bg-yellow-500/20 border border-yellow-500/40 rounded-full flex items-center gap-1">
-                      <Crown size={12} className="text-yellow-400" />
-                      <span className="text-xs text-yellow-400">Host</span>
-                    </div>
-                  )}
-                  
-                  {/* Username */}
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/60 rounded-full">
-                    <span className="text-sm font-medium">
+                  {/* Name + badge — OUTSIDE camera */}
+                  <div className="flex items-center gap-2">
+                    {player.is_creator && (
+                      <div className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/40 rounded-full flex items-center gap-1">
+                        <Crown size={12} className="text-yellow-400" />
+                        <span className="text-xs text-yellow-400">Host</span>
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-white/80">
                       {player.id === myId ? 'You' : player.username}
                     </span>
                   </div>
