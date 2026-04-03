@@ -244,6 +244,7 @@ const Dashboard = () => {
                 </div>
                 {premiumInfo.status === 'free' && (
                   <button 
+                    onClick={(e) => { e.stopPropagation(); navigate('/premium'); }}
                     className="px-4 py-2 bg-gradient-to-r from-[#7c3aed] to-[#4c1d95] rounded-full text-sm font-medium hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] transition-all"
                     data-testid="upgrade-now-btn"
                   >
