@@ -266,6 +266,7 @@ ColorPicker.displayName = 'ColorPicker';
 const UnoGame = memo(({ 
   isOpen, 
   onClose, 
+  onEndSession,
   socket,
   myUserId,
   partnerUsername = 'Opponent',
@@ -590,10 +591,10 @@ const UnoGame = memo(({
           }}>
             <div style={{
               display: 'flex',
-              flexDirection: isDesktop ? 'row' : 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: isDesktop ? 20 : 12,
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: isDesktop ? 28 : 16,
               flexShrink: 0
             }}>
               {[
@@ -614,17 +615,14 @@ const UnoGame = memo(({
                   mirrored: true,
                 }
               ].map((camera) => (
-                <div key={camera.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: isDesktop ? 240 : '100%', maxWidth: isDesktop ? 240 : 220 }}>
+                <div key={camera.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, width: isDesktop ? 320 : '46%' }}>
                   <div style={{
                     width: '100%',
-                    height: isDesktop ? 104 : 86,
-                    borderRadius: 18,
+                    height: isDesktop ? 240 : 170,
+                    borderRadius: 20,
                     overflow: 'hidden',
-                    border: '3px solid',
-                    borderColor: camera.active ? '#8b5cf6' : 'rgba(139, 92, 246, 0.3)',
-                    boxShadow: camera.active
-                      ? '0 0 30px rgba(139, 92, 246, 0.45), inset 0 0 20px rgba(139, 92, 246, 0.16)'
-                      : '0 4px 20px rgba(0,0,0,0.45)',
+                    border: '2px solid rgba(201, 175, 255, 0.35)',
+                    boxShadow: '0 0 28px rgba(168, 85, 247, 0.28)',
                     background: '#1a1a2e',
                     position: 'relative'
                   }}>
@@ -650,30 +648,27 @@ const UnoGame = memo(({
                         <div style={{ width: 32, height: 32, border: '2px solid rgba(139, 92, 246, 0.5)', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                       </div>
                     )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} data-testid={`uno-camera-meta-${camera.key}`}>
-                    <span style={{ color: 'rgba(255,255,255,0.92)', fontSize: isDesktop ? 15 : 13, fontWeight: 700 }}>{camera.username}</span>
-                    <span style={{ color: '#fbbf24', fontSize: isDesktop ? 13 : 12, fontWeight: 700 }}>{camera.infoLabel}</span>
+
+                    <div style={{
+                      position: 'absolute',
+                      left: 12,
+                      bottom: 12,
+                      padding: isDesktop ? '0.5rem 1.25rem' : '0.45rem 1rem',
+                      borderRadius: 999,
+                      background: 'rgba(37, 16, 63, 0.96)',
+                      color: 'white',
+                      fontSize: isDesktop ? 20 : 16,
+                      fontWeight: 700,
+                      lineHeight: 1
+                    }}>
+                      {camera.username}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isDesktop ? 18 : 14, flex: 1 }}>
-              <div style={{
-                padding: '0.4rem 0.9rem',
-                borderRadius: 999,
-                background: 'rgba(0,0,0,0.45)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: 'white',
-                fontWeight: 700,
-                fontSize: isDesktop ? 14 : 12,
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em'
-              }}>
-                {topCard?.color || 'wild'} active
-              </div>
-
               <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 28 : 18 }}>
                 <button
                   onClick={handleDrawCard}
@@ -711,7 +706,7 @@ const UnoGame = memo(({
                 {topCard && (
                   <UnoCard
                     card={topCard}
-                    size={isDesktop ? 'center' : 'large'}
+                    size={isDesktop ? 'center' : 'center'}
                     isCenter={true}
                     animate={cardAnimating}
                   />
@@ -728,7 +723,7 @@ const UnoGame = memo(({
                 position: 'relative'
               }} data-testid="uno-turn-indicator">
                 <div style={{
-                  fontSize: isDesktop ? 40 : 32,
+                  fontSize: isDesktop ? 52 : 40,
                   color: '#fbbf24',
                   textShadow: '0 0 22px rgba(251, 191, 36, 0.45)',
                   transform: isMyTurn ? 'translateY(24px) rotate(180deg)' : 'translateY(-24px) rotate(0deg)',
@@ -738,9 +733,6 @@ const UnoGame = memo(({
                 }}>
                   ↓
                 </div>
-                <span style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 700, fontSize: isDesktop ? 15 : 13, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                  {isMyTurn ? 'Your Turn' : `${partnerUsername}'s Turn`}
-                </span>
               </div>
             </div>
 
@@ -749,15 +741,15 @@ const UnoGame = memo(({
                 <button
                   onClick={handleCallUno}
                   style={{
-                    padding: isDesktop ? '0.8rem 1.8rem' : '0.7rem 1.3rem',
-                    background: 'linear-gradient(145deg, #fbbf24, #f59e0b)',
-                    border: '2px solid #fcd34d',
-                    borderRadius: 999,
-                    color: '#1a1a2e',
-                    fontSize: isDesktop ? '1.2rem' : '1rem',
+                    padding: isDesktop ? '0.85rem 1.9rem' : '0.7rem 1.35rem',
+                    background: 'linear-gradient(180deg, #2b2a16, #14140b)',
+                    border: '2px solid rgba(254, 240, 138, 0.35)',
+                    borderRadius: 18,
+                    color: '#fde047',
+                    fontSize: isDesktop ? '1.5rem' : '1.2rem',
                     fontWeight: 900,
                     cursor: 'pointer',
-                    boxShadow: '0 0 30px rgba(251, 191, 36, 0.5), 0 4px 15px rgba(0,0,0,0.3)',
+                    boxShadow: '0 0 30px rgba(251, 191, 36, 0.22), 0 4px 15px rgba(0,0,0,0.3)',
                     animation: mustCallUno ? 'unoPulse 0.5s ease-in-out infinite' : 'unoAppear 0.3s ease-out',
                     zIndex: 15
                   }}
@@ -783,13 +775,13 @@ const UnoGame = memo(({
                     <div
                       key={card.id}
                       style={{
-                        marginLeft: i === 0 ? 0 : (isDesktop ? -18 : -22),
+                        marginLeft: i === 0 ? 0 : (isDesktop ? -34 : -26),
                         zIndex: i
                       }}
                     >
                       <UnoCard
                         card={card}
-                        size={isDesktop ? 'large' : 'medium'}
+                        size={isDesktop ? 'center' : 'large'}
                         rotation={rotation}
                         offsetY={offsetY}
                         isPlayable={isPlayable}
@@ -813,17 +805,14 @@ const UnoGame = memo(({
                   style={{
                     flex: 1,
                     padding: isDesktop ? '0.9rem 1.2rem' : '0.8rem 1rem',
-                    background: isMyTurn
-                      ? 'linear-gradient(145deg, rgba(139, 92, 246, 0.3), rgba(139, 92, 246, 0.15))'
-                      : 'rgba(255,255,255,0.05)',
-                    border: '2px solid',
-                    borderColor: isMyTurn ? 'rgba(139, 92, 246, 0.5)' : 'rgba(255,255,255,0.1)',
-                    borderRadius: 14,
-                    color: isMyTurn ? 'white' : 'rgba(255,255,255,0.4)',
-                    fontSize: '1rem',
-                    fontWeight: 700,
+                    background: 'rgba(51, 28, 79, 0.95)',
+                    border: '2px solid rgba(173, 120, 255, 0.28)',
+                    borderRadius: 20,
+                    color: 'white',
+                    fontSize: isDesktop ? '1.1rem' : '1rem',
+                    fontWeight: 600,
                     cursor: isMyTurn ? 'pointer' : 'not-allowed',
-                    boxShadow: isMyTurn ? '0 0 20px rgba(139, 92, 246, 0.3)' : 'none'
+                    boxShadow: '0 0 20px rgba(139, 92, 246, 0.22)'
                   }}
                   data-testid="draw-card-btn"
                 >
@@ -831,21 +820,22 @@ const UnoGame = memo(({
                 </button>
 
                 <button
-                  onClick={handleClose}
+                  onClick={onEndSession || handleClose}
                   style={{
                     flex: 1,
                     padding: isDesktop ? '0.9rem 1.2rem' : '0.8rem 1rem',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '2px solid rgba(255,255,255,0.15)',
-                    borderRadius: 14,
-                    color: 'rgba(255,255,255,0.7)',
-                    fontSize: '1rem',
+                    background: 'rgba(51, 28, 79, 0.95)',
+                    border: '2px solid rgba(173, 120, 255, 0.28)',
+                    borderRadius: 20,
+                    color: 'rgba(255,255,255,0.9)',
+                    fontSize: isDesktop ? '1.1rem' : '1rem',
                     fontWeight: 600,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 0 20px rgba(139, 92, 246, 0.22)'
                   }}
                   data-testid="end-game-btn"
                 >
-                  Close Game UI
+                  End Game
                 </button>
               </div>
             </div>

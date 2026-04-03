@@ -909,6 +909,7 @@ const Match = () => {
           <UnoGame
             isOpen={showUno}
             onClose={closeGame}
+            onEndSession={handleEndGameForBoth}
             socket={socket}
             myUserId={user?.user_id || user?.guest_id}
             partnerUsername={partner?.username || 'Stranger'}
