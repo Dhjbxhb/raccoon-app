@@ -266,6 +266,10 @@ const FeudGame = memo(({
   const currentQ = gameState?.current_question;
   const currentRound = gameState?.current_round || 1;
   const totalRounds = gameState?.total_rounds || 5;
+  const questionText = currentQ?.question || 'Loading question...';
+  const questionWords = questionText.split(' ');
+  const highlightedQuestion = questionWords.length > 2 ? questionWords.slice(-2).join(' ') : questionText;
+  const baseQuestion = questionWords.length > 2 ? questionWords.slice(0, -2).join(' ') : '';
   
   // Timer color based on time left
   const timerColor = timeLeft <= 10 ? '#ef4444' : timeLeft <= 20 ? '#f59e0b' : '#22c55e';
@@ -274,21 +278,23 @@ const FeudGame = memo(({
     <div 
       className="absolute inset-0 flex flex-col overflow-hidden z-25"
       style={{
-        background: 'rgba(8, 8, 22, 0.34)',
+        background: 'linear-gradient(180deg, rgba(18, 10, 40, 0.97), rgba(11, 6, 27, 0.98))',
         borderRadius: 'inherit'
       }}
       data-testid="feud-game-overlay"
     >
       {/* === PLAYER CARDS AT TOP === */}
-      <div className={`relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 pb-2 border-b border-white/5 ${keyboardVisible ? 'pt-2' : 'pt-4'}`}>
+      <div className={`relative z-10 px-3 sm:px-4 ${keyboardVisible ? 'pt-2' : 'pt-4'}`}>
+        <div className="flex items-start justify-center gap-3 sm:gap-4">
         {/* My Card */}
         <div className="flex flex-col items-center">
           <div 
-            className={`w-full max-w-[16rem] h-[4.5rem] sm:w-36 sm:h-[4.75rem] lg:w-44 lg:h-[5rem] rounded-2xl overflow-hidden border-2 ${
+            className={`w-[8.5rem] h-[6.5rem] sm:w-[10rem] sm:h-[7.5rem] lg:w-[12rem] lg:h-[8.5rem] rounded-[1.35rem] overflow-hidden border-2 ${
               feedback?.isMe && feedback?.type === 'correct' ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-purple-500/50'
             }`}
             style={{
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(168, 85, 247, 0.2))'
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(168, 85, 247, 0.22))',
+              boxShadow: '0 0 24px rgba(168, 85, 247, 0.35)'
             }}
           >
             {localStream ? (
@@ -307,21 +313,24 @@ const FeudGame = memo(({
               </div>
             )}
           </div>
-          <span className="text-white text-sm mt-2 font-medium" data-testid="feud-my-name">{myUsername}</span>
-          <div className="flex items-center gap-1 mt-1" data-testid="feud-my-score">
-            <Trophy size={14} className="text-yellow-400" />
-            <span className="text-yellow-400 font-bold">{myScore}</span>
+          <div className="-mt-4 rounded-full bg-[#241042] px-4 py-1.5 text-white text-sm font-semibold shadow-[0_0_18px_rgba(168,85,247,0.25)]" data-testid="feud-my-name">
+            {myUsername}
+          </div>
+          <div className="mt-2 flex items-center gap-2 rounded-full border border-[#6b2e86] bg-[#1a0b31] px-5 py-1.5 text-yellow-300 shadow-[0_0_18px_rgba(255,194,74,0.15)]" data-testid="feud-my-score">
+            <Trophy size={15} className="text-yellow-400" />
+            <span className="text-xl font-bold leading-none">{myScore}</span>
           </div>
         </div>
         
         {/* Partner Card */}
         <div className="flex flex-col items-center">
           <div 
-            className={`w-full max-w-[16rem] h-[4.5rem] sm:w-36 sm:h-[4.75rem] lg:w-44 lg:h-[5rem] rounded-2xl overflow-hidden border-2 ${
+            className={`w-[8.5rem] h-[6.5rem] sm:w-[10rem] sm:h-[7.5rem] lg:w-[12rem] lg:h-[8.5rem] rounded-[1.35rem] overflow-hidden border-2 ${
               feedback && !feedback.isMe && feedback?.type === 'correct' ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-purple-500/50'
             }`}
             style={{
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(168, 85, 247, 0.2))'
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(168, 85, 247, 0.22))',
+              boxShadow: '0 0 24px rgba(168, 85, 247, 0.35)'
             }}
           >
             {remoteStream ? (
@@ -339,27 +348,31 @@ const FeudGame = memo(({
               </div>
             )}
           </div>
-          <span className="text-white text-sm mt-2 font-medium" data-testid="feud-partner-name">{partnerUsername}</span>
-          <div className="flex items-center gap-1 mt-1" data-testid="feud-partner-score">
-            <Trophy size={14} className="text-yellow-400" />
-            <span className="text-yellow-400 font-bold">{partnerScore}</span>
+          <div className="-mt-4 rounded-full bg-[#241042] px-4 py-1.5 text-white text-sm font-semibold shadow-[0_0_18px_rgba(168,85,247,0.25)]" data-testid="feud-partner-name">
+            {partnerUsername}
           </div>
+          <div className="mt-2 flex items-center gap-2 rounded-full border border-[#6b2e86] bg-[#1a0b31] px-5 py-1.5 text-yellow-300 shadow-[0_0_18px_rgba(255,194,74,0.15)]" data-testid="feud-partner-score">
+            <Trophy size={15} className="text-yellow-400" />
+            <span className="text-xl font-bold leading-none">{partnerScore}</span>
+          </div>
+        </div>
         </div>
       </div>
       
       {/* === ROUND INFO BAR === */}
       {!keyboardVisible && (
-        <div className="relative z-10 flex items-center justify-between px-4 py-2 mt-2">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold">ROUND {currentRound}</span>
+        <div className="relative z-10 mx-4 mt-3 rounded-[1.35rem] border border-[#7c2fb1] bg-[#130823] px-4 py-3 shadow-[0_0_18px_rgba(168,85,247,0.2)]">
+          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-white font-extrabold text-xl tracking-wide">
+            <span>ROUND</span>
+            <span className="text-yellow-400">{currentRound}</span>
           </div>
           
           <div 
-            className="flex items-center gap-2 px-3 py-1 rounded-full border"
-            style={{ borderColor: timerColor }}
+            className="flex items-center gap-2 rounded-full border border-[#7a4bc5] bg-[#0d0720] px-4 py-2"
           >
-            <Clock size={16} style={{ color: timerColor }} />
-            <span className="font-bold text-lg" style={{ color: timerColor }}>
+            <Clock size={18} className="text-orange-300" />
+            <span className="font-bold text-2xl text-white">
               {timeLeft}s
             </span>
           </div>
@@ -367,25 +380,27 @@ const FeudGame = memo(({
           <button
             onClick={skipRound}
             disabled={showRoundEnd}
-            className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white text-sm transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 rounded-2xl border border-[#9d63ff] bg-gradient-to-r from-[#6f2ce9] to-[#8d47ff] px-5 py-2.5 text-white text-base font-semibold transition-colors disabled:opacity-50 shadow-[0_0_18px_rgba(168,85,247,0.25)]"
             data-testid="feud-skip-btn"
           >
-            <SkipForward size={14} />
+            <SkipForward size={16} />
             Skip Round
           </button>
+          </div>
         </div>
       )}
       
       {/* === QUESTION BOX === */}
       <div className={`relative z-10 mx-4 ${keyboardVisible ? 'mt-2' : 'mt-3'}`}>
         <div 
-          className="p-4 rounded-xl border border-purple-500/30 text-center"
+          className="rounded-[1.6rem] border border-[#7c2fb1] px-5 py-6 text-center shadow-[0_0_22px_rgba(168,85,247,0.18)]"
           style={{
-            background: 'linear-gradient(180deg, rgba(88, 28, 135, 0.4), rgba(59, 7, 100, 0.3))'
+            background: 'linear-gradient(180deg, rgba(23, 10, 49, 0.96), rgba(17, 8, 38, 0.98))'
           }}
         >
-          <p className={`text-white font-semibold ${keyboardVisible ? 'text-base' : 'text-lg sm:text-xl'}`}>
-            {currentQ?.question || 'Loading question...'}
+          <p className={`${keyboardVisible ? 'text-base' : 'text-lg sm:text-[2rem]'} font-semibold leading-snug text-white`}>
+            {baseQuestion ? `${baseQuestion} ` : ''}
+            <span className="text-yellow-400">{highlightedQuestion}</span>
           </p>
         </div>
       </div>
@@ -393,15 +408,15 @@ const FeudGame = memo(({
       {/* === ANSWERS BOARD === */}
       <div className={`relative z-10 flex-1 mx-4 ${keyboardVisible ? 'mt-2' : 'mt-3'} overflow-y-auto`}>
         <div 
-          className="rounded-xl border border-purple-500/20 overflow-hidden"
+          className="overflow-hidden rounded-[1.6rem] border border-[#7c2fb1] shadow-[0_0_22px_rgba(168,85,247,0.18)]"
           style={{
-            background: 'linear-gradient(180deg, rgba(30, 10, 60, 0.8), rgba(20, 5, 40, 0.9))'
+            background: 'linear-gradient(180deg, rgba(19, 9, 43, 0.97), rgba(14, 7, 31, 0.99))'
           }}
         >
           {currentQ?.answers?.map((ans, idx) => (
             <div 
               key={idx}
-              className={`flex items-center px-4 py-3 border-b border-purple-500/10 last:border-b-0 transition-all ${
+              className={`flex items-center px-4 py-3 border-b border-dashed border-[#49315f] last:border-b-0 transition-all ${
                 ans.revealed && ans.claimed_by_id === myUserId 
                   ? 'bg-green-500/20' 
                   : ans.revealed && ans.claimed_by_id 
@@ -410,26 +425,26 @@ const FeudGame = memo(({
               }`}
             >
               <div 
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold mr-3 ${
-                  ans.revealed ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'
+                className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full font-bold text-2xl ${
+                  ans.revealed ? 'bg-[#2d163f] text-yellow-400' : 'bg-[#241042] text-yellow-400'
                 }`}
               >
                 {idx + 1}
               </div>
               
-              <span className={`flex-1 font-semibold ${
-                ans.revealed ? 'text-white' : 'text-white/50'
+              <span className={`flex-1 font-semibold text-[2rem] sm:text-[2.2rem] leading-none ${
+                ans.revealed ? 'text-yellow-100' : 'text-[#8c5ab9]'
               }`}>
-                {ans.answer}
+                {ans.revealed ? ans.answer : '???'}
               </span>
               
-              <div className="flex items-center gap-2">
-                <span className="text-yellow-400 font-bold">{ans.points}</span>
-                <Trophy size={16} className="text-yellow-500" />
+              <div className="flex items-center gap-2 text-yellow-300">
+                <span className="font-bold text-2xl">{ans.points}</span>
+                <Trophy size={20} className="text-yellow-400" />
               </div>
               
               {ans.claimed_by_username && (
-                <span className="ml-2 text-xs text-white/60 bg-white/10 px-2 py-0.5 rounded">
+                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">
                   {ans.claimed_by_username}
                 </span>
               )}
@@ -470,13 +485,13 @@ const FeudGame = memo(({
             onKeyPress={handleKeyPress}
             placeholder="Type your guess..."
             disabled={isSubmitting || showRoundEnd || gameEnded}
-            className="flex-1 bg-white/10 border border-purple-500/30 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-400 disabled:opacity-50"
+            className="flex-1 rounded-2xl border border-[#6e34a3] bg-[#130823] px-4 py-3 text-white placeholder:text-[#7f5aa9] focus:outline-none focus:border-[#b170ff] disabled:opacity-50"
             data-testid="feud-guess-input"
           />
           <button
             onClick={submitGuess}
             disabled={isSubmitting || !guess.trim() || showRoundEnd || gameEnded}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-xl text-white font-semibold disabled:opacity-50 transition-all"
+            className="rounded-2xl bg-gradient-to-r from-[#7c2fe8] to-[#a24eff] px-8 py-3 text-white font-semibold disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)]"
             data-testid="feud-submit-btn"
           >
             Submit
@@ -486,7 +501,7 @@ const FeudGame = memo(({
         {/* Leave Game Button */}
         <button
           onClick={handleClose}
-          className="w-full mt-2 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/70 text-sm flex items-center justify-center gap-2 transition-colors"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#6e34a3] bg-[#160a2a] py-3 text-base text-white/80 transition-colors shadow-[0_0_18px_rgba(168,85,247,0.18)]"
           data-testid="feud-leave-btn"
         >
           <X size={16} />
