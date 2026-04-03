@@ -200,7 +200,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
 
     peerConnection.current = pc;
     return pc;
-  }, [socket, sessionId, cleanupPeerConnection]);
+  }, [socket, sessionId, contextType, cleanupPeerConnection]);
 
   // Get camera stream - direct, no filter processing
   const getLocalStream = useCallback(async () => {
@@ -349,26 +349,32 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
     }
 
     try {
-      const offerCollision = makingOffer.current || 
-        (pc.signalingState !== 'stable' && pc.signalingState !== 'have-local-offer');
+      // Standard MDN "Perfect Negotiation" collision detection
+      // Collision = we're making an offer OR we already have a local offer pending
+      const offerCollision = makingOffer.current || pc.signalingState !== 'stable';
 
+      // Impolite peer ignores incoming offers during collision (its own offer takes priority)
+      // Polite peer always processes incoming offers (rolls back its own if needed)
       ignoreOffer.current = !isPolite() && offerCollision;
       
       if (ignoreOffer.current) {
-        console.log('[WebRTC] Ignoring offer due to collision');
+        console.log('[WebRTC] Ignoring offer (impolite peer, collision detected)');
         return;
       }
 
+      // If polite peer in collision, setRemoteDescription auto-rolls back our pending offer
       isSettingRemoteAnswerPending.current = true;
+      
+      // For polite peer in 'have-local-offer' state, this triggers implicit rollback
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       isSettingRemoteAnswerPending.current = false;
 
-      // Process pending ICE candidates
+      // Process any ICE candidates that arrived before remote description was set
       for (const candidate of pendingCandidates.current) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-          // Ignore
+          // Ignore - candidate may not match current session
         }
       }
       pendingCandidates.current = [];
@@ -382,12 +388,12 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
           session_id: sessionId,
           context_type: contextType
         });
-        console.log('[WebRTC] Sent answer');
+        console.log('[WebRTC] Sent answer (polite peer processed offer)');
       }
     } catch (err) {
       console.error('[WebRTC] Handle offer error:', err);
     }
-  }, [socket, sessionId, isPolite, createPeerConnection, getLocalStream]);
+  }, [socket, sessionId, contextType, isPolite, createPeerConnection, getLocalStream]);
 
   // Handle incoming answer
   const handleAnswer = useCallback(async (answer) => {
