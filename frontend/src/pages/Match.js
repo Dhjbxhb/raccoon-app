@@ -129,6 +129,41 @@ const Match = () => {
   } = useWebRTC(socket, sessionId, partner?.user_id, true);
 
   const isPremium = user?.is_premium === true;
+
+  useEffect(() => {
+    if (!localVideoRef.current && !remoteVideoRef.current) {
+      return;
+    }
+
+    if (isGameActive) {
+      if (localVideoRef.current) {
+        localVideoRef.current.pause();
+        localVideoRef.current.srcObject = null;
+      }
+
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.pause();
+        remoteVideoRef.current.srcObject = null;
+      }
+
+      return;
+    }
+
+    if (localVideoRef.current && localStream && localVideoRef.current.srcObject !== localStream) {
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
+    }
+
+    if (remoteVideoRef.current) {
+      if (remoteStream && remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.play().catch(() => {});
+      } else if (!remoteStream && remoteVideoRef.current.srcObject) {
+        remoteVideoRef.current.pause();
+        remoteVideoRef.current.srcObject = null;
+      }
+    }
+  }, [isGameActive, localStream, remoteStream, localVideoRef, remoteVideoRef]);
   
   // ========== RESPONSIVE HANDLER ==========
   useEffect(() => {

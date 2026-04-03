@@ -1278,6 +1278,8 @@
   padding: 0;
   animation: miniVideosSlideIn 0.3s ease-out;
   pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
 }
 
 @keyframes miniVideosSlideIn {
