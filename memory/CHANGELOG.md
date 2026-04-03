@@ -1,5 +1,11 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — UNO black-screen guard fix
+- Blocked UNO from opening unless valid session/player game state exists.
+- Cleared stale UNO state on close so exit -> re-open starts fresh.
+- Reset local UNO component state whenever initial game data is absent.
+- Verified by testing agent report `iteration_22.json`.
+
 ## 2026-04-03 — Draw mobile toolbar usability fix
 - Enlarged Draw mobile tool controls for pen/eraser, colors, brush slider, undo, and clear.
 - Increased spacing in the mobile tools panel to reduce accidental taps.
