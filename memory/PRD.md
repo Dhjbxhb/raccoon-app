@@ -32,6 +32,7 @@
 - Premium CTA + room repeatability validation: `/app/test_reports/iteration_27.json` confirmed the dashboard premium button redirects reliably on repeated clicks and private room create/leave/re-enter flow remains smooth.
 - Feud reference-style validation: `/app/test_reports/iteration_28.json` confirmed the Feud restyle aligns with the provided desktop/mobile references by code review.
 - Draw reference-style validation: `/app/test_reports/iteration_29.json` confirmed the Draw restyle aligns with the provided desktop/mobile references by code review.
+- UNO reference-style validation: `/app/test_reports/iteration_30.json` confirmed the UNO restyle aligns with the provided desktop/mobile references by code review.
 
 
 ## Original Problem Statement

@@ -1,5 +1,10 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — UNO reference-style restyle
+- Restyled `UnoGame.jsx` to match the user-provided desktop and phone screenshots more closely: camera cards, central card/ring area, UNO call button, hand fan, and bottom action buttons.
+- Wired the UNO bottom `End Game` action through the shared end-session flow while keeping the core UNO logic intact.
+- Verified by testing agent report `iteration_30.json`.
+
 ## 2026-04-03 — Draw reference-style restyle
 - Restyled `DrawGame.jsx` to match the user-provided desktop and phone screenshots more closely: header, player cards, side panels, canvas card, tools, chat, and bottom actions.
 - Preserved the working draw/guess socket flow while updating the UI structure and visual treatment.
