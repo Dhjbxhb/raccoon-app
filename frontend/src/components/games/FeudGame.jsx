@@ -274,33 +274,11 @@ const FeudGame = memo(({
     <div 
       className="absolute inset-0 flex flex-col overflow-hidden z-25"
       style={{
-        background: 'linear-gradient(180deg, #1a0a2e 0%, #16082a 50%, #0d0620 100%)',
+        background: 'rgba(8, 8, 22, 0.34)',
         borderRadius: 'inherit'
       }}
       data-testid="feud-game-overlay"
     >
-      {/* Cosmic Background Effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute w-[500px] h-[500px] opacity-15"
-          style={{
-            top: '5%',
-            left: '10%',
-            background: 'radial-gradient(ellipse, rgba(168, 85, 247, 0.4) 0%, transparent 60%)',
-            filter: 'blur(80px)'
-          }}
-        />
-        <div 
-          className="absolute w-[400px] h-[400px] opacity-10"
-          style={{
-            bottom: '10%',
-            right: '5%',
-            background: 'radial-gradient(ellipse, rgba(236, 72, 153, 0.3) 0%, transparent 55%)',
-            filter: 'blur(60px)'
-          }}
-        />
-      </div>
-      
       {/* === PLAYER CARDS AT TOP === */}
       <div className={`relative z-10 flex justify-center gap-4 px-4 ${keyboardVisible ? 'pt-2' : 'pt-4'}`}>
         {/* My Card */}

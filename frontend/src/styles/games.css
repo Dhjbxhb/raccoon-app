@@ -12,6 +12,111 @@
  * SHARED GAME STYLES
  * ============================================================ */
 
+.game-background {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.game-background__gradient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(120, 82, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 82% 24%, rgba(66, 96, 255, 0.14), transparent 26%),
+    radial-gradient(circle at 62% 74%, rgba(169, 99, 255, 0.12), transparent 24%),
+    linear-gradient(180deg, #04050d 0%, #0a0d20 45%, #090716 100%);
+}
+
+.game-background__glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.55;
+  will-change: transform;
+}
+
+.game-background__glow--primary {
+  width: 34rem;
+  height: 34rem;
+  top: -8rem;
+  left: -6rem;
+  background: radial-gradient(circle, rgba(102, 86, 255, 0.2), transparent 62%);
+  animation: gameGlowFloatPrimary 26s ease-in-out infinite;
+}
+
+.game-background__glow--secondary {
+  width: 28rem;
+  height: 28rem;
+  right: -4rem;
+  top: 18%;
+  background: radial-gradient(circle, rgba(64, 117, 255, 0.16), transparent 62%);
+  animation: gameGlowFloatSecondary 32s ease-in-out infinite;
+}
+
+.game-background__glow--accent {
+  width: 24rem;
+  height: 24rem;
+  left: 36%;
+  bottom: -6rem;
+  background: radial-gradient(circle, rgba(176, 110, 255, 0.14), transparent 60%);
+  animation: gameGlowFloatAccent 30s ease-in-out infinite;
+}
+
+.game-background__particle {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.14);
+  animation: gameParticleDrift linear infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes gameGlowFloatPrimary {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, 4%, 0) scale(1.04); }
+}
+
+@keyframes gameGlowFloatSecondary {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-4%, 3%, 0) scale(1.05); }
+}
+
+@keyframes gameGlowFloatAccent {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-2%, -4%, 0) scale(1.03); }
+}
+
+@keyframes gameParticleDrift {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.08; }
+  50% { opacity: 0.24; }
+  100% { transform: translate3d(0, -24px, 0); opacity: 0.08; }
+}
+
+@media (max-width: 768px) {
+  .game-background__glow {
+    filter: blur(60px);
+    opacity: 0.42;
+  }
+
+  .game-background__glow--primary {
+    width: 24rem;
+    height: 24rem;
+  }
+
+  .game-background__glow--secondary {
+    width: 20rem;
+    height: 20rem;
+  }
+
+  .game-background__glow--accent {
+    width: 18rem;
+    height: 18rem;
+  }
+}
+
 /* Game overlay container - appears on MY video side only */
 .game-overlay {
   position: absolute;

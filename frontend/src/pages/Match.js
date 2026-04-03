@@ -17,6 +17,7 @@ import MatchingFilters from '@/components/MatchingFilters';
 import FeudGame from '@/components/games/FeudGame';
 import UnoGame from '@/components/games/UnoGame';
 import DrawGame from '@/components/games/DrawGame';
+import GameBackground from '@/components/games/GameBackground';
 import { PremiumPromptModal } from '@/components/premium/PremiumGate';
 import '@/styles/match.css';
 import '@/styles/chat.css';
@@ -786,6 +787,8 @@ const Match = () => {
           </button>
         </div>
       )}
+
+      {isGameActive && <GameBackground />}
 
       {/* ===== GAME OVERLAY (Full screen when active) ===== */}
       {showFeud && (

@@ -706,33 +706,9 @@ const DrawGame = ({
   return (
     <div 
       className="fixed inset-0 z-50 flex flex-col"
-      style={{
-        background: 'linear-gradient(180deg, #020205 0%, #0a0818 50%, #050510 100%)'
-      }}
+      style={{ background: 'transparent' }}
       data-testid="draw-game-container"
     >
-      {/* Cosmic background effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute w-[600px] h-[600px] opacity-20"
-          style={{
-            top: '10%',
-            left: '20%',
-            background: 'radial-gradient(ellipse, rgba(139, 92, 246, 0.3) 0%, transparent 60%)',
-            filter: 'blur(100px)'
-          }}
-        />
-        <div 
-          className="absolute w-[400px] h-[400px] opacity-15"
-          style={{
-            bottom: '20%',
-            right: '15%',
-            background: 'radial-gradient(ellipse, rgba(168, 85, 247, 0.25) 0%, transparent 55%)',
-            filter: 'blur(80px)'
-          }}
-        />
-      </div>
-      
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between p-4 border-b border-purple-500/20">
         <button

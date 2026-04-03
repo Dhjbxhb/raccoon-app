@@ -449,42 +449,6 @@ const UnoGame = memo(({
       }}
       data-testid="uno-game"
     >
-      {/* Space Background */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'radial-gradient(ellipse at 50% 30%, #2d1b69 0%, #1a0d3d 40%, #0a0618 100%)',
-        overflow: 'hidden'
-      }}>
-        {/* Stars */}
-        {[...Array(50)].map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              width: Math.random() * 3 + 1,
-              height: Math.random() * 3 + 1,
-              background: 'white',
-              borderRadius: '50%',
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              opacity: Math.random() * 0.7 + 0.3,
-              animation: `twinkle ${2 + Math.random() * 3}s ease-in-out infinite ${Math.random() * 2}s`
-            }}
-          />
-        ))}
-        {/* Nebula glow */}
-        <div style={{
-          position: 'absolute',
-          width: '150%',
-          height: '150%',
-          left: '-25%',
-          top: '-25%',
-          background: 'radial-gradient(ellipse at 30% 40%, rgba(139, 92, 246, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(236, 72, 153, 0.1) 0%, transparent 50%)',
-          animation: 'nebulaDrift 20s ease-in-out infinite'
-        }} />
-      </div>
-      
       {/* === CAMERA SECTION (TOP) === */}
       <div style={{
         position: 'absolute',
