@@ -7,6 +7,8 @@
 - Backend-controlled premium security with blocked dev overrides
 - `currentSessionId` lifecycle tracking and cleanup
 - Mobile CTA clickability / no overlap regressions on core flows
+- Private-room live session launch and room-triggered game bridge
+- Draw / UNO / Feud gameplay polish for cleaner desktop/mobile presentation
 
 ## P1 — Next priority
 - Google Login production-domain verification and any remaining authorized-domain/session edge fixes
@@ -20,4 +22,4 @@
 
 ## Notes
 - Stripe remains **MOCKED** in test mode.
-- Current validation source of truth: `/app/test_reports/iteration_17.json`.
+- Current validation sources of truth: `/app/test_reports/iteration_17.json` and `/app/test_reports/iteration_18.json`.

@@ -13,11 +13,13 @@
 - Skip flow now guarantees both users receive cleanup signals and can rejoin with a fresh session.
 - Private-room group matching now requires **exactly 2 players** before it can start.
 - Camera placeholders now show **"Connecting..."** instead of leaving users with a black-screen style state.
+- Final UI polish pass added live private-room session launching, cleaner Draw/UNO/Feud game layouts, and restored clickable premium upgrade CTAs.
 
 ### Verification completed this run
 - Self-test: live socket integration validated shared session creation, synced skip cleanup, `currentSessionId` clearing, and immediate rematch with a new session.
 - Backend validation: `26` pytest checks passed against the preview URL.
 - Testing agent: `/app/test_reports/iteration_17.json` reported **100% pass** on mandatory room, premium, currentSessionId, and mobile CTA checks.
+- Final polish validation: `/app/test_reports/iteration_18.json` reported **100% frontend/backend pass** for private-room flow, premium CTA clickability, and polished game UI verification.
 
 
 ## Original Problem Statement
