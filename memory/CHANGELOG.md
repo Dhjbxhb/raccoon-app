@@ -1,5 +1,10 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Duplicate camera visibility fix
+- Hid the base Match camera layer during game mode and cleared its video `srcObject` values while games are active.
+- Reattached streams automatically after game exit or skip so the standard match cameras restore cleanly.
+- Verified by testing agent report `iteration_23.json`.
+
 ## 2026-04-03 — UNO black-screen guard fix
 - Blocked UNO from opening unless valid session/player game state exists.
 - Cleared stale UNO state on close so exit -> re-open starts fresh.
