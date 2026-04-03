@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)  # Only warnings and errors
 
 CURRENT_SESSION_FIELD = 'currentSessionId'
+active_user_sockets: dict[str, str] = {}
 
 
 def get_actor_collection(is_guest: bool):
@@ -118,6 +119,112 @@ async def get_active_game_state(session_id: str) -> dict:
 
 async def register_socket_handlers(sio: socketio.AsyncServer):
     """Register all Socket.IO event handlers"""
+
+    async def get_live_user_payload(user_id: str, fallback_username: str = 'Player'):
+        sid = active_user_sockets.get(user_id)
+        if not sid:
+            return None, 'Both room players must stay connected before starting.'
+
+        async with sio.session(sid) as socket_session:
+            is_guest = socket_session.get('is_guest', False)
+            username = socket_session.get('username', fallback_username)
+
+        collection = get_actor_collection(is_guest)
+        user_doc = await collection.find_one(get_actor_query(user_id, is_guest), {'_id': 0})
+        if not user_doc:
+            return None, 'Player data could not be loaded.'
+
+        premium_status = False
+        if not is_guest:
+            premium_status, _tier, _expires = await premium_service.check_premium_status(user_id)
+
+        return {
+            'user_id': user_id,
+            'socket_id': sid,
+            'username': user_doc.get('username', username),
+            'gender': user_doc.get('gender', 'any'),
+            'country': user_doc.get('country', 'Unknown'),
+            'country_code': user_doc.get('country_code', ''),
+            'is_guest': is_guest,
+            'premium_status': premium_status,
+            'premium': premium_status,
+        }, None
+
+    async def ensure_private_room_session(room_code: str, initiator_id: str, auto_start_game: str | None = None):
+        room_players = room_service.get_room_players(room_code)
+        if len(room_players) != 2:
+            return None, f'Need exactly {room_service.MAX_ROOM_PLAYERS} players to start the room match.'
+
+        resolved_players = []
+        for room_player in room_players:
+            resolved_player, error = await get_live_user_payload(room_player['id'], room_player.get('username', 'Player'))
+            if error:
+                return None, error
+            resolved_players.append(resolved_player)
+
+        existing_session = matching_queue.get_session(resolved_players[0]['user_id'])
+        same_participants = False
+        if existing_session:
+            same_participants = {
+                existing_session['user1']['user_id'],
+                existing_session['user2']['user_id']
+            } == {resolved_players[0]['user_id'], resolved_players[1]['user_id']}
+
+        if same_participants:
+            match = {
+                'session_id': existing_session['session_id'],
+                'user1': existing_session['user1'],
+                'user2': existing_session['user2'],
+                'created_at': existing_session['created_at']
+            }
+        else:
+            match = matching_queue.create_direct_session(resolved_players[0], resolved_players[1])
+
+            stats_service.start_match_session(match['user1']['user_id'])
+            stats_service.start_match_session(match['user2']['user_id'])
+
+            sessions = get_sessions_collection()
+            await sessions.insert_one({
+                'session_id': match['session_id'],
+                'user1_id': match['user1']['user_id'],
+                'user2_id': match['user2']['user_id'],
+                'user1_username': match['user1'].get('username', ''),
+                'user2_username': match['user2'].get('username', ''),
+                'user1_is_guest': match['user1'].get('is_guest', False),
+                'user2_is_guest': match['user2'].get('is_guest', False),
+                'user1_country': match['user1'].get('country', ''),
+                'user2_country': match['user2'].get('country', ''),
+                'start_time': match['created_at'],
+                'end_time': None,
+                'status': 'active',
+                'duration_seconds': 0,
+                'message_count': 0,
+                'end_reason': None
+            })
+
+        await sync_users_current_session([
+            {'user_id': match['user1']['user_id'], 'is_guest': match['user1'].get('is_guest', False)},
+            {'user_id': match['user2']['user_id'], 'is_guest': match['user2'].get('is_guest', False)}
+        ], match['session_id'])
+
+        for current_user, partner_user in ((match['user1'], match['user2']), (match['user2'], match['user1'])):
+            payload = {
+                'room_code': room_code,
+                'session_id': match['session_id'],
+                'partner': {
+                    'user_id': partner_user['user_id'],
+                    'username': partner_user.get('username'),
+                    'gender': partner_user.get('gender'),
+                    'country': partner_user.get('country'),
+                    'country_code': partner_user.get('country_code'),
+                    'is_premium': partner_user.get('premium', False)
+                },
+                'auto_start_game': auto_start_game,
+                'initiator_id': initiator_id
+            }
+            await sio.emit('private_room_match_started', payload, room=current_user['socket_id'])
+
+        return match, None
     
     # ============================================
     # CONNECTION HANDLERS
@@ -140,6 +247,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             is_guest = session.get('is_guest', False)
             if not user_id:
                 return
+
+        if active_user_sockets.get(user_id) == sid:
+            del active_user_sockets[user_id]
         
         # End platform time tracking and persist time
         await stats_service.end_platform_session(user_id, is_guest)
@@ -226,6 +336,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             async with sio.session(sid) as session:
                 session['user_id'] = user_id
                 session['is_guest'] = is_guest
+
+            active_user_sockets[user_id] = sid
             
             # Get user data
             if is_guest:
@@ -911,6 +1023,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             # Update socket ID in session
             matching_queue.update_socket_id(user_id, sid)
+            active_user_sockets[user_id] = sid
             
             room_id = session_data['session_id']
             
@@ -1851,6 +1964,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'game_type': game_type,
                 'room': result['room']
             }, room=f"room_{room_code}")
+
+            _match, error = await ensure_private_room_session(room_code, user_id, game_type)
+            if error:
+                await sio.emit('room_error', {'message': error}, room=sid)
+                return
             
         except Exception as e:
             logger.error(f"Error starting room game: {e}")
@@ -1905,6 +2023,11 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'room': result['room'],
                 'group_size': result['group_size']
             }, room=f"room_{room_code}")
+
+            _match, error = await ensure_private_room_session(room_code, user_id)
+            if error:
+                await sio.emit('room_error', {'message': error}, room=sid)
+                return
             
         except Exception as e:
             logger.error(f"Error starting group matching: {e}")

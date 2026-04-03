@@ -71,7 +71,18 @@ const PrivateRoom = () => {
     const handleGameStarted = (data) => {
       console.log('[ROOM] Game started:', data);
       setRoom(data.room);
-      // Navigate to game or show game overlay
+    };
+
+    const handlePrivateMatchStarted = (data) => {
+      console.log('[ROOM] Private match started:', data);
+      navigate('/match', {
+        state: {
+          privateRoomLaunch: true,
+          roomCode: data.room_code,
+          autoStartGame: data.auto_start_game || null,
+          autoStartGameInitiatorId: data.initiator_id || null,
+        }
+      });
     };
     
     const handleMatchingStarted = (data) => {
@@ -92,6 +103,7 @@ const PrivateRoom = () => {
     socket.on('room_left', handleRoomLeft);
     socket.on('room_error', handleRoomError);
     socket.on('room_game_started', handleGameStarted);
+    socket.on('private_room_match_started', handlePrivateMatchStarted);
     socket.on('group_matching_started', handleMatchingStarted);
     socket.on('group_matching_stopped', handleMatchingStopped);
     
@@ -112,11 +124,12 @@ const PrivateRoom = () => {
       socket.off('room_left', handleRoomLeft);
       socket.off('room_error', handleRoomError);
       socket.off('room_game_started', handleGameStarted);
+      socket.off('private_room_match_started', handlePrivateMatchStarted);
       socket.off('group_matching_started', handleMatchingStarted);
       socket.off('group_matching_stopped', handleMatchingStopped);
       socket.off('room_state');
     };
-  }, [socket]);
+  }, [socket, navigate]);
   
   // Create room
   const handleCreate = useCallback(() => {
@@ -364,7 +377,7 @@ const PrivateRoom = () => {
                   </span>
                 )}
                 {room.status === 'matching' && (
-                  <span className="text-blue-400">Looking for opponents...</span>
+                  <span className="text-blue-400">Connecting your private match...</span>
                 )}
                 {room.status === 'in_game' && (
                   <span className="text-green-400">Playing {room.current_game}</span>
@@ -416,7 +429,7 @@ const PrivateRoom = () => {
                     data-testid="start-matching-btn"
                   >
                     <Zap size={20} />
-                    Start 2v2 Matching
+                    Start Match
                   </button>
                 </>
               )}

@@ -18,7 +18,9 @@ const FeudGame = memo(({
   myUserId,
   partnerUsername = 'Stranger',
   sessionId,
-  initialGameState = null
+  initialGameState = null,
+  localStream,
+  remoteStream
 }) => {
   const [gameState, setGameState] = useState(initialGameState);
   const [guess, setGuess] = useState('');
@@ -304,19 +306,31 @@ const FeudGame = memo(({
         {/* My Card */}
         <div className="flex flex-col items-center">
           <div 
-            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border-2 ${
+            className={`w-28 h-20 sm:w-32 sm:h-[5.5rem] lg:w-40 lg:h-24 rounded-2xl overflow-hidden border-2 ${
               feedback?.isMe && feedback?.type === 'correct' ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-purple-500/50'
             }`}
             style={{
               background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(168, 85, 247, 0.2))'
             }}
           >
-            <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
-              {myUsername.charAt(0).toUpperCase()}
-            </div>
+            {localStream ? (
+              <video
+                autoPlay
+                muted
+                playsInline
+                ref={el => {
+                  if (el && el.srcObject !== localStream) el.srcObject = localStream;
+                }}
+                className="h-full w-full object-cover scale-x-[-1]"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                {myUsername.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
-          <span className="text-white text-sm mt-1 font-medium">{myUsername}</span>
-          <div className="flex items-center gap-1 mt-0.5">
+          <span className="text-white text-sm mt-2 font-medium" data-testid="feud-my-name">{myUsername}</span>
+          <div className="flex items-center gap-1 mt-1" data-testid="feud-my-score">
             <Trophy size={14} className="text-yellow-400" />
             <span className="text-yellow-400 font-bold">{myScore}</span>
           </div>
@@ -325,19 +339,30 @@ const FeudGame = memo(({
         {/* Partner Card */}
         <div className="flex flex-col items-center">
           <div 
-            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border-2 ${
+            className={`w-28 h-20 sm:w-32 sm:h-[5.5rem] lg:w-40 lg:h-24 rounded-2xl overflow-hidden border-2 ${
               feedback && !feedback.isMe && feedback?.type === 'correct' ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-purple-500/50'
             }`}
             style={{
               background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(168, 85, 247, 0.2))'
             }}
           >
-            <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
-              {partnerUsername.charAt(0).toUpperCase()}
-            </div>
+            {remoteStream ? (
+              <video
+                autoPlay
+                playsInline
+                ref={el => {
+                  if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                }}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                {partnerUsername.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
-          <span className="text-white text-sm mt-1 font-medium">{partnerUsername}</span>
-          <div className="flex items-center gap-1 mt-0.5">
+          <span className="text-white text-sm mt-2 font-medium" data-testid="feud-partner-name">{partnerUsername}</span>
+          <div className="flex items-center gap-1 mt-1" data-testid="feud-partner-score">
             <Trophy size={14} className="text-yellow-400" />
             <span className="text-yellow-400 font-bold">{partnerScore}</span>
           </div>
@@ -533,7 +558,7 @@ const FeudGame = memo(({
             </div>
             
             <h2 className="text-3xl font-bold text-white mb-2">
-              {winner.isTie ? "It's a Tie!" : winner.isMe ? 'You Win!' : `${winner.username} Wins!`}
+              {winner.isTie ? "Winner: Tie" : winner.isMe ? 'Winner: You' : `Winner: ${winner.username}`}
             </h2>
             
             <div className="flex justify-around my-6 py-4 bg-white/5 rounded-xl">

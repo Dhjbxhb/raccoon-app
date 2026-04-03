@@ -208,7 +208,7 @@ const PricingCards = ({
               {/* CTA Button */}
               <button
                 onClick={() => handleSelect(plan)}
-                disabled={isProcessing || loading || isCurrent || !stripeEnabled}
+                disabled={isProcessing || loading || isCurrent}
                 className={`pricing-cta 
                   ${isYearly ? 'best-value' : ''} 
                   ${isQuarterly ? 'popular' : ''} 
@@ -226,7 +226,7 @@ const PricingCards = ({
                 ) : (
                   <>
                     <Zap size={16} />
-                    {stripeEnabled ? 'Subscribe Now' : 'Payments Unavailable'}
+                    {stripeEnabled ? 'Subscribe Now' : 'Upgrade Now'}
                   </>
                 )}
               </button>

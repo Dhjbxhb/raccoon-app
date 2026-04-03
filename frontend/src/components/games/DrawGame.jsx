@@ -202,43 +202,45 @@ const ToolsPanel = memo(({
   if (!isDrawer) return null;
   
   return (
-    <div className="flex flex-col gap-3 p-3 bg-[#1a1a2e]/80 rounded-xl border border-purple-500/20">
-      <div className="text-sm font-semibold text-white/80">Tools</div>
+    <div className="flex flex-col gap-4 p-4 bg-[#141426]/90 rounded-2xl border border-purple-500/20 shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+      <div className="text-sm font-semibold tracking-[0.2em] text-white/70 uppercase">Tools</div>
       
       {/* Tool buttons */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <button
           onClick={() => setTool('pen')}
-          className={`p-2 rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 transition-all ${
             tool === 'pen' 
-              ? 'bg-purple-600 text-white' 
+              ? 'bg-purple-600 text-white shadow-[0_0_24px_rgba(168,85,247,0.35)]' 
               : 'bg-white/10 text-white/70 hover:bg-white/20'
           }`}
           data-testid="draw-tool-pen"
         >
           <Pen size={20} />
+          <span className="text-sm font-medium">Pen</span>
         </button>
         <button
           onClick={() => setTool('eraser')}
-          className={`p-2 rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 transition-all ${
             tool === 'eraser' 
-              ? 'bg-purple-600 text-white' 
+              ? 'bg-purple-600 text-white shadow-[0_0_24px_rgba(168,85,247,0.35)]' 
               : 'bg-white/10 text-white/70 hover:bg-white/20'
           }`}
           data-testid="draw-tool-eraser"
         >
           <Eraser size={20} />
+          <span className="text-sm font-medium">Eraser</span>
         </button>
       </div>
       
       {/* Color palette */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-3">
         {COLORS.map(color => (
           <button
             key={color}
             onClick={() => setCurrentColor(color)}
-            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
-              currentColor === color ? 'border-purple-400 scale-110' : 'border-white/20'
+            className={`h-12 w-12 rounded-2xl border-2 transition-transform hover:scale-105 sm:h-14 sm:w-14 ${
+              currentColor === color ? 'border-purple-300 scale-105 shadow-[0_0_24px_rgba(168,85,247,0.3)]' : 'border-white/15'
             }`}
             style={{ backgroundColor: color }}
             data-testid={`draw-color-${color}`}
@@ -248,18 +250,24 @@ const ToolsPanel = memo(({
       
       {/* Brush size */}
       <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/50">
+          <span>Brush</span>
+          <span>{brushSize}px</span>
+        </div>
         <input
           type="range"
           min="4"
           max="20"
           value={brushSize}
+          onInput={(e) => setBrushSize(Number(e.target.value))}
           onChange={(e) => setBrushSize(Number(e.target.value))}
-          className="w-full accent-purple-500"
+          className="w-full accent-purple-500 cursor-pointer"
+          style={{ accentColor: '#a855f7' }}
           data-testid="draw-brush-size"
         />
-        <div className="flex justify-center">
+        <div className="flex items-center justify-center rounded-2xl bg-white/5 py-3">
           <div 
-            className="rounded-full bg-white"
+            className="rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.35)]"
             style={{ width: brushSize, height: brushSize }}
           />
         </div>
@@ -269,14 +277,14 @@ const ToolsPanel = memo(({
       <div className="flex gap-2">
         <button
           onClick={onUndo}
-          className="flex-1 p-2 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+          className="flex-1 rounded-xl bg-white/10 px-4 py-3 text-white/80 hover:bg-white/20 transition-colors"
           data-testid="draw-undo-btn"
         >
           <Undo size={18} className="mx-auto" />
         </button>
         <button
           onClick={onClear}
-          className="flex-1 p-2 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+          className="flex-1 rounded-xl bg-white/10 px-4 py-3 text-white/80 hover:bg-white/20 transition-colors"
           data-testid="draw-clear-btn"
         >
           <Trash2 size={18} className="mx-auto" />
@@ -337,27 +345,33 @@ const ChatPanel = memo(({
       </div>
       
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-3 border-t border-purple-500/20">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={isDrawer ? "You're drawing..." : hasGuessed ? "Waiting for others..." : "Type your guess..."}
-            disabled={isDrawer || hasGuessed}
-            className="flex-1 bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-white/50 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
-            data-testid="draw-guess-input"
-          />
-          <button
-            type="submit"
-            disabled={isDrawer || hasGuessed || !inputValue.trim()}
-            className="p-2 rounded-lg bg-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors"
-            data-testid="draw-send-guess-btn"
-          >
-            <Send size={18} />
-          </button>
+      {!isDrawer ? (
+        <form onSubmit={handleSubmit} className="p-3 border-t border-purple-500/20">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={hasGuessed ? "Waiting for others..." : "Type your guess..."}
+              disabled={hasGuessed}
+              className="flex-1 bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-white/50 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
+              data-testid="draw-guess-input"
+            />
+            <button
+              type="submit"
+              disabled={hasGuessed || !inputValue.trim()}
+              className="p-2 rounded-lg bg-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors"
+              data-testid="draw-send-guess-btn"
+            >
+              <Send size={18} />
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="border-t border-purple-500/20 px-3 py-4 text-center text-sm text-white/55" data-testid="draw-drawer-status">
+          You are the drawer. Guess input is hidden until the next round.
         </div>
-      </form>
+      )}
     </div>
   );
 });
@@ -367,7 +381,8 @@ const PlayerVideoGrid = memo(({
   players, 
   localStream, 
   remoteStream,
-  currentDrawerId 
+  currentDrawerId,
+  compact = false
 }) => {
   const playerCount = players.length;
   
@@ -388,7 +403,7 @@ const PlayerVideoGrid = memo(({
               ? 'border-purple-500 shadow-lg shadow-purple-500/30' 
               : 'border-purple-500/30'
           }`}
-          style={{ aspectRatio: '4/3' }}
+          style={{ aspectRatio: compact ? '16/8.5' : '4/3' }}
         >
           {/* Video placeholder or actual video */}
           <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
@@ -409,7 +424,7 @@ const PlayerVideoGrid = memo(({
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold">
+                <div className={`${compact ? 'w-12 h-12 text-lg' : 'w-16 h-16 text-2xl'} rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold`}>
                   {player.username?.charAt(0)?.toUpperCase() || '?'}
                 </div>
               </div>
@@ -505,6 +520,13 @@ const DrawGame = ({
   const timerRef = useRef(null);
   const isDrawer = gameState?.is_drawer || false;
   const hasGuessed = gameState?.has_guessed || false;
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Build players list from game state
   const players = gameState?.players || [
@@ -735,62 +757,32 @@ const DrawGame = ({
           <span className="text-white/70 text-sm hidden sm:inline">
             Code: <span className="text-purple-400 font-mono">{gameState?.room_code || 'XXXX'}</span>
           </span>
-          <span className="text-white/70 text-sm">
-            {players.length}/4
+          <span className="text-white/70 text-sm" data-testid="draw-player-count">
+            {players.length}/2
           </span>
         </div>
       </div>
       
       {/* Main content - responsive layout */}
-      <div className="relative z-10 flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
-        {/* Mobile: Cameras at top, Desktop: Left sidebar */}
-        <div className="lg:hidden">
+      <div className="relative z-10 flex-1 flex flex-col gap-4 p-4 overflow-hidden">
+        <div className={`${isDesktop ? 'mx-auto w-full max-w-6xl' : ''} flex-shrink-0`}>
           <PlayerVideoGrid 
             players={players}
             localStream={localStream}
             remoteStream={remoteStream}
             currentDrawerId={gameState?.current_drawer_id}
+            compact={isDesktop}
           />
         </div>
-        
-        {/* Desktop: Left sidebar with players list and round info */}
-        <div className="hidden lg:flex flex-col gap-4 w-48">
-          <div className="bg-[#1a1a2e]/80 rounded-xl border border-purple-500/20 p-3">
-            <div className="text-sm font-semibold text-white/80 mb-3">Players</div>
-            <div className="space-y-2">
-              {players.map(player => (
-                <div key={player.user_id} className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold">
-                    {player.username?.charAt(0)?.toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm truncate">{player.username}</div>
-                    <div className="text-xs text-green-400">Ready</div>
-                  </div>
-                  {player.is_drawer && (
-                    <span className="text-yellow-400 text-lg">&#128081;</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="bg-[#1a1a2e]/80 rounded-xl border border-purple-500/20 p-3">
-            <div className="text-sm font-semibold text-white/80 mb-3">Round Info</div>
-            <div className="text-white/70 text-sm mb-2">
-              Drawer: <span className="text-white">{gameState?.drawer_username || 'Unknown'}</span>
-            </div>
-            <Timer seconds={timeLeft} total={30} />
-          </div>
-        </div>
-        
-        {/* Center: Canvas */}
-        <div className="flex-1 flex flex-col gap-3 min-w-0">
+
+        <div className={`${isDesktop ? 'mx-auto grid w-full max-w-6xl flex-1 min-h-0 grid-cols-[minmax(0,1fr)_280px] gap-4' : 'flex flex-1 flex-col gap-4 overflow-hidden'}`}>
+        <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
           {/* Drawing indicator */}
-          <div className="flex justify-center">
-            <span className="px-4 py-1 bg-purple-600 rounded-full text-white text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="px-4 py-1 bg-purple-600 rounded-full text-white text-sm shadow-[0_0_24px_rgba(168,85,247,0.3)]">
               {isDrawer ? 'You are drawing' : `${gameState?.drawer_username || 'Partner'} is drawing`}
             </span>
+            <Timer seconds={timeLeft} total={30} />
           </div>
           
           {/* Word hint for guessers */}
@@ -812,7 +804,7 @@ const DrawGame = ({
           )}
           
           {/* Canvas area */}
-          <div className="flex-1 relative bg-[#1a1a2e]/50 rounded-xl border border-purple-500/30 p-2 overflow-hidden">
+          <div className="flex-1 relative min-h-[320px] bg-[#1a1a2e]/50 rounded-2xl border border-purple-500/30 p-2 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
             <DrawingCanvas
               isDrawer={isDrawer}
               strokes={strokes}
@@ -825,11 +817,6 @@ const DrawGame = ({
             />
           </div>
           
-          {/* Mobile: Timer */}
-          <div className="lg:hidden flex justify-center">
-            <Timer seconds={timeLeft} total={30} />
-          </div>
-          
           {/* Guess progress */}
           <div className="flex justify-center">
             <GuessProgress 
@@ -840,7 +827,7 @@ const DrawGame = ({
         </div>
         
         {/* Right sidebar: Tools and Chat */}
-        <div className="flex flex-col lg:flex-row lg:flex-col gap-4 w-full lg:w-64">
+        <div className="flex min-h-0 flex-col gap-4 w-full lg:w-[280px]">
           {/* Tools */}
           <ToolsPanel
             isDrawer={isDrawer}
@@ -855,7 +842,7 @@ const DrawGame = ({
           />
           
           {/* Chat */}
-          <div className="flex-1 min-h-[200px] lg:min-h-0">
+          <div className="flex-1 min-h-[220px] lg:min-h-0">
             <ChatPanel
               messages={messages}
               onSendMessage={handleSendMessage}
@@ -863,6 +850,7 @@ const DrawGame = ({
               hasGuessed={hasGuessed}
             />
           </div>
+        </div>
         </div>
       </div>
       
@@ -920,8 +908,9 @@ const DrawGame = ({
             {roundEndData?.winner_username && (
               <div className="mb-6">
                 <span className="text-5xl">&#127942;</span>
+                <div className="text-sm uppercase tracking-[0.3em] text-white/50 mt-3">Winner</div>
                 <div className="text-2xl text-purple-400 font-bold mt-2">
-                  {roundEndData.winner_username} Wins!
+                  Winner: {roundEndData.winner_username}
                 </div>
               </div>
             )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { useMatching } from '@/hooks/useMatching';
@@ -42,6 +42,7 @@ const RACCOON_FACTS = [
  */
 const Match = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { socket, connected } = useSocket();
   const { 
@@ -53,7 +54,8 @@ const Match = () => {
     skipMatch, 
     blockUser,
     endSession,
-    setAutoRejoin
+    setAutoRejoin,
+    rejoinSession
   } = useMatching(socket);
   const { messages, partnerTyping, sendMessage, retryMessage, startTyping, stopTyping, clearMessages, MessageStatus } = useChat(socket, sessionId, user?.user_id || user?.guest_id);
   
@@ -78,6 +80,9 @@ const Match = () => {
   const messagesEndRef = useRef(null);
   const localPanelRef = useRef(null);
   const previousSessionRef = useRef(null);
+  const privateRoomRestoreAttemptedRef = useRef(false);
+  const privateRoomAutoGameStartedRef = useRef(false);
+  const privateRoomSessionActiveRef = useRef(false);
   
   // ========== GAME STATE MANAGEMENT ==========
   const [activeGame, setActiveGame] = useState(null);
@@ -91,6 +96,11 @@ const Match = () => {
   // Premium prompt modal state
   const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
   const [premiumFeatureName, setPremiumFeatureName] = useState('');
+
+  const privateRoomLaunch = Boolean(location.state?.privateRoomLaunch);
+  const privateRoomCode = location.state?.roomCode || null;
+  const privateRoomAutoGame = location.state?.autoStartGame || null;
+  const privateRoomAutoGameInitiatorId = location.state?.autoStartGameInitiatorId || null;
   
   // Derived game visibility states
   const showFeud = activeGame === 'feud';
@@ -132,6 +142,12 @@ const Match = () => {
     setSessionDuration(0);
     if (clearMessages) clearMessages();
   }, [clearMessages]);
+
+  useEffect(() => {
+    if (privateRoomLaunch) {
+      setAutoRejoin(false);
+    }
+  }, [privateRoomLaunch, setAutoRejoin]);
   
   // ========== SESSION CHANGE DETECTION ==========
   useEffect(() => {
@@ -340,10 +356,45 @@ const Match = () => {
 
   // Auto-start matching
   useEffect(() => {
+    if (privateRoomLaunch) {
+      return;
+    }
+
     if (state === 'idle' && user) {
       startMatching(matchingFilters.gender, matchingFilters.country);
     }
-  }, [state, user, matchingFilters, startMatching]);
+  }, [state, user, matchingFilters, startMatching, privateRoomLaunch]);
+
+  useEffect(() => {
+    if (!privateRoomLaunch || !socket?.connected || state !== 'idle') {
+      return;
+    }
+
+    if (privateRoomRestoreAttemptedRef.current) {
+      return;
+    }
+
+    privateRoomRestoreAttemptedRef.current = true;
+    rejoinSession();
+    toast.info(privateRoomCode ? `Joining private room ${privateRoomCode}...` : 'Joining private room...', {
+      duration: 1800
+    });
+  }, [privateRoomLaunch, privateRoomCode, socket?.connected, state, rejoinSession]);
+
+  useEffect(() => {
+    if (!privateRoomLaunch) {
+      return;
+    }
+
+    if (state === 'matched') {
+      privateRoomSessionActiveRef.current = true;
+      return;
+    }
+
+    if (state === 'idle' && privateRoomSessionActiveRef.current) {
+      navigate('/private-room');
+    }
+  }, [privateRoomLaunch, state, navigate]);
 
   // Rotate raccoon facts
   useEffect(() => {
@@ -466,6 +517,33 @@ const Match = () => {
     }, 3000);
     
   }, [isPremium, isGameActive, state, socket, sessionId, showPremiumModal]);
+
+  useEffect(() => {
+    if (!privateRoomLaunch || !privateRoomAutoGame || state !== 'matched') {
+      return;
+    }
+
+    const currentUserId = user?.user_id || user?.guest_id;
+    if (!currentUserId || currentUserId !== privateRoomAutoGameInitiatorId) {
+      return;
+    }
+
+    if (privateRoomAutoGameStartedRef.current) {
+      return;
+    }
+
+    privateRoomAutoGameStartedRef.current = true;
+    const timer = setTimeout(() => startGame(privateRoomAutoGame), 500);
+    return () => clearTimeout(timer);
+  }, [
+    privateRoomLaunch,
+    privateRoomAutoGame,
+    privateRoomAutoGameInitiatorId,
+    state,
+    user?.user_id,
+    user?.guest_id,
+    startGame
+  ]);
   
   // Reset retry count when game starts successfully
   useEffect(() => {
@@ -523,8 +601,8 @@ const Match = () => {
     resetAllGameState();
     endCall();
     endSession();
-    navigate('/dashboard');
-  }, [setAutoRejoin, endCall, endSession, navigate, resetAllGameState]);
+    navigate(privateRoomLaunch ? '/private-room' : '/dashboard');
+  }, [setAutoRejoin, endCall, endSession, navigate, resetAllGameState, privateRoomLaunch]);
 
   // ========== CONNECTING STATE ==========
   if (!connected) {
@@ -720,6 +798,8 @@ const Match = () => {
             partnerUsername={partner?.username || 'Stranger'}
             sessionId={sessionId}
             initialGameState={feudGameState}
+            localStream={localStream}
+            remoteStream={remoteStream}
           />
         </div>
       )}
@@ -732,9 +812,11 @@ const Match = () => {
             socket={socket}
             myUserId={user?.user_id || user?.guest_id}
             partnerUsername={partner?.username || 'Stranger'}
+            myUsername={user?.username || 'You'}
             sessionId={sessionId}
-            isMobile={isMobile}
             initialGameState={unoGameState}
+            localStream={localStream}
+            remoteStream={remoteStream}
           />
         </div>
       )}

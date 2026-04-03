@@ -305,6 +305,55 @@ class MatchingQueue:
             'user2': session.user2_data,
             'created_at': now.isoformat()
         }
+
+    def create_direct_session(self, user1_data: dict, user2_data: dict) -> dict:
+        """Create a direct session between two known users without using the queue."""
+        with self._lock:
+            participants = [user1_data, user2_data]
+
+            for participant in participants:
+                user_id = participant.get('user_id')
+                if not user_id:
+                    continue
+
+                if user_id in self.users_in_queue:
+                    self._remove_from_queue_unsafe(user_id)
+
+                if user_id in self.user_sessions:
+                    self.force_cleanup_user(user_id)
+
+            entry1 = QueueEntry(
+                user_id=user1_data.get('user_id', ''),
+                socket_id=user1_data.get('socket_id', ''),
+                username=user1_data.get('username', 'User'),
+                gender=user1_data.get('gender', 'any'),
+                country=user1_data.get('country', 'Unknown'),
+                country_code=user1_data.get('country_code', ''),
+                is_guest=user1_data.get('is_guest', False),
+                is_premium=user1_data.get('premium_status', user1_data.get('premium', False)),
+                gender_filter='any',
+                country_filter='ANY'
+            )
+
+            entry2 = QueueEntry(
+                user_id=user2_data.get('user_id', ''),
+                socket_id=user2_data.get('socket_id', ''),
+                username=user2_data.get('username', 'User'),
+                gender=user2_data.get('gender', 'any'),
+                country=user2_data.get('country', 'Unknown'),
+                country_code=user2_data.get('country_code', ''),
+                is_guest=user2_data.get('is_guest', False),
+                is_premium=user2_data.get('premium_status', user2_data.get('premium', False)),
+                gender_filter='any',
+                country_filter='ANY'
+            )
+
+            if entry1.socket_id:
+                self.socket_users[entry1.socket_id] = entry1.user_id
+            if entry2.socket_id:
+                self.socket_users[entry2.socket_id] = entry2.user_id
+
+            return self._create_session(entry1, entry2)
     
     def _remove_entry_from_queue(self, entry: QueueEntry) -> None:
         """Remove a specific entry from all queues (internal use)."""
