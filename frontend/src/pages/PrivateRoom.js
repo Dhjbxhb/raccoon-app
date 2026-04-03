@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRoomLobby } from '@/contexts/RoomLobbyContext';
 import { toast } from 'sonner';
 import { 
-  Copy, Users, Play, Zap, LogOut, Crown, 
+  Copy, Users, Play, LogOut, Crown, 
   Plus, ArrowRight, Check, X
 } from 'lucide-react';
 import DrawGame from '@/components/games/DrawGame';
@@ -38,7 +38,6 @@ const PrivateRoom = () => {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [roomMessage, setRoomMessage] = useState('');
-  const privateMatchSessionRef = useRef(null);
   
   // Premium status - from backend's computed is_premium field
   const isPremium = user?.is_premium === true;
@@ -97,36 +96,6 @@ const PrivateRoom = () => {
       console.log('[ROOM] Game started:', data);
       setRoom(data.room);
     };
-
-    const handlePrivateMatchStarted = (data) => {
-      console.log('[ROOM] Private match started:', data);
-      if (privateMatchSessionRef.current === data.session_id) {
-        return;
-      }
-
-      privateMatchSessionRef.current = data.session_id;
-      navigate('/match', {
-        state: {
-          privateRoomLaunch: true,
-          roomCode: data.room_code,
-          sessionId: data.session_id,
-          partner: data.partner,
-          autoStartGame: data.auto_start_game || null,
-          autoStartGameInitiatorId: data.initiator_id || null,
-        }
-      });
-    };
-    
-    const handleMatchingStarted = (data) => {
-      console.log('[ROOM] Group matching started:', data);
-      setRoom(data.room);
-      toast.success('Looking for opponents...');
-    };
-    
-    const handleMatchingStopped = (data) => {
-      console.log('[ROOM] Matching stopped:', data);
-      setRoom(data);
-    };
     
     socket.on('room_created', handleRoomCreated);
     socket.on('room_updated', handleRoomUpdated);
@@ -135,9 +104,6 @@ const PrivateRoom = () => {
     socket.on('room_left', handleRoomLeft);
     socket.on('room_error', handleRoomError);
     socket.on('room_game_started', handleGameStarted);
-    socket.on('private_room_match_started', handlePrivateMatchStarted);
-    socket.on('group_matching_started', handleMatchingStarted);
-    socket.on('group_matching_stopped', handleMatchingStopped);
     
     // Check if already in a room
     socket.emit('get_room_state');
@@ -156,9 +122,6 @@ const PrivateRoom = () => {
       socket.off('room_left', handleRoomLeft);
       socket.off('room_error', handleRoomError);
       socket.off('room_game_started', handleGameStarted);
-      socket.off('private_room_match_started', handlePrivateMatchStarted);
-      socket.off('group_matching_started', handleMatchingStarted);
-      socket.off('group_matching_stopped', handleMatchingStopped);
       socket.off('room_state');
     };
   }, [socket, navigate]);
@@ -221,18 +184,6 @@ const PrivateRoom = () => {
     socket.emit('start_room_game', { game_type: gameType });
   }, [socket]);
   
-  // Start group matching
-  const handleStartMatching = useCallback(() => {
-    if (!socket) return;
-    socket.emit('start_group_matching');
-  }, [socket]);
-  
-  // Stop matching
-  const handleStopMatching = useCallback(() => {
-    if (!socket) return;
-    socket.emit('stop_group_matching');
-  }, [socket]);
-  
   // Check if current user is creator
   const isCreator = activeRoom?.players?.find(p => p.id === myId)?.is_creator;
   const playerCount = activeRoom?.player_count || activeRoom?.players?.length || 0;
@@ -274,7 +225,7 @@ const PrivateRoom = () => {
             <div className="text-center mb-8">
               <div className="text-6xl mb-4">🦝</div>
               <h2 className="text-3xl font-bold mb-2">Private Rooms</h2>
-              <p className="text-gray-400">Play with friends or match together</p>
+              <p className="text-gray-400">Private room for you and your friend</p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
@@ -442,9 +393,6 @@ const PrivateRoom = () => {
                     {isRoomReady ? 'Room full and ready.' : 'Waiting for 1 more player...'}
                   </span>
                 )}
-                {activeRoom.status === 'matching' && (
-                  <span className="text-blue-400">Connecting your private match...</span>
-                )}
                 {activeRoom.status === 'in_game' && (
                   <span className="text-green-400">Playing {activeRoom.current_game}</span>
                 )}
@@ -528,30 +476,6 @@ const PrivateRoom = () => {
             
             {/* Action Buttons */}
             <div className="mt-auto flex flex-col sm:flex-row gap-3">
-              {isCreator && activeRoom.status === 'waiting' && (
-                <>
-                  <button
-                    onClick={handleStartMatching}
-                    disabled={!isRoomReady}
-                    className="flex-1 flex items-center justify-center gap-2 p-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-semibold hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all disabled:opacity-50"
-                    data-testid="start-matching-btn"
-                  >
-                    <Zap size={20} />
-                    Start Match
-                  </button>
-                </>
-              )}
-              
-              {isCreator && activeRoom.status === 'matching' && (
-                <button
-                  onClick={handleStopMatching}
-                  className="flex-1 flex items-center justify-center gap-2 p-4 bg-orange-500/20 border border-orange-500/40 rounded-xl font-semibold hover:bg-orange-500/30 transition-all"
-                >
-                  <X size={20} />
-                  Stop Matching
-                </button>
-              )}
-              
               <button
                 onClick={handleLeave}
                 className="flex items-center justify-center gap-2 p-4 bg-white/5 border border-white/10 rounded-xl font-semibold hover:bg-red-500/10 hover:border-red-500/30 transition-all"
