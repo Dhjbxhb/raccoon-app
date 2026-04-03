@@ -734,39 +734,39 @@ const DrawGame = ({
       style={{ background: 'transparent' }}
       data-testid="draw-game-container"
     >
-      {/* Header */}
-      <div className="relative z-10 flex items-center justify-between p-4 border-b border-purple-500/20">
+      {/* Header — compact on mobile */}
+      <div className="relative z-10 flex items-center justify-between px-3 py-2 sm:p-4 border-b border-purple-500/20">
         <button
           onClick={handleLeaveGame}
-          className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors"
           data-testid="draw-leave-btn"
         >
-          <X size={18} />
-          <span className="hidden sm:inline">Leave Room</span>
+          <X size={16} />
+          <span className="hidden sm:inline">Leave</span>
         </button>
         
         <div className="flex flex-col items-center">
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
+          <h1 className="text-base sm:text-2xl font-bold text-white tracking-wide">
             DRAW & GUESS
           </h1>
-          <span className="text-sm text-purple-400">
+          <span className="text-xs sm:text-sm text-purple-400">
             Round {gameState?.current_round || 1}/{gameState?.total_rounds || 2}
           </span>
         </div>
         
-        <div className="flex items-center gap-3">
-          <span className="text-white/70 text-sm hidden sm:inline">
+        <div className="flex items-center gap-2">
+          <span className="text-white/70 text-xs hidden sm:inline">
             Code: <span className="text-purple-400 font-mono">{gameState?.room_code || 'XXXX'}</span>
           </span>
-          <span className="text-white/70 text-sm" data-testid="draw-player-count">
+          <span className="text-white/70 text-xs sm:text-sm" data-testid="draw-player-count">
             {players.length}/2
           </span>
         </div>
       </div>
       
-      {/* Main content - responsive layout */}
-      <div className="relative z-10 flex-1 flex flex-col gap-4 p-4 overflow-hidden">
-        <div className={`${isDesktop ? 'mx-auto w-full max-w-[1200px]' : ''} flex-shrink-0 border-b border-white/5 pb-3`}>
+      {/* Main content - responsive layout, NO SCROLL on mobile */}
+      <div className="relative z-10 flex-1 flex flex-col gap-1.5 sm:gap-4 p-2 sm:p-4 overflow-hidden min-h-0">
+        <div className={`${isDesktop ? 'mx-auto w-full max-w-[1200px]' : ''} flex-shrink-0 pb-1 sm:pb-3 sm:border-b sm:border-white/5`}>
           <PlayerVideoGrid 
             players={players}
             localStream={localStream}
@@ -818,17 +818,28 @@ const DrawGame = ({
           </div>
         )}
 
-        <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
-          {/* Drawing indicator */}
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <span className="rounded-full bg-[#7e38e9] px-5 py-1.5 text-white text-sm shadow-[0_0_24px_rgba(168,85,247,0.3)]">
+        <div className="flex-1 flex flex-col gap-1 sm:gap-3 min-w-0 min-h-0">
+          {/* Drawing indicator + word — combined row on mobile */}
+          <div className="flex flex-wrap items-center justify-center gap-2 flex-shrink-0">
+            <span className="rounded-full bg-[#7e38e9] px-3 py-1 sm:px-5 sm:py-1.5 text-white text-xs sm:text-sm shadow-[0_0_24px_rgba(168,85,247,0.3)]">
               {isDrawer ? 'You are drawing' : `${gameState?.drawer_username || 'Partner'} is drawing`}
             </span>
             {!isDesktop && <Timer seconds={timeLeft} total={30} />}
+            {/* Inline word hint on mobile to save vertical space */}
+            {!isDesktop && !isDrawer && gameState?.word_hint && (
+              <span className="text-white text-lg font-mono tracking-[0.4em]">
+                {gameState.word_hint}
+              </span>
+            )}
+            {!isDesktop && isDrawer && gameState?.current_word && (
+              <span className="text-white text-sm font-bold">
+                Draw: <span className="text-purple-400">{gameState.current_word}</span>
+              </span>
+            )}
           </div>
           
-          {/* Word hint for guessers */}
-          {!isDrawer && gameState?.word_hint && (
+          {/* Word hint for guessers — desktop only (mobile is inline above) */}
+          {isDesktop && !isDrawer && gameState?.word_hint && (
             <div className="flex justify-center">
               <span className="text-white text-2xl font-mono tracking-[0.5em]">
                 {gameState.word_hint}
@@ -836,8 +847,8 @@ const DrawGame = ({
             </div>
           )}
           
-          {/* Word for drawer */}
-          {isDrawer && gameState?.current_word && (
+          {/* Word for drawer — desktop only */}
+          {isDesktop && isDrawer && gameState?.current_word && (
             <div className="flex justify-center">
               <span className="text-white text-xl font-bold">
                 Draw: <span className="text-purple-400">{gameState.current_word}</span>
@@ -860,8 +871,8 @@ const DrawGame = ({
             />
           )}
           
-          {/* Canvas area */}
-          <div className="flex-1 relative min-h-[280px] sm:min-h-[320px] rounded-[1.8rem] border border-[#7b43b7] bg-[#1b0d30] p-3 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
+          {/* Canvas area — fills remaining space, no min-height on mobile */}
+          <div className="flex-1 relative min-h-0 sm:min-h-[320px] rounded-xl sm:rounded-[1.8rem] border border-[#7b43b7] bg-[#1b0d30] p-1.5 sm:p-3 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
             <DrawingCanvas
               isDrawer={isDrawer}
               strokes={strokes}
@@ -874,9 +885,9 @@ const DrawGame = ({
             />
           </div>
 
-          {/* Mobile: Chat below canvas — ONLY for guesser */}
+          {/* Mobile: Chat below canvas — compact, ONLY for guesser */}
           {!isDesktop && !isDrawer && (
-            <div className="min-h-[180px] max-h-[240px]" data-testid="draw-mobile-chat-panel">
+            <div className="flex-shrink-0 h-[120px]" data-testid="draw-mobile-chat-panel">
               <ChatPanel
                 messages={messages}
                 onSendMessage={handleSendMessage}
@@ -886,13 +897,15 @@ const DrawGame = ({
             </div>
           )}
           
-          {/* Guess progress */}
+          {/* Guess progress — desktop only */}
+          {isDesktop && (
           <div className="flex justify-center">
             <GuessProgress 
               guessedCount={gameState?.guessed_count || 0}
               totalGuessers={gameState?.total_guessers || 1}
             />
           </div>
+          )}
         </div>
         
         {/* Right sidebar: Tools (drawer only) OR Chat (guesser only) */}
