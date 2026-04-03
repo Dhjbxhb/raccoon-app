@@ -10,34 +10,71 @@ import random
 
 logger = logging.getLogger(__name__)
 
-# Word bank for drawing - simple, drawable words
+# Word bank for drawing — 200+ drawable words, varied difficulty
 WORD_BANK = [
-    # Animals
-    "cat", "dog", "bird", "fish", "elephant", "snake", "lion", "tiger", "bear", "rabbit",
-    "monkey", "horse", "cow", "pig", "chicken", "duck", "frog", "turtle", "whale", "shark",
-    
-    # Food
-    "pizza", "burger", "apple", "banana", "cake", "ice cream", "cookie", "donut", "sandwich", "hot dog",
-    "egg", "bread", "cheese", "carrot", "tomato", "potato", "watermelon", "strawberry", "orange", "grapes",
-    
-    # Objects
-    "car", "house", "tree", "sun", "moon", "star", "flower", "book", "phone", "computer",
-    "chair", "table", "bed", "door", "window", "clock", "lamp", "key", "umbrella", "glasses",
-    
-    # Transportation
-    "airplane", "rocket", "boat", "train", "bicycle", "bus", "helicopter", "submarine", "motorcycle", "truck",
-    
-    # Nature
-    "mountain", "ocean", "river", "cloud", "rain", "snow", "fire", "rainbow", "beach", "island",
-    
-    # Body parts
-    "eye", "nose", "mouth", "ear", "hand", "foot", "heart", "brain", "tooth", "hair",
-    
-    # Sports
-    "ball", "basketball", "football", "tennis", "golf", "swimming", "skiing", "skateboard", "boxing", "yoga",
-    
-    # Actions (can be drawn as stick figures doing things)
-    "running", "jumping", "dancing", "sleeping", "eating", "reading", "singing", "crying", "laughing", "flying"
+    # Animals (25)
+    "cat", "dog", "elephant", "giraffe", "penguin", "octopus", "dolphin", "kangaroo",
+    "flamingo", "chameleon", "hedgehog", "jellyfish", "peacock", "scorpion", "lobster",
+    "parrot", "squirrel", "buffalo", "crocodile", "hamster", "koala", "panda",
+    "seahorse", "vulture", "zebra",
+
+    # Food & Drink (25)
+    "pizza", "sushi", "taco", "pancake", "pretzel", "popcorn", "waffle",
+    "broccoli", "avocado", "pineapple", "coconut", "mushroom", "lollipop",
+    "cupcake", "milkshake", "burrito", "noodles", "dumpling", "baguette",
+    "cinnamon roll", "fried egg", "hot dog", "onion ring", "cherry", "mango",
+
+    # Objects (30)
+    "telescope", "headphones", "backpack", "umbrella", "candle", "scissors",
+    "envelope", "compass", "hourglass", "binoculars", "flashlight", "magnifying glass",
+    "padlock", "trophy", "crown", "diamond", "anchor", "boomerang", "ladder",
+    "wheelbarrow", "mailbox", "traffic light", "fire hydrant", "microphone",
+    "skateboard", "trampoline", "toolbox", "birdhouse", "windmill", "scarecrow",
+
+    # Places & Buildings (20)
+    "castle", "lighthouse", "igloo", "pyramid", "volcano", "waterfall",
+    "bridge", "ferris wheel", "skyscraper", "tent", "barn", "prison",
+    "fountain", "treehouse", "cave", "stadium", "airport", "aquarium",
+    "greenhouse", "observatory",
+
+    # Transportation (15)
+    "submarine", "helicopter", "sailboat", "rocket", "ambulance", "bulldozer",
+    "gondola", "hot air balloon", "jet ski", "canoe", "trolley", "spaceship",
+    "scooter", "fire truck", "cable car",
+
+    # Nature & Weather (20)
+    "tornado", "avalanche", "rainbow", "cactus", "palm tree", "iceberg",
+    "coral reef", "meteor", "eclipse", "northern lights", "geyser", "quicksand",
+    "tidal wave", "sandcastle", "campfire", "snowflake", "sunrise", "whirlpool",
+    "fossil", "stalactite",
+
+    # Clothing & Accessories (15)
+    "sombrero", "bow tie", "flip flops", "snorkel", "monocle", "cape",
+    "turban", "earmuffs", "suspenders", "tiara", "mittens", "bandana",
+    "top hat", "ballet shoes", "goggles",
+
+    # Activities & Sports (20)
+    "surfing", "archery", "juggling", "fencing", "wrestling", "bowling",
+    "skydiving", "karate", "hopscotch", "tug of war", "limbo", "leapfrog",
+    "arm wrestling", "bungee jumping", "rodeo", "polo", "curling",
+    "ice skating", "rock climbing", "hang gliding",
+
+    # Professions (15)
+    "astronaut", "pirate", "ninja", "wizard", "detective", "chef",
+    "firefighter", "knight", "mermaid", "gladiator", "pharaoh",
+    "lumberjack", "beekeeper", "blacksmith", "ringmaster",
+
+    # Household (15)
+    "chandelier", "rocking chair", "bathtub", "fireplace", "grandfather clock",
+    "toaster", "blender", "ironing board", "ceiling fan", "bookshelf",
+    "doorbell", "chimney", "staircase", "hammock", "bunk bed",
+
+    # Miscellaneous (20)
+    "treasure chest", "dream catcher", "jack in the box", "voodoo doll",
+    "paper airplane", "snow globe", "music box", "message in a bottle",
+    "wrecking ball", "time machine", "magic carpet", "pinata",
+    "slot machine", "cuckoo clock", "jigsaw puzzle", "dart board",
+    "fortune cookie", "chess piece", "disco ball", "sand timer",
 ]
 
 
@@ -67,8 +104,9 @@ class DrawGameService:
         # Generate room code
         room_code = ''.join(random.choices('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', k=6))
         
-        # Select words for each round
-        words = random.sample(WORD_BANK, min(len(players), len(WORD_BANK)))
+        # Select unique words for all rounds (no repeats within a game)
+        num_words = min(len(players) * 2, len(WORD_BANK))  # Extra words in case of replays
+        words = random.sample(WORD_BANK, num_words)
         
         # Initialize player scores
         player_scores = {p['user_id']: 0 for p in players}
@@ -344,12 +382,17 @@ class DrawGameService:
         drawer_index = game['current_round'] - 1
         game['current_drawer_id'] = game['drawer_order'][drawer_index % len(game['drawer_order'])]
         
-        # New word
+        # New word — never repeat within the same game
         if drawer_index < len(game['words']):
             game['current_word'] = game['words'][drawer_index]
         else:
-            # If we run out of words, pick random ones
-            game['current_word'] = random.choice(WORD_BANK)
+            used = set(game['words'])
+            available = [w for w in WORD_BANK if w not in used]
+            if not available:
+                available = WORD_BANK  # All exhausted, reset pool
+            pick = random.choice(available)
+            game['words'].append(pick)
+            game['current_word'] = pick
         
         # Reset round state
         game['guessed_players'] = []
@@ -375,23 +418,19 @@ class DrawGameService:
         return None
     
     def _fuzzy_match(self, guess: str, word: str) -> bool:
-        """Check for close matches (typos, etc.)"""
+        """STRICT matching — exact match or single-character typo only"""
         # Exact match
         if guess == word:
             return True
-        
-        # Remove spaces and compare
+
+        # Space-insensitive exact match (e.g. "icecream" vs "ice cream")
         if guess.replace(' ', '') == word.replace(' ', ''):
             return True
-        
-        # Check if guess contains the word or vice versa (for compound words)
-        if len(word) > 3 and (word in guess or guess in word):
+
+        # Allow exactly 1 typo via Levenshtein distance, only if lengths are close
+        if abs(len(guess) - len(word)) <= 1 and self._levenshtein_distance(guess, word) <= 1:
             return True
-        
-        # Simple Levenshtein distance for short words
-        if len(word) <= 6 and self._levenshtein_distance(guess, word) <= 1:
-            return True
-        
+
         return False
     
     def _levenshtein_distance(self, s1: str, s2: str) -> int:
