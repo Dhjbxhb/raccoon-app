@@ -803,7 +803,7 @@ const DrawGame = ({
         </div>
         
         {/* Right sidebar: Tools and Chat */}
-        <div className="flex min-h-0 flex-col gap-4 w-full lg:w-[280px]">
+        <div className={`flex min-h-0 flex-col gap-4 w-full ${isDrawer ? 'lg:w-[280px]' : 'lg:w-[320px]'}`}>
           {/* Tools */}
           <ToolsPanel
             isDrawer={isDrawer}
@@ -817,15 +817,17 @@ const DrawGame = ({
             onClear={handleClear}
           />
           
-          {/* Chat */}
-          <div className="flex-1 min-h-[220px] lg:min-h-0">
-            <ChatPanel
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              isDrawer={isDrawer}
-              hasGuessed={hasGuessed}
-            />
-          </div>
+          {/* Chat - guessers only */}
+          {!isDrawer && (
+            <div className="flex-1 min-h-[220px] lg:min-h-0" data-testid="draw-guesser-chat-panel">
+              <ChatPanel
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                isDrawer={isDrawer}
+                hasGuessed={hasGuessed}
+              />
+            </div>
+          )}
         </div>
         </div>
       </div>
