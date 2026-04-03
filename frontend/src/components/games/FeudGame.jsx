@@ -90,7 +90,7 @@ const FeudGame = memo(({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameState?.current_round, gameState?.round_active, showRoundEnd, socket]);
+  }, [gameState?.current_round, gameState?.round_active, gameState?.round_time_limit, gameState?.status, showRoundEnd, socket]);
   
   // Socket event handlers
   useEffect(() => {
