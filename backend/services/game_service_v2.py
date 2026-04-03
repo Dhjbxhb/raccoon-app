@@ -318,9 +318,9 @@ def normalize_text(text: str) -> str:
     return text
 
 
-def fuzzy_match_answer(guess: str, answer_data: dict, threshold: float = 65) -> Tuple[bool, int]:
+def fuzzy_match_answer(guess: str, answer_data: dict, threshold: float = 90) -> Tuple[bool, int]:
     """
-    Enhanced fuzzy matching with alternate answers
+    STRICT answer matching — only exact or near-exact matches accepted.
     Returns (is_match, confidence_score)
     """
     guess = normalize_text(guess)
@@ -339,30 +339,9 @@ def fuzzy_match_answer(guess: str, answer_data: dict, threshold: float = 65) -> 
         if guess == answer:
             return True, 100
         
-        # Contains check
-        if len(guess) >= 3 and len(answer) >= 3:
-            if guess in answer or answer in guess:
-                length_ratio = min(len(guess), len(answer)) / max(len(guess), len(answer))
-                if length_ratio > 0.4:
-                    return True, 95
-        
-        # Word overlap
-        guess_words = set(guess.split())
-        answer_words = set(answer.split())
-        
-        if guess_words and answer_words:
-            overlap = guess_words & answer_words
-            significant_overlap = [w for w in overlap if len(w) > 2]
-            if significant_overlap:
-                return True, 90
-        
-        # Fuzzy scoring
+        # Full-string fuzzy ratio only (no partial, no token tricks)
         ratio = fuzz.ratio(guess, answer)
-        partial = fuzz.partial_ratio(guess, answer)
-        token_sort = fuzz.token_sort_ratio(guess, answer)
-        
-        score = max(ratio, partial, token_sort)
-        best_score = max(best_score, score)
+        best_score = max(best_score, ratio)
     
     return best_score >= threshold, best_score
 
