@@ -336,6 +336,16 @@ const Match = () => {
       });
       navigate(privateRoomLaunch ? '/private-room' : '/dashboard');
     };
+
+    // Game closed — game ended but match stays alive
+    const handleGameClosed = (data) => {
+      setIsEndingGame(false);
+      resetAllGameState();
+      toast.info(
+        data.reason === 'ended_by_user' ? 'Game ended' : 'Your partner ended the game',
+        { duration: 1800 }
+      );
+    };
     
     // Game-specific error handlers
     const handleUnoError = (data) => {
@@ -375,6 +385,7 @@ const Match = () => {
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
     socket.on('session_ended', handleGameSessionEnded);
+    socket.on('game_closed', handleGameClosed);
     socket.on('premium_required', handlePremiumRequired);
     socket.on('session_restored', handleSessionRestored);
     socket.on('error', handleError);
@@ -392,6 +403,7 @@ const Match = () => {
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
       socket.off('session_ended', handleGameSessionEnded);
+      socket.off('game_closed', handleGameClosed);
       socket.off('premium_required', handlePremiumRequired);
       socket.off('session_restored', handleSessionRestored);
       socket.off('error', handleError);
@@ -682,9 +694,9 @@ const Match = () => {
     }
 
     setIsEndingGame(true);
-    setAutoRejoin(false);
-    socket.emit('end_game_session');
-  }, [socket, sessionId, isEndingGame, setAutoRejoin]);
+    // End ONLY the game, keep the match alive
+    socket.emit('end_current_game');
+  }, [socket, sessionId, isEndingGame]);
 
   const handleBackToDashboard = useCallback(() => {
     setAutoRejoin(false);

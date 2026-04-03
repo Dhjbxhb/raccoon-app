@@ -858,6 +858,52 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 pass
             await sio.emit('skip_failed', {'message': 'Skip failed, please try again'}, room=sid)
 
+
+    @sio.event
+    async def end_current_game(sid):
+        """End ONLY the active game, keep the match session alive."""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                if not user_id:
+                    await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
+                    return
+
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('game_closed', {'reason': 'no_session'}, room=sid)
+                return
+
+            session_id = session_data['session_id']
+            partner_socket = matching_queue.get_partner_socket(user_id)
+
+            from services.uno_service import uno_service
+            from services.draw_game_service import draw_game_service
+
+            try:
+                uno_service.end_game(session_id)
+            except Exception:
+                pass
+            try:
+                feud_service.end_game(session_id)
+            except Exception:
+                pass
+            try:
+                draw_game_service.end_game(session_id)
+            except Exception:
+                pass
+
+            # Notify both players the game ended — match stays alive
+            await sio.emit('game_closed', {'reason': 'ended_by_user', 'success': True}, room=sid)
+            if partner_socket:
+                await sio.emit('game_closed', {'reason': 'partner_ended_game', 'success': True}, room=partner_socket)
+
+            logger.info(f"Game ended (match kept alive) by {user_id} in session {session_id}")
+
+        except Exception as e:
+            logger.error(f"Error in end_current_game: {e}")
+            await sio.emit('error', {'message': 'Failed to end game'}, room=sid)
+
     @sio.event
     async def end_game_session(sid):
         """End the active match for both users from within a game."""

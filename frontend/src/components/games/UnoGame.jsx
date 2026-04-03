@@ -428,6 +428,15 @@ const UnoGame = memo(({
     startGame();
   }, [startGame]);
 
+  // Derived values (must be BEFORE any hooks that reference them)
+  const isMyTurn = gameState?.is_my_turn || false;
+  const myHand = gameState?.my_hand || [];
+  const playableIds = gameState?.playable_card_ids || [];
+  const topCard = gameState?.top_card;
+  const opponentCardCount = gameState?.opponent_hand_count || 0;
+  const canCallUno = gameState?.can_call_uno;
+  const mustCallUno = gameState?.must_call_uno;
+
   // UNO alert when opponent reaches 1 card
   const prevOpponentCount = useRef(opponentCardCount);
   useEffect(() => {
@@ -446,14 +455,6 @@ const UnoGame = memo(({
 
   const hasSessionContext = Boolean(sessionId && myUserId && partnerUsername);
   if (!hasSessionContext) return null;
-  
-  const isMyTurn = gameState?.is_my_turn || false;
-  const myHand = gameState?.my_hand || [];
-  const playableIds = gameState?.playable_card_ids || [];
-  const topCard = gameState?.top_card;
-  const opponentCardCount = gameState?.opponent_hand_count || 0;
-  const canCallUno = gameState?.can_call_uno;
-  const mustCallUno = gameState?.must_call_uno;
   
   // Calculate card fan rotation for player hand
   const getCardTransform = (index, total) => {
