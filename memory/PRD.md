@@ -22,6 +22,7 @@
 - Testing agent: `/app/test_reports/iteration_17.json` reported **100% pass** on mandatory room, premium, currentSessionId, and mobile CTA checks.
 - Final polish validation: `/app/test_reports/iteration_18.json` reported **100% frontend/backend pass** for private-room flow, premium CTA clickability, and polished game UI verification.
 - Shared background validation: `/app/test_reports/iteration_19.json` confirmed the single-mount game background, removed duplicate game backgrounds, and verified mobile-safe performance notes.
+- Draw role-chat validation: `/app/test_reports/iteration_20.json` confirmed drawer chat is fully removed from the DOM, guesser chat remains visible, and mobile guesser chat stays usable.
 
 
 ## Original Problem Statement

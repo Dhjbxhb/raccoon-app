@@ -1,5 +1,10 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Draw role-based chat visibility fix
+- Removed the Draw chat panel entirely for the drawer role so nothing can overlap or block the canvas.
+- Kept the chat panel visible for guessers only, with preserved mobile usability.
+- Verified by testing agent report `iteration_20.json`.
+
 ## 2026-04-03 — Global game background system
 - Added a single shared `GameBackground` component for all in-game screens, mounted once from `Match.js` only while a game is active.
 - Replaced per-game cosmic backgrounds in Draw, UNO, and Feud with one unified cinematic deep-space layer.
