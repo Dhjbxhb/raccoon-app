@@ -190,6 +190,7 @@ const DrawingCanvas = memo(({
 // === TOOLS PANEL ===
 const ToolsPanel = memo(({ 
   isDrawer,
+  isMobile = false,
   currentColor, 
   setCurrentColor, 
   brushSize, 
@@ -202,18 +203,23 @@ const ToolsPanel = memo(({
   if (!isDrawer) return null;
   
   return (
-    <div className="flex flex-col gap-4 p-4 bg-[#141426]/90 rounded-2xl border border-purple-500/20 shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+    <div
+      className={`flex flex-col rounded-2xl border border-purple-500/20 bg-[#141426]/90 shadow-[0_20px_60px_rgba(0,0,0,0.25)] ${
+        isMobile ? 'gap-5 p-4' : 'gap-4 p-4'
+      }`}
+      data-testid={isMobile ? 'draw-mobile-tools-panel' : 'draw-tools-panel'}
+    >
       <div className="text-sm font-semibold tracking-[0.2em] text-white/70 uppercase">Tools</div>
       
       {/* Tool buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={() => setTool('pen')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 transition-all ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 transition-all ${
             tool === 'pen' 
               ? 'bg-purple-600 text-white shadow-[0_0_24px_rgba(168,85,247,0.35)]' 
               : 'bg-white/10 text-white/70 hover:bg-white/20'
-          }`}
+          } ${isMobile ? 'min-h-[3.5rem] py-4' : 'py-3'}`}
           data-testid="draw-tool-pen"
         >
           <Pen size={20} />
@@ -221,11 +227,11 @@ const ToolsPanel = memo(({
         </button>
         <button
           onClick={() => setTool('eraser')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 transition-all ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 transition-all ${
             tool === 'eraser' 
               ? 'bg-purple-600 text-white shadow-[0_0_24px_rgba(168,85,247,0.35)]' 
               : 'bg-white/10 text-white/70 hover:bg-white/20'
-          }`}
+          } ${isMobile ? 'min-h-[3.5rem] py-4' : 'py-3'}`}
           data-testid="draw-tool-eraser"
         >
           <Eraser size={20} />
@@ -234,14 +240,14 @@ const ToolsPanel = memo(({
       </div>
       
       {/* Color palette */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className={`grid grid-cols-4 ${isMobile ? 'gap-4' : 'gap-3'}`}>
         {COLORS.map(color => (
           <button
             key={color}
             onClick={() => setCurrentColor(color)}
-            className={`h-12 w-12 rounded-2xl border-2 transition-transform hover:scale-105 sm:h-14 sm:w-14 ${
+            className={`rounded-2xl border-2 transition-transform hover:scale-105 ${
               currentColor === color ? 'border-purple-300 scale-105 shadow-[0_0_24px_rgba(168,85,247,0.3)]' : 'border-white/15'
-            }`}
+            } ${isMobile ? 'h-14 w-full min-w-0' : 'h-12 w-12 sm:h-14 sm:w-14'}`}
             style={{ backgroundColor: color }}
             data-testid={`draw-color-${color}`}
           />
@@ -249,7 +255,7 @@ const ToolsPanel = memo(({
       </div>
       
       {/* Brush size */}
-      <div className="flex flex-col gap-2">
+      <div className={`flex flex-col rounded-2xl bg-white/5 ${isMobile ? 'gap-3 p-3' : 'gap-2'}`}>
         <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/50">
           <span>Brush</span>
           <span>{brushSize}px</span>
@@ -261,7 +267,7 @@ const ToolsPanel = memo(({
           value={brushSize}
           onInput={(e) => setBrushSize(Number(e.target.value))}
           onChange={(e) => setBrushSize(Number(e.target.value))}
-          className="w-full accent-purple-500 cursor-pointer"
+          className={`w-full accent-purple-500 cursor-pointer ${isMobile ? 'min-h-[2rem]' : ''}`}
           style={{ accentColor: '#a855f7' }}
           data-testid="draw-brush-size"
         />
@@ -277,14 +283,14 @@ const ToolsPanel = memo(({
       <div className="flex gap-2">
         <button
           onClick={onUndo}
-          className="flex-1 rounded-xl bg-white/10 px-4 py-3 text-white/80 hover:bg-white/20 transition-colors"
+          className={`flex-1 rounded-xl bg-white/10 px-4 text-white/80 hover:bg-white/20 transition-colors ${isMobile ? 'min-h-[3.25rem] py-4' : 'py-3'}`}
           data-testid="draw-undo-btn"
         >
           <Undo size={18} className="mx-auto" />
         </button>
         <button
           onClick={onClear}
-          className="flex-1 rounded-xl bg-white/10 px-4 py-3 text-white/80 hover:bg-white/20 transition-colors"
+          className={`flex-1 rounded-xl bg-white/10 px-4 text-white/80 hover:bg-white/20 transition-colors ${isMobile ? 'min-h-[3.25rem] py-4' : 'py-3'}`}
           data-testid="draw-clear-btn"
         >
           <Trash2 size={18} className="mx-auto" />
@@ -778,9 +784,24 @@ const DrawGame = ({
               </span>
             </div>
           )}
+
+          {!isDesktop && isDrawer && (
+            <ToolsPanel
+              isDrawer={isDrawer}
+              isMobile={true}
+              currentColor={currentColor}
+              setCurrentColor={setCurrentColor}
+              brushSize={brushSize}
+              setBrushSize={setBrushSize}
+              tool={tool}
+              setTool={setTool}
+              onUndo={handleUndo}
+              onClear={handleClear}
+            />
+          )}
           
           {/* Canvas area */}
-          <div className="flex-1 relative min-h-[320px] bg-[#1a1a2e]/50 rounded-2xl border border-purple-500/30 p-2 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
+          <div className="flex-1 relative min-h-[280px] sm:min-h-[320px] bg-[#1a1a2e]/50 rounded-2xl border border-purple-500/30 p-2 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
             <DrawingCanvas
               isDrawer={isDrawer}
               strokes={strokes}
@@ -805,17 +826,19 @@ const DrawGame = ({
         {/* Right sidebar: Tools and Chat */}
         <div className={`flex min-h-0 flex-col gap-4 w-full ${isDrawer ? 'lg:w-[280px]' : 'lg:w-[320px]'}`}>
           {/* Tools */}
-          <ToolsPanel
-            isDrawer={isDrawer}
-            currentColor={currentColor}
-            setCurrentColor={setCurrentColor}
-            brushSize={brushSize}
-            setBrushSize={setBrushSize}
-            tool={tool}
-            setTool={setTool}
-            onUndo={handleUndo}
-            onClear={handleClear}
-          />
+          {isDesktop && (
+            <ToolsPanel
+              isDrawer={isDrawer}
+              currentColor={currentColor}
+              setCurrentColor={setCurrentColor}
+              brushSize={brushSize}
+              setBrushSize={setBrushSize}
+              tool={tool}
+              setTool={setTool}
+              onUndo={handleUndo}
+              onClear={handleClear}
+            />
+          )}
           
           {/* Chat - guessers only */}
           {!isDrawer && (
