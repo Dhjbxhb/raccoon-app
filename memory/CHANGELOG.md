@@ -1,5 +1,10 @@
 # RACCOON APP - CHANGELOG
 
+## 2026-04-03 — Draw reference-style restyle
+- Restyled `DrawGame.jsx` to match the user-provided desktop and phone screenshots more closely: header, player cards, side panels, canvas card, tools, chat, and bottom actions.
+- Preserved the working draw/guess socket flow while updating the UI structure and visual treatment.
+- Verified by testing agent report `iteration_29.json`.
+
 ## 2026-04-03 — Feud reference-style restyle
 - Restyled `FeudGame.jsx` to match the user-provided desktop and phone screenshots more closely: player cards, name pills, score chips, round row, question card, answer board, input row, and leave button.
 - Cleaned the related Feud timer-effect dependency warning after review.
