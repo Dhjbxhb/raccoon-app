@@ -873,6 +873,18 @@ const DrawGame = ({
               tool={tool}
             />
           </div>
+
+          {/* Mobile: Chat below canvas — ONLY for guesser */}
+          {!isDesktop && !isDrawer && (
+            <div className="min-h-[180px] max-h-[240px]" data-testid="draw-mobile-chat-panel">
+              <ChatPanel
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                isDrawer={isDrawer}
+                hasGuessed={hasGuessed}
+              />
+            </div>
+          )}
           
           {/* Guess progress */}
           <div className="flex justify-center">
@@ -883,10 +895,10 @@ const DrawGame = ({
           </div>
         </div>
         
-        {/* Right sidebar: Tools and Chat */}
+        {/* Right sidebar: Tools (drawer only) OR Chat (guesser only) */}
         <div className={`flex min-h-0 flex-col gap-4 w-full ${isDesktop ? 'lg:w-[280px]' : ''}`}>
-          {/* Tools */}
-          {isDesktop && (
+          {/* Tools — ONLY for drawer */}
+          {isDrawer && isDesktop && (
             <ToolsPanel
               isDrawer={isDrawer}
               currentColor={currentColor}
@@ -900,7 +912,8 @@ const DrawGame = ({
             />
           )}
           
-          {/* Chat */}
+          {/* Chat — ONLY for guesser */}
+          {!isDrawer && (
           <div className="flex-1 min-h-[220px] lg:min-h-0" data-testid="draw-guesser-chat-panel">
               <ChatPanel
                 messages={messages}
@@ -909,6 +922,7 @@ const DrawGame = ({
                 hasGuessed={hasGuessed}
               />
           </div>
+          )}
         </div>
         </div>
       </div>
