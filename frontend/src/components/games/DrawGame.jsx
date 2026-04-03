@@ -323,25 +323,25 @@ const ChatPanel = memo(({
   };
   
   return (
-    <div className="flex flex-col h-full bg-[#1a1a2e]/80 rounded-xl border border-purple-500/20 overflow-hidden">
-      <div className="p-3 border-b border-purple-500/20">
-        <span className="text-sm font-semibold text-white/80">Chat</span>
+    <div className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-[#6f38a7] bg-[#140922]/95 shadow-[0_0_20px_rgba(168,85,247,0.12)]">
+      <div className="border-b border-[#5a2a87] px-4 py-3">
+        <span className="text-base font-semibold text-white/90">Chat</span>
       </div>
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {messages.map((msg, idx) => (
           <div key={idx} className={`${msg.isCorrect ? 'text-center' : ''}`}>
             {msg.isCorrect ? (
-              <div className="text-purple-400 text-sm font-medium">
+              <div className="rounded-2xl bg-[#25103f] px-3 py-2 text-sm font-medium text-yellow-200 shadow-[0_0_16px_rgba(168,85,247,0.12)]">
                 {msg.username} guessed it! +{msg.points} pts
               </div>
             ) : (
-              <div className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0" />
-                <div>
-                  <span className="text-white/70 text-xs font-medium">{msg.username}</span>
-                  <p className="text-white/90 text-sm">{msg.content}</p>
+              <div className="flex items-start gap-2 rounded-2xl bg-[#1d0c31] px-3 py-2">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold text-white/90">{msg.username}</span>
+                  <p className="text-white/80 text-sm leading-snug">{msg.content}</p>
                 </div>
               </div>
             )}
@@ -352,7 +352,7 @@ const ChatPanel = memo(({
       
       {/* Input */}
       {!isDrawer ? (
-        <form onSubmit={handleSubmit} className="p-3 border-t border-purple-500/20">
+        <form onSubmit={handleSubmit} className="border-t border-[#5a2a87] p-3">
           <div className="flex gap-2">
             <input
               type="text"
@@ -360,13 +360,13 @@ const ChatPanel = memo(({
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={hasGuessed ? "Waiting for others..." : "Type your guess..."}
               disabled={hasGuessed}
-              className="flex-1 bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-white/50 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
+              className="flex-1 rounded-2xl border border-[#6b38a2] bg-[#12081e] px-3 py-2 text-white text-sm placeholder:text-[#8b67b3] focus:outline-none focus:border-[#b070ff] disabled:opacity-50"
               data-testid="draw-guess-input"
             />
             <button
               type="submit"
               disabled={hasGuessed || !inputValue.trim()}
-              className="p-2 rounded-lg bg-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors"
+              className="rounded-2xl bg-gradient-to-r from-[#7a35e8] to-[#a44eff] px-4 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-95 transition-colors"
               data-testid="draw-send-guess-btn"
             >
               <Send size={18} />
@@ -374,8 +374,8 @@ const ChatPanel = memo(({
           </div>
         </form>
       ) : (
-        <div className="border-t border-purple-500/20 px-3 py-4 text-center text-sm text-white/55" data-testid="draw-drawer-status">
-          You are the drawer. Guess input is hidden until the next round.
+        <div className="border-t border-[#5a2a87] px-4 py-3 text-sm text-white/55" data-testid="draw-drawer-status">
+          Guess input is hidden while you draw.
         </div>
       )}
     </div>
@@ -388,8 +388,7 @@ const PlayerVideoGrid = memo(({
   localStream, 
   remoteStream,
   currentDrawerId,
-  compact = false,
-  playerScores = {}
+  compact = false
 }) => {
   const playerCount = players.length;
   
@@ -410,7 +409,7 @@ const PlayerVideoGrid = memo(({
                 ? 'border-purple-500 shadow-lg shadow-purple-500/30' 
                 : 'border-purple-500/30'
             }`}
-            style={{ aspectRatio: compact ? '16/7.4' : '16/8.4' }}
+            style={{ aspectRatio: compact ? '16/8.4' : '16/9.2', boxShadow: '0 0 18px rgba(168,85,247,0.25)' }}
           >
             {/* Video placeholder or actual video */}
             <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
@@ -442,14 +441,9 @@ const PlayerVideoGrid = memo(({
             <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50">
               <Mic size={14} className="text-white" />
             </div>
-          </div>
 
-          <div className="flex flex-col items-center gap-1 text-center" data-testid={`draw-player-meta-${player.user_id}`}>
-            <span className="text-white text-sm font-semibold">{player.username}</span>
-            <div className="flex items-center gap-2 text-xs text-white/70">
-              <span>{player.is_drawer ? 'Drawer' : 'Guesser'}</span>
-              <span className="text-white/30">•</span>
-              <span>Score: {playerScores[player.user_id] ?? 0}</span>
+            <div className="absolute bottom-2 left-2 rounded-full bg-[#1f0d33]/95 px-4 py-1.5 text-white text-sm font-semibold shadow-[0_0_12px_rgba(0,0,0,0.25)]">
+              {player.username}
             </div>
           </div>
         </div>
@@ -750,25 +744,65 @@ const DrawGame = ({
       
       {/* Main content - responsive layout */}
       <div className="relative z-10 flex-1 flex flex-col gap-4 p-4 overflow-hidden">
-        <div className={`${isDesktop ? 'mx-auto w-full max-w-6xl' : ''} flex-shrink-0 border-b border-white/5 pb-2`}>
+        <div className={`${isDesktop ? 'mx-auto w-full max-w-[1200px]' : ''} flex-shrink-0 border-b border-white/5 pb-3`}>
           <PlayerVideoGrid 
             players={players}
             localStream={localStream}
             remoteStream={remoteStream}
             currentDrawerId={gameState?.current_drawer_id}
             compact={isDesktop}
-            playerScores={gameState?.player_scores || {}}
           />
         </div>
 
-        <div className={`${isDesktop ? 'mx-auto grid w-full max-w-6xl flex-1 min-h-0 grid-cols-[minmax(0,1fr)_280px] gap-4' : 'flex flex-1 flex-col gap-4 overflow-hidden'}`}>
+        <div className={`${isDesktop ? 'mx-auto grid w-full max-w-[1200px] flex-1 min-h-0 grid-cols-[210px_minmax(0,1fr)_280px] gap-4' : 'flex flex-1 flex-col gap-4 overflow-hidden'}`}>
+        {isDesktop && (
+          <div className="flex min-h-0 flex-col gap-4">
+            <div className="rounded-[1.6rem] border border-[#6f38a7] bg-[#140922]/95 p-4 shadow-[0_0_20px_rgba(168,85,247,0.12)]">
+              <div className="mb-3 text-2xl font-semibold text-white">Players</div>
+              <div className="space-y-3">
+                {players.map((player) => (
+                  <div key={`sidebar-${player.user_id}`} className="flex items-center gap-3 rounded-2xl bg-[#1d0c31] px-3 py-2">
+                    <div className="h-11 w-11 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white flex items-center justify-center font-bold text-lg">
+                      {player.username?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xl font-medium text-white">{player.username}</div>
+                      <div className="mt-1 inline-flex items-center gap-2 rounded-full bg-green-500/15 px-3 py-1 text-sm font-semibold text-green-300">
+                        Ready <span className="h-2 w-2 rounded-full bg-green-400" />
+                      </div>
+                    </div>
+                    {player.is_drawer && <span className="text-yellow-300 text-xl">♛</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.6rem] border border-[#6f38a7] bg-[#140922]/95 p-4 shadow-[0_0_20px_rgba(168,85,247,0.12)]">
+              <div className="mb-3 text-2xl font-semibold text-white">Round Info</div>
+              <div className="space-y-3 text-white/85">
+                <div>
+                  <div className="text-sm uppercase tracking-[0.2em] text-white/45">Drawer</div>
+                  <div className="text-xl font-semibold text-white">{gameState?.drawer_username || 'Unknown'}</div>
+                </div>
+                <div className="flex items-center gap-3 rounded-2xl bg-[#1d0c31] px-3 py-3">
+                  <Timer seconds={timeLeft} total={30} />
+                  <div>
+                    <div className="text-sm uppercase tracking-[0.2em] text-white/45">Round</div>
+                    <div className="text-xl font-semibold text-white">{gameState?.current_round || 1}/{gameState?.total_rounds || 2}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
           {/* Drawing indicator */}
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <span className="px-4 py-1 bg-purple-600 rounded-full text-white text-sm shadow-[0_0_24px_rgba(168,85,247,0.3)]">
+            <span className="rounded-full bg-[#7e38e9] px-5 py-1.5 text-white text-sm shadow-[0_0_24px_rgba(168,85,247,0.3)]">
               {isDrawer ? 'You are drawing' : `${gameState?.drawer_username || 'Partner'} is drawing`}
             </span>
-            <Timer seconds={timeLeft} total={30} />
+            {!isDesktop && <Timer seconds={timeLeft} total={30} />}
           </div>
           
           {/* Word hint for guessers */}
@@ -805,7 +839,7 @@ const DrawGame = ({
           )}
           
           {/* Canvas area */}
-          <div className="flex-1 relative min-h-[280px] sm:min-h-[320px] bg-[#1a1a2e]/50 rounded-2xl border border-purple-500/30 p-2 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
+          <div className="flex-1 relative min-h-[280px] sm:min-h-[320px] rounded-[1.8rem] border border-[#7b43b7] bg-[#1b0d30] p-3 overflow-hidden shadow-[0_30px_80px_rgba(10,8,24,0.35)]">
             <DrawingCanvas
               isDrawer={isDrawer}
               strokes={strokes}
@@ -828,7 +862,7 @@ const DrawGame = ({
         </div>
         
         {/* Right sidebar: Tools and Chat */}
-        <div className={`flex min-h-0 flex-col gap-4 w-full ${isDrawer ? 'lg:w-[280px]' : 'lg:w-[320px]'}`}>
+        <div className={`flex min-h-0 flex-col gap-4 w-full ${isDesktop ? 'lg:w-[280px]' : ''}`}>
           {/* Tools */}
           {isDesktop && (
             <ToolsPanel
@@ -844,27 +878,25 @@ const DrawGame = ({
             />
           )}
           
-          {/* Chat - guessers only */}
-          {!isDrawer && (
-            <div className="flex-1 min-h-[220px] lg:min-h-0" data-testid="draw-guesser-chat-panel">
+          {/* Chat */}
+          <div className="flex-1 min-h-[220px] lg:min-h-0" data-testid="draw-guesser-chat-panel">
               <ChatPanel
                 messages={messages}
                 onSendMessage={handleSendMessage}
                 isDrawer={isDrawer}
                 hasGuessed={hasGuessed}
               />
-            </div>
-          )}
+          </div>
         </div>
         </div>
       </div>
       
       {/* Bottom bar with actions */}
-      <div className="relative z-10 flex items-center justify-between p-4 border-t border-purple-500/20">
+      <div className="relative z-10 flex flex-col gap-3 border-t border-purple-500/20 p-4 lg:flex-row lg:items-center lg:justify-between">
         {isDrawer && (
           <button
             onClick={handleSkipTurn}
-            className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors"
+            className="flex items-center justify-center gap-2 rounded-[1.4rem] border border-[#6e38a6] bg-[#140922] px-6 py-3 text-white transition-colors lg:min-w-[190px]"
             data-testid="draw-skip-btn"
           >
             <SkipForward size={18} />
@@ -872,30 +904,28 @@ const DrawGame = ({
           </button>
         )}
         
-        {!isDrawer && <div />}
-        
-        {/* Winner announcement - shown during round end */}
-        {showRoundEnd && roundEndData && !showGameEnd && (
-          <div className="flex-1 text-center">
-            <div className="text-purple-400 text-xl font-bold">
+        {!isDrawer && <div className="hidden lg:block lg:min-w-[190px]" />}
+
+        <div className="flex flex-col items-center gap-2">
+          <GuessProgress 
+            guessedCount={gameState?.guessed_count || 0}
+            totalGuessers={gameState?.total_guessers || 1}
+          />
+          {showRoundEnd && roundEndData && !showGameEnd && (
+            <div className="text-center text-sm text-green-300 shadow-[0_0_18px_rgba(74,222,128,0.15)]">
               {roundEndData.reason === 'all_guessed' 
                 ? 'Everyone guessed it!' 
                 : roundEndData.reason === 'skipped'
                 ? 'Round skipped'
                 : 'Time\'s up!'}
             </div>
-            <div className="text-white/70 text-sm">
-              The word was: <span className="text-white font-bold">{roundEndData.word}</span>
-            </div>
-          </div>
-        )}
-        
-        {!showRoundEnd && <div className="flex-1" />}
+          )}
+        </div>
         
         {showRoundEnd && !showGameEnd && (
           <button
             onClick={handleNextRound}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-xl text-white font-semibold transition-all shadow-lg shadow-purple-500/30"
+            className="flex items-center justify-center gap-2 rounded-[1.4rem] bg-gradient-to-r from-[#7b34ea] to-[#b257ff] px-6 py-3 text-white font-semibold transition-all shadow-lg shadow-purple-500/30 lg:min-w-[230px]"
             data-testid="draw-next-round-btn"
           >
             Next Round
