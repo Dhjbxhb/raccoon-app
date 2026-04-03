@@ -303,7 +303,10 @@ const FeudGame = memo(({
                 muted
                 playsInline
                 ref={el => {
-                  if (el && el.srcObject !== localStream) el.srcObject = localStream;
+                  if (el && el.srcObject !== localStream) {
+                    el.srcObject = localStream;
+                    el.play().catch(() => {});
+                  }
                 }}
                 className="h-full w-full object-cover scale-x-[-1]"
               />
@@ -338,7 +341,10 @@ const FeudGame = memo(({
                 autoPlay
                 playsInline
                 ref={el => {
-                  if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                  if (el && el.srcObject !== remoteStream) {
+                    el.srcObject = remoteStream;
+                    el.play().catch(() => {});
+                  }
                 }}
                 className="h-full w-full object-cover"
               />

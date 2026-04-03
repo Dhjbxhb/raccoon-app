@@ -133,24 +133,14 @@ const Match = () => {
 
   const isPremium = user?.is_premium === true;
 
+  // Keep video refs synced — NEVER clear srcObject during game mode
+  // Games receive localStream/remoteStream as props and render their own cameras
   useEffect(() => {
-    if (!localVideoRef.current && !remoteVideoRef.current) {
-      return;
-    }
+    if (!localVideoRef.current && !remoteVideoRef.current) return;
 
-    if (isGameActive) {
-      if (localVideoRef.current) {
-        localVideoRef.current.pause();
-        localVideoRef.current.srcObject = null;
-      }
-
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.pause();
-        remoteVideoRef.current.srcObject = null;
-      }
-
-      return;
-    }
+    // During game mode, the base match cameras are hidden via CSS (not by clearing streams).
+    // The streams stay alive so games can use them directly.
+    if (isGameActive) return;
 
     if (localVideoRef.current && localStream && localVideoRef.current.srcObject !== localStream) {
       localVideoRef.current.srcObject = localStream;

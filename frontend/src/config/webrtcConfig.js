@@ -113,9 +113,20 @@ export const isMobile = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
-// Get appropriate media constraints based on device
-export const getMediaConstraints = () => {
-  return isMobile() ? MOBILE_VIDEO_CONSTRAINTS : VIDEO_CONSTRAINTS;
+// Get appropriate media constraints based on device and optional performance settings
+export const getMediaConstraints = (settings) => {
+  const base = isMobile() ? MOBILE_VIDEO_CONSTRAINTS : VIDEO_CONSTRAINTS;
+  if (!settings) return JSON.parse(JSON.stringify(base));
+
+  const constraints = JSON.parse(JSON.stringify(base));
+  if (settings.resolution && constraints.video) {
+    constraints.video.width = { ideal: settings.resolution.width || 640, min: 320 };
+    constraints.video.height = { ideal: settings.resolution.height || 480, min: 240 };
+  }
+  if (settings.frameRate && constraints.video) {
+    constraints.video.frameRate = { ideal: settings.frameRate, min: 15 };
+  }
+  return constraints;
 };
 
 // Camera filter CSS styles

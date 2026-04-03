@@ -357,7 +357,11 @@ const PrivateRoom = () => {
             
             {/* Camera Grid */}
             <div className={`grid ${getCameraLayout(activeRoom.players?.length || 1)} gap-4 mb-8`}>
-              {activeRoom.players?.map((player, idx) => (
+              {activeRoom.players?.map((player) => {
+                const isMe = player.id === myId;
+                const hasVideo = isMe ? hasRoomLocalVideo : hasRoomRemoteVideo;
+                const stream = isMe ? roomVoice.localStream : roomVoice.remoteStream;
+                return (
                 <div 
                   key={player.id}
                   className="relative aspect-video bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-2xl border-2 border-purple-500/30 overflow-hidden"
@@ -365,24 +369,18 @@ const PrivateRoom = () => {
                     boxShadow: '0 0 30px rgba(168, 85, 247, 0.2)'
                   }}
                 >
-                  {/* Camera placeholder */}
+                  {/* Camera view */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    {idx === 0 && hasRoomLocalVideo ? (
+                    {hasVideo && stream ? (
                       <video
                         autoPlay
-                        muted
+                        muted={isMe}
                         playsInline
                         ref={(el) => {
-                          if (el && el.srcObject !== roomVoice.localStream) el.srcObject = roomVoice.localStream;
-                        }}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : idx === 1 && hasRoomRemoteVideo ? (
-                      <video
-                        autoPlay
-                        playsInline
-                        ref={(el) => {
-                          if (el && el.srcObject !== roomVoice.remoteStream) el.srcObject = roomVoice.remoteStream;
+                          if (el && el.srcObject !== stream) {
+                            el.srcObject = stream;
+                            el.play().catch(() => {});
+                          }
                         }}
                         className="h-full w-full object-cover"
                       />
@@ -408,7 +406,8 @@ const PrivateRoom = () => {
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* Room Info Center */}

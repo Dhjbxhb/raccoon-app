@@ -465,11 +465,11 @@
 @media (min-width: 1024px) {
   .video-panel {
     flex: 1;
-    /* Each camera takes ~45% of container */
+    /* Each camera takes ~48% of container */
     max-width: 48%;
-    /* Force substantial height */
-    min-height: 280px;
-    max-height: 380px;
+    /* Increased height for better visibility */
+    min-height: 300px;
+    max-height: 420px;
     height: auto;
     aspect-ratio: 4/3;
     border-radius: 1.5rem;
@@ -493,8 +493,8 @@
 /* LARGE DESKTOP - even bigger */
 @media (min-width: 1440px) {
   .video-panel {
-    min-height: 320px;
-    max-height: 420px;
+    min-height: 360px;
+    max-height: 460px;
   }
 }
 
@@ -1278,8 +1278,11 @@
   padding: 0;
   animation: miniVideosSlideIn 0.3s ease-out;
   pointer-events: none;
+  /* Match cameras hidden during game mode — games render their own cameras */
   opacity: 0;
   visibility: hidden;
+  min-height: unset;
+  max-height: unset;
 }
 
 @keyframes miniVideosSlideIn {
@@ -1297,9 +1300,9 @@
 .video-panel--mini {
   position: relative !important;
   flex: 0 0 auto !important;
-  /* MOBILE: Large cameras at top */
-  width: 10rem;
-  height: 7.5rem;
+  /* MOBILE: Large cameras at top — increased ~7% */
+  width: 10.7rem;
+  height: 8rem;
   border-radius: 1.25rem;
   overflow: hidden;
   box-shadow: 
@@ -1343,8 +1346,8 @@
 /* TABLET: Larger cameras */
 @media (min-width: 640px) {
   .video-panel--mini {
-    width: 12rem;
-    height: 9rem;
+    width: 12.8rem;
+    height: 9.6rem;
     border-radius: 1.5rem;
   }
   
@@ -1356,8 +1359,8 @@
 /* DESKTOP: Maximum visibility - cameras dominate top area */
 @media (min-width: 1024px) {
   .video-panel--mini {
-    width: 16rem;
-    height: 12rem;
+    width: 17.1rem;
+    height: 12.8rem;
     border-radius: 1.75rem;
   }
   

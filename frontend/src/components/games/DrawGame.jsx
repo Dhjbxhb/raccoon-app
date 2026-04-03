@@ -388,7 +388,8 @@ const PlayerVideoGrid = memo(({
   localStream, 
   remoteStream,
   currentDrawerId,
-  compact = false
+  compact = false,
+  myUserId
 }) => {
   const playerCount = players.length;
   
@@ -401,7 +402,10 @@ const PlayerVideoGrid = memo(({
   
   return (
     <div className={`grid ${getGridClasses()} gap-3 w-full`}>
-      {players.map((player, idx) => (
+      {players.map((player) => {
+        const isMe = player.user_id === myUserId;
+        const stream = isMe ? localStream : remoteStream;
+        return (
         <div key={player.user_id} className="flex flex-col items-center gap-2">
           <div 
             className={`relative w-full rounded-2xl overflow-hidden border-2 transition-all ${
@@ -413,19 +417,17 @@ const PlayerVideoGrid = memo(({
           >
             {/* Video placeholder or actual video */}
             <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
-              {idx === 0 && localStream ? (
+              {stream ? (
                 <video
                   autoPlay
-                  muted
+                  muted={isMe}
                   playsInline
-                  ref={el => { if (el) el.srcObject = localStream; }}
-                  className="w-full h-full object-cover"
-                />
-              ) : idx === 1 && remoteStream ? (
-                <video
-                  autoPlay
-                  playsInline
-                  ref={el => { if (el) el.srcObject = remoteStream; }}
+                  ref={el => { 
+                    if (el && el.srcObject !== stream) {
+                      el.srcObject = stream;
+                      el.play().catch(() => {});
+                    }
+                  }}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -447,7 +449,8 @@ const PlayerVideoGrid = memo(({
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 });
@@ -751,6 +754,7 @@ const DrawGame = ({
             remoteStream={remoteStream}
             currentDrawerId={gameState?.current_drawer_id}
             compact={isDesktop}
+            myUserId={userId}
           />
         </div>
 

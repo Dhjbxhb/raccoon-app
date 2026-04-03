@@ -632,7 +632,10 @@ const UnoGame = memo(({
                         playsInline
                         muted={camera.key === 'me'}
                         ref={el => {
-                          if (el && el.srcObject !== camera.stream) el.srcObject = camera.stream;
+                          if (el && el.srcObject !== camera.stream) {
+                            el.srcObject = camera.stream;
+                            el.play().catch(() => {});
+                          }
                         }}
                         style={{ width: '100%', height: '100%', objectFit: 'cover', transform: camera.mirrored ? 'scaleX(-1)' : 'none' }}
                       />
