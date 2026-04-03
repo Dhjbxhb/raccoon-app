@@ -79,6 +79,7 @@ const Match = () => {
   
   // Game loading states
   const [gameLoading, setGameLoading] = useState(null); // 'uno' | 'feud' | null
+  const [isEndingGame, setIsEndingGame] = useState(false);
   
   // Responsive state
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
@@ -316,7 +317,23 @@ const Match = () => {
     
     const handleError = (data) => {
       setGameLoading(null);
+      setIsEndingGame(false);
       toast.error(data.message || 'An error occurred');
+    };
+
+    const handleGameSessionEnded = (data) => {
+      if (!['game_ended_by_user', 'partner_ended_game'].includes(data?.reason)) {
+        return;
+      }
+
+      setIsEndingGame(false);
+      setAutoRejoin(false);
+      resetAllGameState();
+      endCall();
+      toast.info(data.reason === 'game_ended_by_user' ? 'Game ended for both players' : 'Your partner ended the game', {
+        duration: 1800
+      });
+      navigate('/dashboard');
     };
     
     // Game-specific error handlers
@@ -356,6 +373,7 @@ const Match = () => {
     socket.on('draw_game_ended', handleDrawEnded);
     socket.on('match_ended', handleMatchEnded);
     socket.on('partner_disconnected', handlePartnerDisconnected);
+    socket.on('session_ended', handleGameSessionEnded);
     socket.on('premium_required', handlePremiumRequired);
     socket.on('session_restored', handleSessionRestored);
     socket.on('error', handleError);
@@ -372,6 +390,7 @@ const Match = () => {
       socket.off('draw_game_ended', handleDrawEnded);
       socket.off('match_ended', handleMatchEnded);
       socket.off('partner_disconnected', handlePartnerDisconnected);
+      socket.off('session_ended', handleGameSessionEnded);
       socket.off('premium_required', handlePremiumRequired);
       socket.off('session_restored', handleSessionRestored);
       socket.off('error', handleError);
@@ -379,7 +398,7 @@ const Match = () => {
       socket.off('draw_error', handleDrawError);
       socket.off('feud_error', handleFeudError);
     };
-  }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal]);
+  }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal, endCall, navigate, setAutoRejoin]);
 
   // Track session duration
   useEffect(() => {
@@ -656,6 +675,16 @@ const Match = () => {
     }
   }, [endCall, blockUser, resetAllGameState]);
 
+  const handleEndGameForBoth = useCallback(() => {
+    if (!socket || !sessionId || isEndingGame) {
+      return;
+    }
+
+    setIsEndingGame(true);
+    setAutoRejoin(false);
+    socket.emit('end_game_session');
+  }, [socket, sessionId, isEndingGame, setAutoRejoin]);
+
   const handleBackToDashboard = useCallback(() => {
     setAutoRejoin(false);
     resetAllGameState();
@@ -828,6 +857,15 @@ const Match = () => {
           >
             <span>⚠️</span>
             {!isMobile && <span>Report</span>}
+          </button>
+          <button
+            onClick={handleEndGameForBoth}
+            disabled={isEndingGame}
+            className="game-mode-controls__btn game-mode-controls__btn--end-game"
+            data-testid="game-mode-end-game"
+          >
+            {isEndingGame ? <Loader2 size={14} className="animate-spin" /> : <span>✕</span>}
+            <span>End Game</span>
           </button>
           <button
             onClick={handleSkip}

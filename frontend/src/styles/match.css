@@ -1556,6 +1556,15 @@
   border-color: rgba(251, 146, 36, 0.3);
 }
 
+.game-mode-controls__btn--end-game {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-color: transparent;
+}
+
+.game-mode-controls__btn--end-game:hover {
+  background: linear-gradient(135deg, #f87171, #ef4444);
+}
+
 .game-mode-controls__btn--skip {
   background: linear-gradient(135deg, #7c3aed, #6d28d9);
   border-color: transparent;

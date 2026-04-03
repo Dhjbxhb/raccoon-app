@@ -758,6 +758,101 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             except Exception:
                 pass
             await sio.emit('skip_failed', {'message': 'Skip failed, please try again'}, room=sid)
+
+    @sio.event
+    async def end_game_session(sid):
+        """End the active match for both users from within a game."""
+        try:
+            async with sio.session(sid) as session:
+                user_id = session.get('user_id')
+                is_guest = session.get('is_guest', False)
+                if not user_id:
+                    await sio.emit('error', {'message': 'Not authenticated'}, room=sid)
+                    return
+
+            session_data = matching_queue.get_session(user_id)
+            if not session_data:
+                await sio.emit('session_ended', {
+                    'reason': 'game_ended_no_session',
+                    'success': True,
+                    'can_rejoin': False
+                }, room=sid)
+                await set_current_session_id(user_id, is_guest, None)
+                return
+
+            session_id = session_data['session_id']
+            partner_socket = matching_queue.get_partner_socket(user_id)
+            partner_id = matching_queue.get_partner_id(user_id)
+            partner_is_guest = False
+            if partner_id == session_data['user1']['user_id']:
+                partner_is_guest = session_data['user1'].get('is_guest', False)
+            elif partner_id == session_data['user2']['user_id']:
+                partner_is_guest = session_data['user2'].get('is_guest', False)
+
+            from services.uno_service import uno_service
+            from services.draw_game_service import draw_game_service
+
+            try:
+                uno_service.end_game(session_id)
+            except Exception:
+                pass
+
+            try:
+                feud_service.end_game(session_id)
+            except Exception:
+                pass
+
+            try:
+                draw_game_service.end_game(session_id)
+            except Exception:
+                pass
+
+            result = matching_queue.end_session(user_id, reason='game_ended')
+            if not result:
+                await sio.emit('session_ended', {
+                    'reason': 'game_ended_no_session',
+                    'success': True,
+                    'can_rejoin': False
+                }, room=sid)
+                await set_current_session_id(user_id, is_guest, None)
+                return
+
+            await sync_users_current_session(get_session_participants(session_data), None)
+            await stats_service.end_match_session(user_id, is_guest)
+            if partner_id:
+                await stats_service.end_match_session(partner_id, partner_is_guest)
+
+            await sio.emit('session_ended', {
+                'reason': 'game_ended_by_user',
+                'success': True,
+                'can_rejoin': False
+            }, room=sid)
+            await sio.emit('match_ended', {'reason': 'game_ended', 'success': True}, room=sid)
+
+            if partner_socket:
+                await sio.emit('session_ended', {
+                    'reason': 'partner_ended_game',
+                    'success': True,
+                    'can_rejoin': False
+                }, room=partner_socket)
+                await sio.emit('match_ended', {'reason': 'partner_ended_game', 'success': True}, room=partner_socket)
+
+            sessions = get_sessions_collection()
+            await sessions.update_one(
+                {'session_id': result['session_id']},
+                {'$set': {
+                    'status': 'ended',
+                    'end_time': datetime.now(timezone.utc).isoformat(),
+                    'ended_by': user_id,
+                    'end_reason': 'game_ended',
+                    'duration_seconds': result['duration_seconds'],
+                    'message_count': result['message_count']
+                }}
+            )
+
+        except Exception as e:
+            logger.error(f"[END_GAME_SESSION] Error ending match from game: {e}")
+            await sio.emit('error', {'message': 'Failed to end the game session'}, room=sid)
     
     @sio.event
     async def block_user(sid, data):

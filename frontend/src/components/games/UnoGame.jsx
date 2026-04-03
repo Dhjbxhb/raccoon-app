@@ -845,7 +845,7 @@ const UnoGame = memo(({
                   }}
                   data-testid="end-game-btn"
                 >
-                  End Game
+                  Close Game UI
                 </button>
               </div>
             </div>
