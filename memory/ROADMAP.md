@@ -1,26 +1,23 @@
-# RACCOON APP - ROADMAP
+# RACCOON APP - Roadmap
 
-## P0 — Verified complete in current build
-- 1v1 matching cleanup and rematch stability
-- Room capacity fixed to exactly 2 players
-- Premium-only room creation with free-user join support
-- Backend-controlled premium security with blocked dev overrides
-- `currentSessionId` lifecycle tracking and cleanup
-- Mobile CTA clickability / no overlap regressions on core flows
-- Private-room live session launch and room-triggered game bridge
-- Draw / UNO / Feud gameplay polish for cleaner desktop/mobile presentation
-- Unified cinematic game background with one shared lightweight mount across games
+## P0 - Critical (Next Session)
+- Production TURN server setup for WebRTC relay (required for cross-network video calls)
+- Full Stripe integration with live subscription payments (requires user-provided live API keys)
+- End-to-end WebRTC testing with real camera/mic (headless browser limitations prevent automated testing)
 
-## P1 — Next priority
-- Google Login production-domain verification and any remaining authorized-domain/session edge fixes
-- Production TURN relay setup for stronger WebRTC connectivity outside preview/local conditions
-- Complete live Stripe production setup once real webhook/production keys are provided
+## P1 - Important
+- Google Login domain verification (USER VERIFICATION PENDING - popup auth implemented, needs domain testing)
+- Modularize `socket_handlers.py` (~2700 lines → split into `room_socket.py`, `match_socket.py`, `game_socket.py`)
 
-## P2 — Backlog
-- Twilio SMS OTP for production flows
-- Modularize `/app/backend/websocket/socket_handlers.py` into smaller room/match/game modules
-- If product scope still requires it later: full real 2v2 room-vs-room gameplay UX (currently guarded to exact 2-player room readiness only)
+## P2 - Backlog
+- Twilio SMS for production OTP verification
+- 2v2 room-vs-room gameplay UX
+- Performance profiling and optimization for low-end devices
+- Mobile PWA packaging
 
-## Notes
-- Stripe remains **MOCKED** in test mode.
-- Current validation sources of truth: `/app/test_reports/iteration_17.json`, `/app/test_reports/iteration_18.json`, and `/app/test_reports/iteration_19.json`.
+## Completed
+- Full system correction: WebRTC, camera, game & mobile fixes (2026-04-03)
+- Private Room → Persistent Lobby System architecture (2026-03-28)
+- Game UI pixel-perfect restyle (Draw, UNO, Feud) (2026-03-27)
+- WebRTC & matching architecture (2026-03-26)
+- Authentication & core platform (2026-03-25)
