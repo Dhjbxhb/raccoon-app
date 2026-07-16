@@ -215,30 +215,10 @@ const Match = () => {
       if (data.game_state) setDrawGameState(data.game_state);
     };
     
-    // Game end handlers
-    const handleFeudEnded = () => {
-      if (activeGame === 'feud') {
-        setActiveGame(null);
-        setGameSessionId(null);
-        setFeudGameState(null);
-      }
-    };
-    
-    const handleUnoEnded = () => {
-      if (activeGame === 'uno') {
-        setActiveGame(null);
-        setGameSessionId(null);
-        setUnoGameState(null);
-      }
-    };
-    
-    const handleDrawEnded = () => {
-      if (activeGame === 'draw') {
-        setActiveGame(null);
-        setGameSessionId(null);
-        setDrawGameState(null);
-      }
-    };
+    // Game end handlers - components show the winner overlay and close themselves.
+    const handleFeudEnded = () => {};
+    const handleUnoEnded = () => {};
+    const handleDrawEnded = () => {};
     
     const handleMatchEnded = () => resetAllGameState();
     const handlePartnerDisconnected = () => resetAllGameState();

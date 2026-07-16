@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Pen, Eraser, Undo, Trash2, SkipForward, ArrowRight, X, Send, Mic } from 'lucide-react';
+import { Pen, Eraser, Undo, Trash2, SkipForward, ArrowRight, X, Send, Mic, Crown } from 'lucide-react';
 
 /**
  * DrawGame - Premium Real-Time Multiplayer Draw & Guess Game
@@ -503,8 +503,17 @@ const DrawGame = ({
   const [tool, setTool] = useState('pen');
   
   const timerRef = useRef(null);
+  const autoReturnTimer = useRef(null);
   const isDrawer = gameState?.is_drawer || false;
   const hasGuessed = gameState?.has_guessed || false;
+
+  useEffect(() => {
+    return () => {
+      if (autoReturnTimer.current) {
+        clearTimeout(autoReturnTimer.current);
+      }
+    };
+  }, []);
   
   // Build players list from game state
   const players = gameState?.players || [
@@ -582,6 +591,15 @@ const DrawGame = ({
       
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+
+      if (data?.winner_username) {
+        if (autoReturnTimer.current) {
+          clearTimeout(autoReturnTimer.current);
+        }
+        autoReturnTimer.current = setTimeout(() => {
+          onClose?.();
+        }, 2500);
       }
     };
     
@@ -920,9 +938,11 @@ const DrawGame = ({
             {roundEndData?.winner_username && (
               <div className="mb-6">
                 <span className="text-5xl">&#127942;</span>
-                <div className="text-2xl text-purple-400 font-bold mt-2">
-                  {roundEndData.winner_username} Wins!
+                <div className="mt-2 inline-flex items-center gap-2 text-2xl text-purple-400 font-bold">
+                  <Crown size={26} className="text-yellow-400" />
+                  <span>{roundEndData.winner_username} won!</span>
                 </div>
+                <p className="text-white/60 mt-3">Returning to your current session...</p>
               </div>
             )}
             

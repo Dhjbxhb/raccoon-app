@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { X, Send, Trophy, Clock, SkipForward, ArrowRight } from 'lucide-react';
+import { X, Send, Trophy, Clock, SkipForward, ArrowRight, Crown } from 'lucide-react';
 
 /**
  * FeudGame - SPEED MODE
@@ -36,6 +36,7 @@ const FeudGame = memo(({
   const timerRef = useRef(null);
   const mountedRef = useRef(true);
   const socketIdRef = useRef(null);
+  const autoReturnTimer = useRef(null);
   
   // Detect keyboard visibility on mobile
   useEffect(() => {
@@ -62,8 +63,21 @@ const FeudGame = memo(({
       mountedRef.current = false;
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
       if (timerRef.current) clearInterval(timerRef.current);
+      if (autoReturnTimer.current) clearTimeout(autoReturnTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!gameEnded || !winner || winner.isTie) return;
+
+    autoReturnTimer.current = setTimeout(() => {
+      onClose?.();
+    }, 2500);
+
+    return () => {
+      if (autoReturnTimer.current) clearTimeout(autoReturnTimer.current);
+    };
+  }, [gameEnded, winner, onClose]);
   
   // Countdown timer
   useEffect(() => {
@@ -248,9 +262,9 @@ const FeudGame = memo(({
   }, [socket]);
   
   const handleClose = useCallback(() => {
-    if (socket) socket.emit('end_feud_game');
+    if (socket && !gameEnded) socket.emit('end_feud_game');
     onClose?.();
-  }, [socket, onClose]);
+  }, [socket, gameEnded, onClose]);
   
   if (!isOpen) return null;
   
@@ -529,12 +543,20 @@ const FeudGame = memo(({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
           <div className="bg-gradient-to-b from-[#2a1050] to-[#1a0830] rounded-2xl border border-purple-500/30 p-8 mx-4 max-w-sm w-full text-center">
             <div className="text-6xl mb-4">
-              {winner.isTie ? '🤝' : winner.isMe ? '🏆' : '😢'}
+              {winner.isTie ? '🤝' : '👑'}
             </div>
             
             <h2 className="text-3xl font-bold text-white mb-2">
-              {winner.isTie ? "It's a Tie!" : winner.isMe ? 'You Win!' : `${winner.username} Wins!`}
+              {winner.isTie ? "It's a Tie!" : (
+                <span className="inline-flex items-center gap-2">
+                  <Crown size={26} className="text-yellow-400" />
+                  <span>{winner.username} won!</span>
+                </span>
+              )}
             </h2>
+            {!winner.isTie && (
+              <p className="text-white/60 mb-4">Returning to your current session...</p>
+            )}
             
             <div className="flex justify-around my-6 py-4 bg-white/5 rounded-xl">
               <div>

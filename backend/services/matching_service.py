@@ -305,6 +305,71 @@ class MatchingQueue:
             'user2': session.user2_data,
             'created_at': now.isoformat()
         }
+
+    def create_direct_session(self, user1_data: dict, user2_data: dict) -> dict:
+        """Create a fresh direct session between two known users (used by private room games)."""
+        with self._lock:
+            user1_id = user1_data['user_id']
+            user2_id = user2_data['user_id']
+
+            # Always start from a fully clean state.
+            self.force_cleanup_user(user1_id)
+            self.force_cleanup_user(user2_id)
+
+            session_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc)
+
+            normalized_user1 = {
+                'user_id': user1_id,
+                'username': user1_data.get('username', 'Player 1'),
+                'gender': user1_data.get('gender', 'any'),
+                'country': user1_data.get('country', 'Unknown'),
+                'country_code': user1_data.get('country_code', ''),
+                'is_guest': user1_data.get('is_guest', False),
+                'premium': user1_data.get('premium', False),
+                'socket_id': user1_data.get('socket_id', ''),
+                'room_code': user1_data.get('room_code')
+            }
+            normalized_user2 = {
+                'user_id': user2_id,
+                'username': user2_data.get('username', 'Player 2'),
+                'gender': user2_data.get('gender', 'any'),
+                'country': user2_data.get('country', 'Unknown'),
+                'country_code': user2_data.get('country_code', ''),
+                'is_guest': user2_data.get('is_guest', False),
+                'premium': user2_data.get('premium', False),
+                'socket_id': user2_data.get('socket_id', ''),
+                'room_code': user2_data.get('room_code')
+            }
+
+            session = ActiveSession(
+                session_id=session_id,
+                user1_id=user1_id,
+                user2_id=user2_id,
+                user1_socket=normalized_user1['socket_id'],
+                user2_socket=normalized_user2['socket_id'],
+                user1_data=normalized_user1,
+                user2_data=normalized_user2,
+                created_at=now
+            )
+
+            self.active_sessions[session_id] = session
+            self.user_sessions[user1_id] = session_id
+            self.user_sessions[user2_id] = session_id
+
+            if normalized_user1['socket_id']:
+                self.socket_users[normalized_user1['socket_id']] = user1_id
+            if normalized_user2['socket_id']:
+                self.socket_users[normalized_user2['socket_id']] = user2_id
+
+            logger.info(f"Direct session {session_id} created: {user1_id} <-> {user2_id}")
+
+            return {
+                'session_id': session_id,
+                'user1': normalized_user1,
+                'user2': normalized_user2,
+                'created_at': now.isoformat()
+            }
     
     def _remove_entry_from_queue(self, entry: QueueEntry) -> None:
         """Remove a specific entry from all queues (internal use)."""

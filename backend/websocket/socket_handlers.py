@@ -68,6 +68,24 @@ async def get_active_game_state(session_id: str) -> dict:
 
 async def register_socket_handlers(sio: socketio.AsyncServer):
     """Register all Socket.IO event handlers"""
+
+    room_game_sessions = {}
+
+    async def _close_room_game_context(session_id: str, session_data: dict | None = None, reason: str = 'complete'):
+        """Return private-room players to their room after a room game ends."""
+        room_code = room_game_sessions.pop(session_id, None)
+        if not room_code:
+            return
+
+        room_result = room_service.end_room_game(room_code)
+        if 'room' in room_result:
+            await sio.emit('room_game_ended', {
+                'reason': reason,
+                'room': room_result['room']
+            }, room=f"room_{room_code}")
+
+        if session_data:
+            matching_queue.force_cleanup_user(session_data['user1']['user_id'])
     
     # ============================================
     # CONNECTION HANDLERS
@@ -1033,7 +1051,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 
                 if round_result.get('game_over'):
                     await feud_service.save_to_db(session_id)
-                    await _emit_feud_game_ended(sio, session_data, round_result)
+                    await _emit_feud_game_ended(sio, session_data, session_id, round_result)
                     logger.info(f"Feud game ended: {round_result.get('winner_username')} wins!")
             
             # Check if game ended via submit_guess (status change)
@@ -1068,6 +1086,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'player2_score': result['game_state']['player2_score'],
                     'game_state': result['game_state']
                 }, room=player2_socket)
+
+                if session_id in room_game_sessions:
+                    await _close_room_game_context(session_id, session_data, reason='complete')
                 
                 logger.info(f"Feud game ended: {result['game_state']['winner_username']} wins!")
         
@@ -1104,6 +1125,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'reason': 'ended_early', 
                     'game_state': result
                 }, room=player2_socket)
+
+                await _close_room_game_context(session_id, session_data, reason='quit')
         
         except Exception as e:
             logger.error(f"Error ending Feud game: {e}")
@@ -1138,7 +1161,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Check if game ended
             if result.get('game_over'):
                 await feud_service.save_to_db(session_id)
-                await _emit_feud_game_ended(sio, session_data, result)
+                await _emit_feud_game_ended(sio, session_data, session_id, result)
             
             logger.info(f"Feud round skipped in session {session_id}")
         
@@ -1174,7 +1197,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Check if game ended
             if result.get('game_over'):
                 await feud_service.save_to_db(session_id)
-                await _emit_feud_game_ended(sio, session_data, result)
+                await _emit_feud_game_ended(sio, session_data, session_id, result)
             
             logger.info(f"Feud round timed out in session {session_id}")
         
@@ -1220,7 +1243,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         except Exception as e:
             logger.error(f"Error in feud_next_round: {e}")
     
-    async def _emit_feud_game_ended(sio, session_data, result):
+    async def _emit_feud_game_ended(sio, session_data, session_id, result):
         """Helper to emit feud game ended event"""
         player1_socket = session_data['user1']['socket_id']
         player2_socket = session_data['user2']['socket_id']
@@ -1245,6 +1268,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         
         await sio.emit('feud_game_ended', game_end_data, room=player1_socket)
         await sio.emit('feud_game_ended', game_end_data, room=player2_socket)
+
+        if session_id in room_game_sessions:
+            await _close_room_game_context(session_id, session_data, reason='complete')
     
     # ============================================
     # WEBRTC SIGNALING HANDLERS
@@ -1478,6 +1504,9 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'winner_id': game_state['winner_id'],
                     'winner_username': game_state['winner_username']
                 })
+
+                if room_id in room_game_sessions:
+                    await _close_room_game_context(room_id, session_data, reason='complete')
             
         except Exception as e:
             logger.error(f"Error in uno_play_card: {e}")
@@ -1582,6 +1611,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                     'ended_by': user_id,
                     'reason': 'quit'
                 }, room=partner_socket)
+
+            await _close_room_game_context(room_id, session_data, reason='quit')
             
             logger.info(f"UNO game ended in session {room_id} by {user_id}")
             
@@ -1649,7 +1680,13 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             logger.info(f"[ROOM] Create room request from {user_id}, premium={is_premium}, is_guest={is_guest}")
             
-            result = room_service.create_room(user_id, username, is_premium)
+            result = room_service.create_room(
+                user_id,
+                username,
+                is_premium,
+                socket_id=sid,
+                is_guest=is_guest
+            )
             
             if 'error' in result:
                 await sio.emit('room_error', {'message': result['error']}, room=sid)
@@ -1673,18 +1710,30 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id') or session.get('guest_id')
+                is_guest = session.get('is_guest', False)
                 if not user_id:
                     await sio.emit('room_error', {'message': 'Not authenticated'}, room=sid)
                     return
                 
                 username = session.get('username', 'Player')
+
+            is_premium = False
+            if not is_guest:
+                is_premium, _, _ = await premium_service.check_premium_status(user_id, is_guest=False)
             
             room_code = data.get('code', '').upper()
             if not room_code:
                 await sio.emit('room_error', {'message': 'Room code required'}, room=sid)
                 return
             
-            result = room_service.join_room(room_code, user_id, username)
+            result = room_service.join_room(
+                room_code,
+                user_id,
+                username,
+                socket_id=sid,
+                is_guest=is_guest,
+                is_premium=is_premium
+            )
             
             if 'error' in result:
                 await sio.emit('room_error', {'message': result['error']}, room=sid)
@@ -1713,6 +1762,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         try:
             async with sio.session(sid) as session:
                 user_id = session.get('user_id') or session.get('guest_id')
+                username = session.get('username', 'Player')
                 if not user_id:
                     return
             
@@ -1721,6 +1771,28 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if not room_code:
                 await sio.emit('room_error', {'message': 'Not in a room'}, room=sid)
                 return
+
+            room = room_service.get_player_room(user_id)
+            leaving_username = username
+            if room:
+                leaving_player = next((player for player in room.get('players', []) if player['id'] == user_id), None)
+                if leaving_player:
+                    leaving_username = leaving_player.get('username', username)
+
+                if room.get('current_game') and matching_queue.is_user_in_session(user_id):
+                    session_data = matching_queue.get_session(user_id)
+                    if session_data:
+                        session_id = session_data['session_id']
+                        current_game = room.get('current_game')
+
+                        if current_game == 'draw':
+                            draw_game_service.end_game(session_id)
+                        elif current_game == 'uno':
+                            uno_service.end_game(session_id)
+                        elif current_game == 'feud':
+                            feud_service.end_game(session_id)
+
+                        await _close_room_game_context(session_id, session_data, reason='player_left')
             
             result = room_service.leave_room(user_id)
             
@@ -1733,6 +1805,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 # Notify remaining members
                 await sio.emit('player_left', {
                     'player_id': user_id,
+                    'username': leaving_username,
                     'room': result.get('room')
                 }, room=f"room_{room_code}")
                 await sio.emit('room_updated', result.get('room'), room=f"room_{room_code}")
@@ -1762,12 +1835,101 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             if 'error' in result:
                 await sio.emit('room_error', {'message': result['error']}, room=sid)
                 return
-            
-            # Notify all room members
-            await sio.emit('room_game_started', {
-                'game_type': game_type,
-                'room': result['room']
-            }, room=f"room_{room_code}")
+
+            room = room_service.get_player_room(user_id)
+            room_players = room.get('players', []) if room else []
+            if len(room_players) < 2:
+                await sio.emit('room_error', {'message': 'Need 2 room players to start a game'}, room=sid)
+                return
+
+            player1 = room_players[0]
+            player2 = room_players[1]
+
+            direct_session = matching_queue.create_direct_session(
+                {
+                    'user_id': player1['id'],
+                    'username': player1.get('username', 'Player 1'),
+                    'socket_id': player1.get('socket_id', ''),
+                    'is_guest': player1.get('is_guest', False),
+                    'premium': player1.get('premium', False),
+                    'room_code': room_code,
+                },
+                {
+                    'user_id': player2['id'],
+                    'username': player2.get('username', 'Player 2'),
+                    'socket_id': player2.get('socket_id', ''),
+                    'is_guest': player2.get('is_guest', False),
+                    'premium': player2.get('premium', False),
+                    'room_code': room_code,
+                }
+            )
+
+            session_id = direct_session['session_id']
+            room_game_sessions[session_id] = room_code
+            game_state_by_player = {}
+
+            if game_type == 'draw':
+                draw_game = draw_game_service.create_game(session_id, [
+                    {
+                        'user_id': player1['id'],
+                        'username': player1.get('username', 'Player 1'),
+                        'socket_id': player1.get('socket_id', '')
+                    },
+                    {
+                        'user_id': player2['id'],
+                        'username': player2.get('username', 'Player 2'),
+                        'socket_id': player2.get('socket_id', '')
+                    }
+                ])
+
+                if 'error' in draw_game:
+                    await _close_room_game_context(session_id, matching_queue.get_session(user_id), reason='quit')
+                    await sio.emit('room_error', {'message': draw_game['error']}, room=sid)
+                    return
+
+                game_state_by_player[player1['id']] = draw_game_service.get_player_state(session_id, player1['id'])
+                game_state_by_player[player2['id']] = draw_game_service.get_player_state(session_id, player2['id'])
+
+            elif game_type == 'uno':
+                uno_service.create_game(
+                    session_id=session_id,
+                    player1_id=player1['id'],
+                    player2_id=player2['id'],
+                    player1_username=player1.get('username', 'Player 1'),
+                    player2_username=player2.get('username', 'Player 2')
+                )
+                game_state_by_player[player1['id']] = uno_service.get_player_state(session_id, player1['id'])
+                game_state_by_player[player2['id']] = uno_service.get_player_state(session_id, player2['id'])
+
+            elif game_type == 'feud':
+                feud_game = feud_service.create_game(
+                    session_id=session_id,
+                    player1_id=player1['id'],
+                    player2_id=player2['id'],
+                    player1_username=player1.get('username', 'Player 1'),
+                    player2_username=player2.get('username', 'Player 2')
+                )
+                if 'error' in feud_game:
+                    await _close_room_game_context(session_id, matching_queue.get_session(user_id), reason='quit')
+                    await sio.emit('room_error', {'message': feud_game['error']}, room=sid)
+                    return
+                game_state_by_player[player1['id']] = feud_game
+                game_state_by_player[player2['id']] = feud_game
+            else:
+                await _close_room_game_context(session_id, matching_queue.get_session(user_id), reason='quit')
+                await sio.emit('room_error', {'message': 'Unsupported room game'}, room=sid)
+                return
+
+            for player in room_players[:2]:
+                player_socket = player.get('socket_id')
+                if player_socket:
+                    await sio.emit('room_game_started', {
+                        'game_type': game_type,
+                        'room': result['room'],
+                        'session_id': session_id,
+                        'game_state': game_state_by_player.get(player['id']),
+                        'context': 'private_room'
+                    }, room=player_socket)
             
         except Exception as e:
             logger.error(f"Error starting room game: {e}")
@@ -1786,11 +1948,19 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             if not room_code:
                 return
+
+            session_data = matching_queue.get_session(user_id)
+            session_id = session_data['session_id'] if session_data else None
             
-            result = room_service.end_room_game(room_code)
-            
-            if 'room' in result:
-                await sio.emit('room_game_ended', result['room'], room=f"room_{room_code}")
+            if session_id:
+                await _close_room_game_context(session_id, session_data, reason='quit')
+            else:
+                result = room_service.end_room_game(room_code)
+                if 'room' in result:
+                    await sio.emit('room_game_ended', {
+                        'reason': 'quit',
+                        'room': result['room']
+                    }, room=f"room_{room_code}")
             
         except Exception as e:
             logger.error(f"Error ending room game: {e}")
@@ -2076,11 +2246,15 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             # Check if round ended
             if result.get('round_complete'):
+                round_result = draw_game_service.end_round(session_id, reason=result.get('reason', 'all_guessed'))
                 await _emit_draw_state_to_both(sio, session_data, session_id, 'draw_round_ended', {
-                    'reason': result.get('reason', 'all_guessed'),
-                    'word': draw_game_service.active_games[session_id]['current_word'],
-                    'scores': result['scores']
+                    'reason': round_result.get('reason', 'all_guessed'),
+                    'word': round_result.get('word'),
+                    'scores': round_result.get('scores', {})
                 })
+
+                if round_result.get('game_over'):
+                    await _emit_draw_game_ended(sio, session_data, session_id, round_result)
             
         except Exception as e:
             logger.error(f"Error in draw_guess: {e}")
@@ -2116,7 +2290,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             # Check if game is over
             if result.get('game_over'):
-                await _emit_draw_game_ended(sio, session_data, result)
+                await _emit_draw_game_ended(sio, session_data, session_id, result)
             
         except Exception as e:
             logger.error(f"Error in draw_skip_turn: {e}")
@@ -2192,7 +2366,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             
             # Check if game is over
             if result.get('game_over'):
-                await _emit_draw_game_ended(sio, session_data, result)
+                await _emit_draw_game_ended(sio, session_data, session_id, result)
             
         except Exception as e:
             logger.error(f"Error in draw_time_up: {e}")
@@ -2219,6 +2393,8 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 'ended_by': user_id,
                 'reason': 'quit'
             })
+
+            await _close_room_game_context(session_id, session_data, reason='quit')
             
             logger.info(f"Draw & Guess game ended in session {session_id} by {user_id}")
             
@@ -2258,7 +2434,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
         if player2_socket:
             await sio.emit(event_name, payload2, room=player2_socket)
     
-    async def _emit_draw_game_ended(sio, session_data, result):
+    async def _emit_draw_game_ended(sio, session_data, session_id, result):
         """Helper to emit game ended event"""
         player1_socket = matching_queue.get_socket_id(session_data['user1']['user_id'])
         player2_socket = matching_queue.get_socket_id(session_data['user2']['user_id'])
@@ -2284,3 +2460,6 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             await sio.emit('draw_game_ended', game_end_data, room=player1_socket)
         if player2_socket:
             await sio.emit('draw_game_ended', game_end_data, room=player2_socket)
+
+        if session_id in room_game_sessions:
+            await _close_room_game_context(session_id, session_data, reason='complete')

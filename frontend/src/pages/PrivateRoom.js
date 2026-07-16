@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { toast } from 'sonner';
+import UnoGame from '@/components/games/UnoGame';
+import FeudGame from '@/components/games/FeudGame';
+import DrawGame from '@/components/games/DrawGame';
 import { 
-  Copy, Users, Play, Zap, LogOut, Crown, 
+  Copy, Users, LogOut, Crown, 
   Plus, ArrowRight, Check, X
 } from 'lucide-react';
 
@@ -24,10 +27,35 @@ const PrivateRoom = () => {
   const [room, setRoom] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeGame, setActiveGame] = useState(null);
+  const [gameSessionId, setGameSessionId] = useState(null);
+  const [unoGameState, setUnoGameState] = useState(null);
+  const [feudGameState, setFeudGameState] = useState(null);
+  const [drawGameState, setDrawGameState] = useState(null);
   
   // Premium status - from backend's computed is_premium field
   const isPremium = user?.is_premium === true;
   const myId = user?.user_id || user?.guest_id;
+
+  const stopAllMediaTracks = useCallback(() => {
+    document.querySelectorAll('video, audio').forEach((element) => {
+      const mediaElement = element;
+      const stream = mediaElement.srcObject;
+      if (stream?.getTracks) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      mediaElement.pause?.();
+      mediaElement.srcObject = null;
+    });
+  }, []);
+
+  const resetGameOverlay = useCallback(() => {
+    setActiveGame(null);
+    setGameSessionId(null);
+    setUnoGameState(null);
+    setFeudGameState(null);
+    setDrawGameState(null);
+  }, []);
   
   // Socket event handlers
   useEffect(() => {
@@ -54,10 +82,13 @@ const PrivateRoom = () => {
     const handlePlayerLeft = (data) => {
       console.log('[ROOM] Player left:', data);
       setRoom(data.room);
+      toast.info(`${data.username || 'A player'} left the room`);
     };
     
     const handleRoomLeft = () => {
       console.log('[ROOM] Left room');
+      stopAllMediaTracks();
+      resetGameOverlay();
       setRoom(null);
       setMode('menu');
     };
@@ -71,18 +102,27 @@ const PrivateRoom = () => {
     const handleGameStarted = (data) => {
       console.log('[ROOM] Game started:', data);
       setRoom(data.room);
-      // Navigate to game or show game overlay
+      setGameSessionId(data.session_id);
+      setActiveGame(data.game_type);
+
+      if (data.game_type === 'uno') {
+        setUnoGameState(data.game_state);
+      } else if (data.game_type === 'feud') {
+        setFeudGameState(data.game_state);
+      } else if (data.game_type === 'draw') {
+        setDrawGameState(data.game_state);
+      }
     };
-    
-    const handleMatchingStarted = (data) => {
-      console.log('[ROOM] Group matching started:', data);
-      setRoom(data.room);
-      toast.success('Looking for opponents...');
-    };
-    
-    const handleMatchingStopped = (data) => {
-      console.log('[ROOM] Matching stopped:', data);
-      setRoom(data);
+
+    const handleRoomGameEnded = (data) => {
+      console.log('[ROOM] Game ended:', data);
+      if (data?.room) {
+        setRoom(data.room);
+      }
+
+      if (data?.reason && data.reason !== 'complete') {
+        resetGameOverlay();
+      }
     };
     
     socket.on('room_created', handleRoomCreated);
@@ -92,8 +132,7 @@ const PrivateRoom = () => {
     socket.on('room_left', handleRoomLeft);
     socket.on('room_error', handleRoomError);
     socket.on('room_game_started', handleGameStarted);
-    socket.on('group_matching_started', handleMatchingStarted);
-    socket.on('group_matching_stopped', handleMatchingStopped);
+    socket.on('room_game_ended', handleRoomGameEnded);
     
     // Check if already in a room
     socket.emit('get_room_state');
@@ -112,11 +151,10 @@ const PrivateRoom = () => {
       socket.off('room_left', handleRoomLeft);
       socket.off('room_error', handleRoomError);
       socket.off('room_game_started', handleGameStarted);
-      socket.off('group_matching_started', handleMatchingStarted);
-      socket.off('group_matching_stopped', handleMatchingStopped);
+      socket.off('room_game_ended', handleRoomGameEnded);
       socket.off('room_state');
     };
-  }, [socket]);
+  }, [socket, resetGameOverlay, stopAllMediaTracks]);
   
   // Create room
   const handleCreate = useCallback(() => {
@@ -143,8 +181,9 @@ const PrivateRoom = () => {
   // Leave room
   const handleLeave = useCallback(() => {
     if (!socket) return;
+    stopAllMediaTracks();
     socket.emit('leave_room');
-  }, [socket]);
+  }, [socket, stopAllMediaTracks]);
   
   // Copy room code
   const handleCopyCode = useCallback(() => {
@@ -162,20 +201,9 @@ const PrivateRoom = () => {
     socket.emit('start_room_game', { game_type: gameType });
   }, [socket]);
   
-  // Start group matching
-  const handleStartMatching = useCallback(() => {
-    if (!socket) return;
-    socket.emit('start_group_matching');
-  }, [socket]);
-  
-  // Stop matching
-  const handleStopMatching = useCallback(() => {
-    if (!socket) return;
-    socket.emit('stop_group_matching');
-  }, [socket]);
-  
   // Check if current user is creator
   const isCreator = room?.players?.find(p => p.id === myId)?.is_creator;
+  const partner = room?.players?.find((player) => player.id !== myId);
   
   // Get camera layout based on player count
   const getCameraLayout = (count) => {
@@ -215,7 +243,7 @@ const PrivateRoom = () => {
             <div className="text-center mb-8">
               <div className="text-6xl mb-4">🦝</div>
               <h2 className="text-3xl font-bold mb-2">Private Rooms</h2>
-              <p className="text-gray-400">Play with friends or match together</p>
+              <p className="text-gray-400">Play private room games with your room partner</p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
@@ -361,9 +389,6 @@ const PrivateRoom = () => {
                 {room.status === 'waiting' && (
                   <span className="text-yellow-400">Waiting for players...</span>
                 )}
-                {room.status === 'matching' && (
-                  <span className="text-blue-400">Looking for opponents...</span>
-                )}
                 {room.status === 'in_game' && (
                   <span className="text-green-400">Playing {room.current_game}</span>
                 )}
@@ -405,30 +430,6 @@ const PrivateRoom = () => {
             
             {/* Action Buttons */}
             <div className="mt-auto flex flex-col sm:flex-row gap-3">
-              {isCreator && room.status === 'waiting' && (
-                <>
-                  <button
-                    onClick={handleStartMatching}
-                    disabled={room.players?.length < 1}
-                    className="flex-1 flex items-center justify-center gap-2 p-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-semibold hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all disabled:opacity-50"
-                    data-testid="start-matching-btn"
-                  >
-                    <Zap size={20} />
-                    Start Matching
-                  </button>
-                </>
-              )}
-              
-              {isCreator && room.status === 'matching' && (
-                <button
-                  onClick={handleStopMatching}
-                  className="flex-1 flex items-center justify-center gap-2 p-4 bg-orange-500/20 border border-orange-500/40 rounded-xl font-semibold hover:bg-orange-500/30 transition-all"
-                >
-                  <X size={20} />
-                  Stop Matching
-                </button>
-              )}
-              
               <button
                 onClick={handleLeave}
                 className="flex items-center justify-center gap-2 p-4 bg-white/5 border border-white/10 rounded-xl font-semibold hover:bg-red-500/10 hover:border-red-500/30 transition-all"
@@ -439,6 +440,45 @@ const PrivateRoom = () => {
               </button>
             </div>
           </div>
+        )}
+
+        {activeGame === 'uno' && gameSessionId && (
+          <UnoGame
+            isOpen={true}
+            onClose={resetGameOverlay}
+            socket={socket}
+            myUserId={myId}
+            myUsername={user?.username || 'You'}
+            partnerUsername={partner?.username || 'Partner'}
+            sessionId={gameSessionId}
+            initialGameState={unoGameState}
+          />
+        )}
+
+        {activeGame === 'feud' && gameSessionId && (
+          <FeudGame
+            isOpen={true}
+            onClose={resetGameOverlay}
+            socket={socket}
+            myUserId={myId}
+            partnerUsername={partner?.username || 'Partner'}
+            sessionId={gameSessionId}
+            initialGameState={feudGameState}
+          />
+        )}
+
+        {activeGame === 'draw' && gameSessionId && (
+          <DrawGame
+            socket={socket}
+            sessionId={gameSessionId}
+            userId={myId}
+            username={user?.username || 'You'}
+            partnerUsername={partner?.username || 'Partner'}
+            localStream={null}
+            remoteStream={null}
+            onClose={resetGameOverlay}
+            initialGameState={drawGameState}
+          />
         )}
         
       </div>

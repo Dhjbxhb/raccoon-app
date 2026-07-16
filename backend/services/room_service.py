@@ -31,6 +31,19 @@ def normalize_room(room: dict) -> dict:
     room['max_players'] = MAX_ROOM_PLAYERS
     return room
 
+
+def sanitize_players(players: List[dict]) -> List[dict]:
+    """Remove server-only player fields before sending room state to clients."""
+    safe_players = []
+    for player in players:
+        safe_players.append({
+            'id': player['id'],
+            'username': player['username'],
+            'is_creator': player['is_creator'],
+            'joined_at': player['joined_at']
+        })
+    return safe_players
+
 def generate_room_code() -> str:
     """Generate unique 5-character room code"""
     chars = string.ascii_uppercase + string.digits
@@ -39,7 +52,13 @@ def generate_room_code() -> str:
         if code not in active_rooms:
             return code
 
-def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dict:
+def create_room(
+    creator_id: str,
+    creator_username: str,
+    is_premium: bool,
+    socket_id: str = '',
+    is_guest: bool = False
+) -> dict:
     """Create a new private room (premium only)"""
     if not is_premium:
         return {'error': 'Only premium users can create rooms'}
@@ -59,6 +78,9 @@ def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dic
             'id': creator_id,
             'username': creator_username,
             'is_creator': True,
+            'socket_id': socket_id,
+            'is_guest': is_guest,
+            'premium': is_premium,
             'joined_at': datetime.now(timezone.utc).isoformat()
         }],
         'max_players': MAX_ROOM_PLAYERS,  # FIXED: Max 2 players
@@ -80,7 +102,14 @@ def create_room(creator_id: str, creator_username: str, is_premium: bool) -> dic
         'room': get_room_state(room)
     }
 
-def join_room(room_code: str, player_id: str, player_username: str) -> dict:
+def join_room(
+    room_code: str,
+    player_id: str,
+    player_username: str,
+    socket_id: str = '',
+    is_guest: bool = False,
+    is_premium: bool = False
+) -> dict:
     """Join an existing room"""
     room_code = room_code.upper()
     
@@ -116,6 +145,9 @@ def join_room(room_code: str, player_id: str, player_username: str) -> dict:
         'id': player_id,
         'username': player_username,
         'is_creator': False,
+        'socket_id': socket_id,
+        'is_guest': is_guest,
+        'premium': is_premium,
         'joined_at': datetime.now(timezone.utc).isoformat()
     })
     
@@ -183,7 +215,7 @@ def get_room_state(room: dict) -> dict:
     return {
         'room_id': normalized_room['room_id'],
         'code': normalized_room['code'],
-        'players': normalized_room['players'],
+        'players': sanitize_players(normalized_room['players']),
         'player_count': len(normalized_room['players']),
         'max_players': MAX_ROOM_PLAYERS,
         'status': normalized_room['status'],

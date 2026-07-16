@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { Crown } from 'lucide-react';
 
 /**
  * UnoGame - Premium Real-Time Multiplayer UNO
@@ -286,6 +287,7 @@ const UnoGame = memo(({
   
   const mountedRef = useRef(true);
   const notificationTimer = useRef(null);
+  const autoReturnTimer = useRef(null);
   
   const showNotification = useCallback((message, duration = 2500) => {
     setNotification(message);
@@ -300,8 +302,21 @@ const UnoGame = memo(({
     return () => {
       mountedRef.current = false;
       if (notificationTimer.current) clearTimeout(notificationTimer.current);
+      if (autoReturnTimer.current) clearTimeout(autoReturnTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!gameEnded || !winner) return;
+
+    autoReturnTimer.current = setTimeout(() => {
+      onClose?.();
+    }, 2500);
+
+    return () => {
+      if (autoReturnTimer.current) clearTimeout(autoReturnTimer.current);
+    };
+  }, [gameEnded, winner, onClose]);
   
   // Socket handlers
   useEffect(() => {
@@ -672,8 +687,14 @@ const UnoGame = memo(({
               fontWeight: 800,
               marginBottom: '1rem'
             }}>
-              {winner.isMe ? 'You Win!' : `${winner.username} Wins!`}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Crown size={28} color="#facc15" />
+                <span>{winner.username} won!</span>
+              </span>
             </h2>
+            <p style={{ color: 'rgba(255,255,255,0.65)', marginBottom: '1rem' }}>
+              Returning to your current session...
+            </p>
             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
               <button
                 onClick={handlePlayAgain}
