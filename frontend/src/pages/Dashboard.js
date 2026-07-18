@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;

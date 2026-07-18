@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { Play, Lock, Crown, Globe, Users, Zap, Loader2 } from 'lucide-react';
 import SpaceBackground from '@/components/background/SpaceBackground';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;

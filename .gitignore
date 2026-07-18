@@ -61,7 +61,7 @@ frontend/node_modules/.cache/default-development/37.pack
 frontend/node_modules/.cache/default-development/38.pack
 frontend/node_modules/.cache/default-development/41.pack
 frontend/node_modules/.cache/default-development/30.pack
--e 
+-e
 # Environment files
 *.env
 *.env.*
@@ -79,15 +79,15 @@ frontend/node_modules/.cache/default-development/15.pack
 frontend/node_modules/.cache/default-development/11.pack
 frontend/node_modules/.cache/default-development/12.pack
 frontend/node_modules/.cache/default-development/5.pack_
--e 
+-e
 # Environment files
 *.env
 *.env.*
--e 
+-e
 # Environment files
 *.env
 *.env.*
--e 
+-e
 # Environment and credential files
 .env
 .env.*
@@ -96,3 +96,20 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Deployment/client-communication notes (not part of the app itself)
+CLIENT_ENV_REQUIREMENTS.md
+DEPLOYMENT_ISSUES_FOUND.md
+DNS_RECORDS_TO_ADD.md
+GITHUB_DEPLOY_KEY_REQUEST.md
+MONGODB_ACCESS_ISSUE.md
+MONGODB_CHECK_EMAIL.md
+MONGODB_MIGRATION_REPLY.md
+MONGODB_NEW_ATLAS_SETUP_GUIDE.md
+MONGODB_TLS_ISSUE_REPLY.md
+NAMESERVER_FIX_REPLY.md
+PENDING_Accounts_ACCESS.md
+VPS_IP_REPLY.md
+
+# Contains real credentials - keep out of git history going forward
+memory/test_credentials.md

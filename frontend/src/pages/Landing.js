@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 import SpaceBackground from '@/components/background/SpaceBackground';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
 const Landing = () => {

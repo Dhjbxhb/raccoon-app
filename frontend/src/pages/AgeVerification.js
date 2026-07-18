@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Shield, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
 import SpaceBackground from '@/components/background/SpaceBackground';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
