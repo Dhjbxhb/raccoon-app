@@ -67,8 +67,8 @@ const Profile = () => {
     };
   }, [user, navigate, token, authLoading]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 

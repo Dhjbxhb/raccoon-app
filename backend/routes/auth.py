@@ -8,6 +8,22 @@ from models.guest import Guest, GuestResponse
 from utils.validators import validate_age, validate_password, validate_username
 from middleware.auth_middleware import verify_token
 from services.premium_service import premium_service
+from services.firebase_service import verify_firebase_id_token
+from services.email_service import send_password_reset_email, send_verification_email
+import secrets
+import hashlib
+
+
+def _generate_code_pair() -> tuple[str, str]:
+    """Returns (raw_code, code_hash). A 6-digit numeric code; only the hash is ever stored."""
+    raw_code = ''.join(secrets.choice('0123456789') for _ in range(6))
+    code_hash = hashlib.sha256(raw_code.encode()).hexdigest()
+    return raw_code, code_hash
+
+
+PASSWORD_RESET_CODE_TTL_MINUTES = 15
+EMAIL_VERIFICATION_CODE_TTL_MINUTES = 15
+MAX_CODE_ATTEMPTS = 5
 import uuid
 from datetime import datetime, timedelta, timezone
 import random
@@ -159,7 +175,25 @@ async def signup(data: SignupRequest, request: Request):
     }
     
     await users.insert_one(user_dict)
-    
+
+    # Send email verification code (best-effort - must never block signup)
+    try:
+        raw_code, code_hash = _generate_code_pair()
+        expires_at = int(
+            (datetime.now(timezone.utc) + timedelta(minutes=EMAIL_VERIFICATION_CODE_TTL_MINUTES)).timestamp()
+        )
+        await users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "email_verification_code_hash": code_hash,
+                "email_verification_expires_at": expires_at,
+                "email_verification_attempts": 0
+            }}
+        )
+        await send_verification_email(data.email, raw_code)
+    except Exception as e:
+        logger.warning(f"Failed to send verification email to {data.email}: {e}")
+
     token = AuthService.create_token(user_id)
     
     user_response = UserResponse(
@@ -171,6 +205,7 @@ async def signup(data: SignupRequest, request: Request):
         country_flag=country_info['flag'],
         gender=data.gender.lower(),
         age_verified=False,
+        email_verified=False,
         currentSessionId=None,
         premium_status=False,
         is_premium=False,  # New users are not premium
@@ -257,6 +292,7 @@ async def login(data: LoginRequest):
         country_flag=user_dict.get('country_flag', '🇺🇸'),
         gender=user_dict['gender'],
         age_verified=user_dict.get('age_verified', False),
+        email_verified=user_dict.get('email_verified', False),
         premium_status=is_premium,
         is_premium=is_premium,  # Computed premium status for frontend
         premium_tier=premium_tier,
@@ -332,6 +368,7 @@ async def guest_login(data: GuestRequest, request: Request):
     token = AuthService.create_token(guest_id, is_guest=True)
     
     guest_response = GuestResponse(
+        is_guest=True,
         guest_id=guest_id,
         username=username,
         gender=data.gender.lower(),
@@ -406,6 +443,7 @@ async def get_current_user(request: Request):
             "country_flag": user_dict.get('country_flag', '🇺🇸'),
             "gender": user_dict['gender'],
             "age_verified": user_dict.get('age_verified', False),
+            "email_verified": user_dict.get('email_verified', False),
             "currentSessionId": user_dict.get('currentSessionId'),
             "premium_status": is_premium,  # COMPUTED premium status
             "is_premium": is_premium,  # COMPUTED premium status
@@ -422,6 +460,234 @@ async def get_current_user(request: Request):
             "created_at": user_dict.get('created_at'),
             "is_guest": False
         }
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class VerifyResetCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+async def _check_reset_code(user: dict | None, code: str) -> None:
+    """Validates a password-reset code without consuming it. Raises
+    HTTPException on any failure, incrementing the attempt counter on a
+    wrong (but not expired/missing) code."""
+    users = get_users_collection()
+
+    def invalid_code_error():
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired code")
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if (not user or not user.get('password_reset_code_hash')
+            or not user.get('password_reset_expires_at') or user['password_reset_expires_at'] < now_ts):
+        raise invalid_code_error()
+
+    if user.get('password_reset_attempts', 0) >= MAX_CODE_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many incorrect attempts. Please request a new code."
+        )
+
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+    if code_hash != user['password_reset_code_hash']:
+        await users.update_one({"user_id": user['user_id']}, {"$inc": {"password_reset_attempts": 1}})
+        raise invalid_code_error()
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    """Request a password reset code by email.
+
+    Always returns the same generic response whether or not the email is
+    registered, so this endpoint can't be used to check which emails exist.
+    Calling this again (e.g. "resend code") simply issues a fresh code.
+    """
+    users = get_users_collection()
+    user = await users.find_one({"email": data.email}, {"_id": 0})
+
+    generic_response = {
+        "message": "If an account exists with this email, a reset code has been sent."
+    }
+
+    if not user:
+        return generic_response
+
+    raw_code, code_hash = _generate_code_pair()
+    expires_at = int(
+        (datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_CODE_TTL_MINUTES)).timestamp()
+    )
+
+    await users.update_one(
+        {"user_id": user['user_id']},
+        {"$set": {
+            "password_reset_code_hash": code_hash,
+            "password_reset_expires_at": expires_at,
+            "password_reset_attempts": 0
+        }}
+    )
+
+    await send_password_reset_email(data.email, raw_code)
+
+    return generic_response
+
+@router.post("/verify-reset-code")
+async def verify_reset_code(data: VerifyResetCodeRequest):
+    """Checks a password-reset code is valid WITHOUT consuming it, so the
+    frontend can move to the "enter new password" step only after the code
+    has actually been confirmed correct."""
+    users = get_users_collection()
+    user = await users.find_one({"email": data.email}, {"_id": 0})
+    await _check_reset_code(user, data.code)
+    return {"message": "Code verified"}
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    """Reset a password using a valid, unexpired reset code (max attempts enforced).
+
+    Re-validates the code even if the frontend already called
+    /verify-reset-code - the client-side "verified" state can't be trusted
+    on its own for something as sensitive as a password change.
+    """
+    is_valid, message = validate_password(data.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
+
+    users = get_users_collection()
+    user = await users.find_one({"email": data.email}, {"_id": 0})
+    await _check_reset_code(user, data.code)
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    new_password_hash = AuthService.hash_password(data.new_password)
+
+    await users.update_one(
+        {"user_id": user['user_id']},
+        {
+            "$set": {
+                "password_hash": new_password_hash,
+                "token_valid_after": now_ts
+            },
+            "$unset": {
+                "password_reset_code_hash": "",
+                "password_reset_expires_at": "",
+                "password_reset_attempts": ""
+            }
+        }
+    )
+
+    return {"message": "Password has been reset successfully. Please sign in with your new password."}
+
+class VerifyEmailRequest(BaseModel):
+    code: str
+
+@router.post("/verify-email")
+async def verify_email(data: VerifyEmailRequest, request: Request):
+    """Verify the current authenticated user's email using a valid, unexpired code."""
+    payload = await verify_token(request)
+    if payload.get('is_guest'):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Guests don't have an email to verify")
+
+    users = get_users_collection()
+    user = await users.find_one({"user_id": payload['user_id']}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.get('email_verified'):
+        return {"message": "Email already verified"}
+
+    def invalid_code_error():
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired code")
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if (not user.get('email_verification_code_hash')
+            or not user.get('email_verification_expires_at') or user['email_verification_expires_at'] < now_ts):
+        raise invalid_code_error()
+
+    if user.get('email_verification_attempts', 0) >= MAX_CODE_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many incorrect attempts. Please request a new code."
+        )
+
+    code_hash = hashlib.sha256(data.code.encode()).hexdigest()
+    if code_hash != user['email_verification_code_hash']:
+        await users.update_one({"user_id": user['user_id']}, {"$inc": {"email_verification_attempts": 1}})
+        raise invalid_code_error()
+
+    await users.update_one(
+        {"user_id": user['user_id']},
+        {
+            "$set": {"email_verified": True},
+            "$unset": {
+                "email_verification_code_hash": "",
+                "email_verification_expires_at": "",
+                "email_verification_attempts": ""
+            }
+        }
+    )
+
+    return {"message": "Email verified successfully"}
+
+@router.post("/resend-verification-email")
+async def resend_verification_email(request: Request):
+    """Resend the verification code for the currently authenticated user."""
+    payload = await verify_token(request)
+    if payload.get('is_guest'):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Guests don't have an email to verify")
+
+    users = get_users_collection()
+    user = await users.find_one({"user_id": payload['user_id']}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.get('email_verified'):
+        return {"message": "Email already verified"}
+
+    raw_code, code_hash = _generate_code_pair()
+    expires_at = int(
+        (datetime.now(timezone.utc) + timedelta(minutes=EMAIL_VERIFICATION_CODE_TTL_MINUTES)).timestamp()
+    )
+    await users.update_one(
+        {"user_id": user['user_id']},
+        {"$set": {
+            "email_verification_code_hash": code_hash,
+            "email_verification_expires_at": expires_at,
+            "email_verification_attempts": 0
+        }}
+    )
+    await send_verification_email(user['email'], raw_code)
+
+    return {"message": "Verification code sent"}
+
+@router.post("/logout")
+async def logout(request: Request):
+    """Log the current session out server-side.
+
+    Sets token_valid_after on the account so this (and any other previously
+    issued) token is rejected by verify_token from this point on, instead of
+    only relying on the client discarding the token locally.
+    """
+    payload = await verify_token(request)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    if payload.get('is_guest'):
+        guests = get_guests_collection()
+        await guests.update_one(
+            {"guest_id": payload['user_id']},
+            {"$set": {"token_valid_after": now_ts, "currentSessionId": None}}
+        )
+    else:
+        users = get_users_collection()
+        await users.update_one(
+            {"user_id": payload['user_id']},
+            {"$set": {"token_valid_after": now_ts, "currentSessionId": None}}
+        )
+
+    return {"message": "Logged out successfully"}
 
 
 class AgeVerifyRequest(BaseModel):
@@ -480,8 +746,32 @@ class GoogleAuthRequest(BaseModel):
 async def google_auth(data: GoogleAuthRequest, request: Request):
     """Handle Google authentication specifically"""
     logger.info("=== GOOGLE AUTH REQUEST ===")
-    logger.info(f"Firebase UID: {data.uid}")
-    logger.info(f"Email: {data.email}")
+
+    # Verify the Firebase ID token server-side instead of trusting client-supplied
+    # uid/email fields directly - prevents account takeover via forged requests.
+    try:
+        decoded_token = verify_firebase_id_token(data.idToken)
+    except ValueError as e:
+        logger.warning(f"Google auth rejected - invalid ID token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Google sign-in token"
+        )
+
+    verified_uid = decoded_token.get('uid')
+    verified_email = decoded_token.get('email') or data.email
+
+    if not verified_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google sign-in token"
+        )
+
+    data.uid = verified_uid
+    data.email = verified_email
+
+    logger.info(f"Firebase UID (verified): {data.uid}")
+    logger.info(f"Email (verified): {data.email}")
     logger.info(f"Display Name: {data.displayName}")
     
     users = get_users_collection()
@@ -542,6 +832,7 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
             country_flag=existing_user.get('country_flag', country_info['flag']),
             gender=existing_user.get('gender', 'any'),
             age_verified=existing_user.get('age_verified', False),
+            email_verified=existing_user.get('email_verified', False),
             premium_status=existing_user.get('premium_status', False),
             premium_tier=existing_user.get('premium_tier', 'free'),
             is_admin=existing_user.get('is_admin', False),
@@ -581,6 +872,7 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
         "gender": "any",
         "date_of_birth": None,
         "age_verified": False,
+        "email_verified": True,  # Google/Firebase already verified this email
         "account_status": "active",
         "is_banned": False,
         "currentSessionId": None,
@@ -625,6 +917,7 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
         country_flag=country_info['flag'],
         gender="any",
         age_verified=False,
+        email_verified=True,
         currentSessionId=None,
         premium_status=False,
         premium_tier="free",
@@ -698,6 +991,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         token = AuthService.create_token(guest_id, is_guest=True)
         
         guest_response = GuestResponse(
+            is_guest=True,
             guest_id=guest_id,
             username=username,
             gender="any",
@@ -717,6 +1011,26 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         
         return AuthResponse(token=token, user=guest_response)
     
+    # Verify the Firebase ID token server-side before trusting uid/email
+    # (anonymous users are handled above and never reach this point).
+    try:
+        decoded_token = verify_firebase_id_token(data.idToken)
+    except ValueError as e:
+        logger.warning(f"Social auth rejected - invalid ID token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired sign-in token"
+        )
+
+    verified_uid = decoded_token.get('uid')
+    if not verified_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid sign-in token"
+        )
+    data.uid = verified_uid
+    data.email = decoded_token.get('email') or data.email
+
     # Check if user exists by Firebase UID or email (for Google login)
     existing_user = None
     if data.email:
@@ -757,6 +1071,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             country_flag=existing_user.get('country_flag', country_info['flag']),
             gender=existing_user.get('gender', 'any'),
             age_verified=existing_user.get('age_verified', False),
+            email_verified=existing_user.get('email_verified', False),
             premium_status=existing_user.get('premium_status', False),
             premium_tier=existing_user.get('premium_tier', 'free'),
             is_admin=existing_user.get('is_admin', False),
@@ -796,6 +1111,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         "gender": "any",
         "date_of_birth": None,
         "age_verified": False,
+        "email_verified": True,  # Google/Firebase already verified this email
         "account_status": "active",
         "is_banned": False,
         "currentSessionId": None,
@@ -840,6 +1156,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         country_flag=country_info['flag'],
         gender="any",
         age_verified=False,
+        email_verified=True,
         currentSessionId=None,
         premium_status=False,
         premium_tier="free",

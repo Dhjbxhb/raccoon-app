@@ -128,7 +128,7 @@ const Privacy = () => {
                 <li><strong className="text-white">Opt-out:</strong> Unsubscribe from marketing communications</li>
               </ul>
               <p className="text-gray-300 mb-6 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                To exercise these rights, contact us at privacy@raccoonapp.com
+                To exercise these rights, contact us at <a href="mailto:raccoonapp.support@gmail.com" className="text-[#7c3aed] font-bold hover:underline">raccoonapp.support@gmail.com</a>
               </p>
 
               <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>8. Data Retention</h2>
@@ -154,7 +154,7 @@ const Privacy = () => {
 
               <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>11. Contact Us</h2>
               <p className="text-gray-300 mb-6 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                For privacy-related questions or concerns, contact us at privacy@raccoonapp.com
+                For privacy-related questions or concerns, contact us at <a href="mailto:raccoonapp.support@gmail.com" className="text-[#7c3aed] font-bold hover:underline">raccoonapp.support@gmail.com</a>
               </p>
             </div>
           </div>

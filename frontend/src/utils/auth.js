@@ -184,3 +184,14 @@ export const isTokenValid = (token) => {
 export const getBrowserLocale = () => {
   return navigator.language || navigator.userLanguage || 'en-US';
 };
+
+// Determines where to send a user right after login/signup, based on the
+// verification gates that apply to them. Guests skip email verification
+// entirely since they don't have an email on file.
+export const getPostAuthRedirect = (user) => {
+  if (!user) return '/login';
+  if (user.is_admin) return '/admin';
+  if (!user.is_guest && !user.email_verified) return '/verify-email-pending';
+  if (!user.age_verified) return '/verify-age';
+  return '/dashboard';
+};

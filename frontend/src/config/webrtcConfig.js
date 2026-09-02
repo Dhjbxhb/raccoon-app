@@ -19,34 +19,49 @@ const STUN_SERVERS = [
   'stun:stun.stunprotocol.org:3478'
 ];
 
-// TURN server configuration (placeholder - in production, use your own TURN server)
-// Services like Twilio, Xirsys, or self-hosted coturn
-const TURN_SERVERS = [
-  // Uncomment and configure for production:
-  // {
-  //   urls: 'turn:your-turn-server.com:3478',
-  //   username: 'your-username',
-  //   credential: 'your-credential'
-  // },
-  // {
-  //   urls: 'turn:your-turn-server.com:443?transport=tcp',
-  //   username: 'your-username',
-  //   credential: 'your-credential'
-  // }
-];
+// TURN server configuration - uses short-lived, time-limited credentials
+// fetched from the backend (see backend/routes/turn.py) instead of a
+// permanent static secret, so nothing long-lived is exposed to the client.
+let TURN_SERVERS = [];
+let turnCredentialsFetchedAt = 0;
+const TURN_CREDENTIALS_REFRESH_MS = 45 * 60 * 1000; // refresh before the 1hr TTL expires
+
+export const fetchTurnCredentials = async () => {
+  const now = Date.now();
+  if (now - turnCredentialsFetchedAt < TURN_CREDENTIALS_REFRESH_MS && TURN_SERVERS.length > 0) {
+    return TURN_SERVERS;
+  }
+  try {
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+    const response = await fetch(`${backendUrl}/api/turn-credentials`);
+    const data = await response.json();
+    if (data.uris && data.username && data.credential) {
+      TURN_SERVERS = data.uris.map((urls) => ({
+        urls,
+        username: data.username,
+        credential: data.credential
+      }));
+      turnCredentialsFetchedAt = now;
+    }
+  } catch (err) {
+    console.error('Failed to fetch TURN credentials:', err);
+  }
+  return TURN_SERVERS;
+};
 
 // Full ICE server configuration - OPTIMIZED FOR SPEED
-export const ICE_SERVERS = {
+// Call fetchTurnCredentials() before this to ensure TURN_SERVERS is populated.
+export const getIceServers = () => ({
   iceServers: [
     // STUN servers for NAT discovery - prioritized by reliability
     ...STUN_SERVERS.slice(0, 3).map(url => ({ urls: url })),
-    
-    // TURN servers for relay fallback
+
+    // TURN servers for relay fallback (short-lived credentials)
     ...TURN_SERVERS
   ],
   iceCandidatePoolSize: 5,  // Reduced for faster gathering
   iceTransportPolicy: 'all'  // Use all available transports
-};
+});
 
 // PERFORMANCE: Optimized media constraints for speed
 export const VIDEO_CONSTRAINTS = {
@@ -157,4 +172,4 @@ export const FILTER_STYLES = {
   dreamy: 'brightness(1.12) contrast(0.9) saturate(1.15) blur(0.5px)'
 };
 
-export default ICE_SERVERS;
+export default getIceServers;

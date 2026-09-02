@@ -63,8 +63,8 @@ const Dashboard = () => {
 
   const premiumInfo = getPremiumStatus();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 

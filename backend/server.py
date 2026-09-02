@@ -72,12 +72,14 @@ from routes.admin import router as admin_router
 from routes.payments import router as payments_router
 from routes.reports import router as reports_router
 from routes.stats import router as stats_router
+from routes.turn import router as turn_router
 api_router.include_router(auth_router)
 api_router.include_router(auth_multiple_router)
 api_router.include_router(admin_router)
 api_router.include_router(payments_router)
 api_router.include_router(reports_router)
 api_router.include_router(stats_router)
+api_router.include_router(turn_router)
 
 # Basic route
 @api_router.get("/")
@@ -112,7 +114,14 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_event():
     import asyncio
-    
+
+    # Initialize Firebase Admin SDK (for verifying Google/Firebase ID tokens)
+    try:
+        from services.firebase_service import init_firebase
+        init_firebase()
+    except Exception as e:
+        logger.warning(f"Firebase Admin SDK init failed: {e} - Google/Firebase token verification unavailable")
+
     # Check MongoDB connectivity and setup fallback if needed
     try:
         from services.db_service import DatabaseService

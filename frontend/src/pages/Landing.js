@@ -6,18 +6,20 @@ import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import { getPostAuthRedirect } from '@/utils/auth';
 
 const Landing = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Redirect authenticated users appropriately
+  // Redirect authenticated users appropriately. Skipped for users who still
+  // need to verify their email, so pressing Back from that screen lands here
+  // normally instead of being bounced straight back to it.
   useEffect(() => {
     if (user) {
-      if (!user.age_verified) {
-        navigate('/verify-age');
-      } else {
-        navigate('/dashboard');
+      const dest = getPostAuthRedirect(user);
+      if (dest !== '/verify-email-pending') {
+        navigate(dest);
       }
     }
   }, [user, navigate]);
@@ -45,7 +47,7 @@ const Landing = () => {
                 filter: 'blur(40px)'
               }}
             />
-            <RaccoonLogo size={160} animated className="sm:w-[200px] sm:h-[200px]" />
+            <RaccoonLogo size="clamp(140px, 38vw, 200px)" animated />
           </div>
         </div>
 
@@ -84,28 +86,33 @@ const Landing = () => {
             data-testid="landing-start-button"
             style={{ fontFamily: 'Outfit, sans-serif' }}
           >
-            Start Now
-            <ArrowRight size={20} className="ml-2" />
+            <span className="inline-flex items-center gap-2 whitespace-nowrap">
+              Start Now
+              <ArrowRight size={20} />
+            </span>
           </Button>
         </div>
 
-        {/* Secondary links */}
-        <div className="mt-6 sm:mt-8 flex items-center justify-center gap-4 sm:gap-6 text-sm">
-          <Link 
-            to="/login" 
-            className="text-gray-400 hover:text-white transition-colors"
-            style={{ fontFamily: 'Manrope, sans-serif' }}
+        {/* Secondary actions */}
+        <div className="mt-6 sm:mt-8 flex items-center justify-center gap-3 sm:gap-4">
+          <Button
+            onClick={() => navigate('/login')}
+            variant="secondary"
+            size="md"
+            data-testid="landing-signin-button"
+            style={{ fontFamily: 'Outfit, sans-serif' }}
           >
             Sign In
-          </Link>
-          <span className="text-gray-600">•</span>
-          <Link 
-            to="/signup" 
-            className="text-gray-400 hover:text-white transition-colors"
-            style={{ fontFamily: 'Manrope, sans-serif' }}
+          </Button>
+          <Button
+            onClick={() => navigate('/signup')}
+            variant="outline"
+            size="md"
+            data-testid="landing-signup-button"
+            style={{ fontFamily: 'Outfit, sans-serif' }}
           >
             Create Account
-          </Link>
+          </Button>
         </div>
       </div>
 

@@ -185,8 +185,22 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Logout - clear everything
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     console.log('=== LOGOUT ===');
+    const currentToken = localStorage.getItem(TOKEN_KEY);
+
+    // Best-effort server-side session invalidation - local logout must still
+    // succeed even if this fails (offline, network error, etc.)
+    if (currentToken) {
+      try {
+        await axios.post(`${API_URL}/auth/logout`, {}, {
+          headers: { Authorization: `Bearer ${currentToken}` }
+        });
+      } catch (err) {
+        console.warn('[LOGOUT] Server-side logout call failed (continuing with local logout):', err.message);
+      }
+    }
+
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);

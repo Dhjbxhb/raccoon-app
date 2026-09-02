@@ -110,6 +110,15 @@ MONGODB_TLS_ISSUE_REPLY.md
 NAMESERVER_FIX_REPLY.md
 PENDING_Accounts_ACCESS.md
 VPS_IP_REPLY.md
+BUGS_AND_IMPROVEMENTS.md
+DEPLOYMENT.md
+OPERATIONS.md
+RESEND_SETUP_GUIDE.md
 
 # Contains real credentials - keep out of git history going forward
 memory/test_credentials.md
+
+# Firebase Admin SDK service account keys - never commit these
+*firebase-adminsdk*.json
+*-firebase-*.json
+serviceAccountKey.json

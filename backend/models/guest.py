@@ -66,6 +66,7 @@ class GuestResponse(BaseModel):
     guest_id: str
     username: str
     gender: str
+    is_guest: bool = True
     age_verified: bool = False
     currentSessionId: Optional[str] = None
     country: Optional[str] = None

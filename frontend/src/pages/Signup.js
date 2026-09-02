@@ -16,7 +16,8 @@ import { isFirebaseReady, signInWithGoogle } from '@/services/firebase.service';
 import { 
   validateSignupForm, 
   getErrorMessage,
-  getBrowserLocale 
+  getBrowserLocale,
+  getPostAuthRedirect 
 } from '@/utils/auth';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -40,13 +41,14 @@ const Signup = () => {
 
   const firebaseReady = isFirebaseReady();
 
-  // Redirect if already logged in
+  // Redirect if already logged in. Skipped for users who still need to
+  // verify their email, so pressing Back from that screen lands here
+  // normally instead of being bounced straight back to it.
   useEffect(() => {
     if (user && !authLoading) {
-      if (!user.age_verified) {
-        navigate('/verify-age');
-      } else {
-        navigate('/dashboard');
+      const dest = getPostAuthRedirect(user);
+      if (dest !== '/verify-email-pending') {
+        navigate(dest);
       }
     }
   }, [user, authLoading, navigate]);
@@ -97,7 +99,7 @@ const Signup = () => {
       
       login(response.data.token, response.data.user);
       toast.success('Account created! Welcome to Raccoon!');
-      navigate('/verify-age');
+      navigate(getPostAuthRedirect(response.data.user));
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       
@@ -129,12 +131,7 @@ const Signup = () => {
       
       login(response.data.token, response.data.user);
       toast.success('Welcome to Raccoon!');
-      
-      if (response.data.user.age_verified) {
-        navigate('/dashboard');
-      } else {
-        navigate('/verify-age');
-      }
+      navigate(getPostAuthRedirect(response.data.user));
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -192,7 +189,7 @@ const Signup = () => {
       
       login(response.data.token, response.data.user);
       toast.success(`Welcome, ${response.data.user.username}!`);
-      navigate('/verify-age');
+      navigate(getPostAuthRedirect(response.data.user));
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {

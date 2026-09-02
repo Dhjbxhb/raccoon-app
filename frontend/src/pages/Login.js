@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ import {
   validateLoginForm, 
   getErrorMessage,
   getBrowserLocale,
+  getPostAuthRedirect,
   TOKEN_KEY
 } from '@/utils/auth';
 
@@ -33,11 +34,16 @@ const Login = () => {
   
   const syncAttempted = useRef(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in. Skipped for users who still need to
+  // verify their email, so pressing Back from that screen lands here
+  // normally instead of being bounced straight back to it.
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token && user) {
-      navigate(user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
+      const dest = getPostAuthRedirect(user);
+      if (dest !== '/verify-email-pending') {
+        navigate(dest, { replace: true });
+      }
     }
   }, [user, navigate]);
 
@@ -83,7 +89,7 @@ const Login = () => {
       
       toast.success(`Welcome, ${response.data.user.username}!`);
       
-      const dest = response.data.user.age_verified ? '/dashboard' : '/verify-age';
+      const dest = getPostAuthRedirect(response.data.user);
       console.log('[LOGIN] SUCCESS! Redirecting to:', dest);
       navigate(dest, { replace: true });
       
@@ -125,7 +131,7 @@ const Login = () => {
       localStorage.setItem(TOKEN_KEY, response.data.token);
       login(response.data.token, response.data.user);
       toast.success('Welcome back!');
-      navigate(response.data.user.age_verified ? '/dashboard' : '/verify-age', { replace: true });
+      navigate(getPostAuthRedirect(response.data.user), { replace: true });
     } catch (error) {
       setErrors({ form: getErrorMessage(error) });
     } finally {
@@ -238,6 +244,15 @@ const Login = () => {
             testId="login-password-input"
             error={errors.password}
           />
+          <div className="flex justify-end -mt-2">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-[#7c3aed] hover:text-[#a855f7] font-medium transition-colors"
+              style={{ fontFamily: 'Manrope, sans-serif' }}
+            >
+              Forgot password?
+            </Link>
+          </div>
           <AuthButton 
             loading={loading} 
             disabled={loading || !!socialLoading}

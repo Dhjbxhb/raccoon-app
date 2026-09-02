@@ -171,17 +171,6 @@ const Guidelines = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="text-red-400 mt-1" size={20} />
-                      <div>
-                        <h3 className="font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>No Recording Without Consent</h3>
-                        <p className="text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                          Recording, screenshotting, or sharing conversations without the other person's consent is a serious violation.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
 

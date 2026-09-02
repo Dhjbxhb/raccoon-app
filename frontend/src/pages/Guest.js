@@ -7,6 +7,7 @@ import { Play, Lock, Crown, Globe, Users, Zap, Loader2 } from 'lucide-react';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/button';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
+import { getPostAuthRedirect } from '@/utils/auth';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -20,13 +21,14 @@ const Guest = () => {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [detectedCountry, setDetectedCountry] = useState(null);
 
-  // Check if user is already logged in
+  // Check if user is already logged in. Skipped for users who still need to
+  // verify their email, so pressing Back from that screen lands here
+  // normally instead of being bounced straight back to it.
   useEffect(() => {
     if (user) {
-      if (!user.age_verified) {
-        navigate('/verify-age');
-      } else {
-        navigate('/dashboard');
+      const dest = getPostAuthRedirect(user);
+      if (dest !== '/verify-email-pending') {
+        navigate(dest);
       }
     }
   }, [user, navigate]);

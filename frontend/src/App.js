@@ -10,6 +10,8 @@ import '@/App.css';
 const Landing = lazy(() => import('@/pages/Landing'));
 const Login = lazy(() => import('@/pages/Login'));
 const Signup = lazy(() => import('@/pages/Signup'));
+const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'));
+const EmailVerificationPending = lazy(() => import('@/pages/EmailVerificationPending'));
 const Guest = lazy(() => import('@/pages/Guest'));
 const AgeVerification = lazy(() => import('@/pages/AgeVerification'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
@@ -94,9 +96,38 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
+  // Authenticated but email not verified (guests are exempt - no email on file)
+  if (!user.is_guest && !user.email_verified) {
+    return <Navigate to="/verify-email-pending" />;
+  }
+
   // Authenticated but not age verified - redirect to age verification
   if (!user.age_verified) {
     return <Navigate to="/verify-age" />;
+  }
+
+  return children;
+};
+
+// Route that requires auth AND email verification, but NOT age verification
+// (used for the age verification page itself, which sits between the two)
+const EmailVerifiedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #020205 0%, #050510 30%, #0a0818 60%, #050510 100%)' }}>
+        <div className="w-12 h-12 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  if (!user.is_guest && !user.email_verified) {
+    return <Navigate to="/verify-email-pending" />;
   }
 
   return children;
@@ -142,6 +173,7 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/guest" element={<Guest />} />
         <Route path="/premium" element={<Premium />} />
         <Route path="/premium/success" element={<PremiumSuccess />} />
@@ -156,8 +188,16 @@ function AppRoutes() {
         <Route 
           path="/verify-age" 
           element={
-            <AuthOnlyRoute>
+            <EmailVerifiedRoute>
               <AgeVerification />
+            </EmailVerifiedRoute>
+          } 
+        />
+        <Route 
+          path="/verify-email-pending" 
+          element={
+            <AuthOnlyRoute>
+              <EmailVerificationPending />
             </AuthOnlyRoute>
           } 
         />

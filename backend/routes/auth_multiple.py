@@ -4,35 +4,6 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/auth", tags=["authentication_extended"])
 
 # ============================================
-# GOOGLE LOGIN - Structure Ready
-# ============================================
-
-class GoogleAuthRequest(BaseModel):
-    id_token: str  # Google OAuth ID token
-
-class GoogleAuthResponse(BaseModel):
-    token: str
-    user: dict
-
-@router.post("/google", response_model=GoogleAuthResponse)
-async def google_login(data: GoogleAuthRequest):
-    """
-    Google OAuth Login - STRUCTURE READY
-    
-    To activate:
-    1. Get Google OAuth credentials from Google Cloud Console
-    2. Add GOOGLE_CLIENT_ID to backend/.env
-    3. Install: pip install google-auth google-auth-oauthlib
-    4. Verify id_token and extract user info
-    5. Create or login user
-    6. Return JWT token
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Google login not configured. Please add GOOGLE_CLIENT_ID to environment."
-    )
-
-# ============================================
 # APPLE LOGIN - Structure Ready
 # ============================================
 
@@ -137,9 +108,8 @@ async def get_auth_methods():
             "name": "Guest Mode"
         },
         "google": {
-            "available": False,
-            "name": "Google Login",
-            "requires": "GOOGLE_CLIENT_ID in environment"
+            "available": True,
+            "name": "Google Login"
         },
         "apple": {
             "available": False,

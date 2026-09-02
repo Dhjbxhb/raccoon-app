@@ -129,8 +129,8 @@ const Refund = () => {
                     <p className="text-gray-300 mb-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
                       To request a refund, email us at:
                     </p>
-                    <p className="text-xl font-bold text-[#7c3aed]" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                      billing@raccoonapp.com
+                    <p className="text-xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      <a href="mailto:raccoonapp.support@gmail.com" className="text-[#7c3aed] hover:underline">raccoonapp.support@gmail.com</a>
                     </p>
                     <p className="text-gray-400 text-sm mt-3" style={{ fontFamily: 'Manrope, sans-serif' }}>
                       Please include:
@@ -165,7 +165,7 @@ const Refund = () => {
               <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>Questions?</h2>
               <p className="text-gray-300 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
                 If you have questions about billing or refunds, contact our support team at 
-                <span className="text-[#7c3aed] font-bold"> support@raccoonapp.com</span>. 
+                <a href="mailto:raccoonapp.support@gmail.com" className="text-[#7c3aed] font-bold hover:underline"> raccoonapp.support@gmail.com</a>. 
                 We're here to help!
               </p>
             </div>

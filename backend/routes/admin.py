@@ -48,7 +48,12 @@ class CreateReport(BaseModel):
 # ============================================
 
 async def get_current_admin(authorization: Optional[str] = Header(None)):
-    """Verify admin access - ONLY admins can access admin routes"""
+    """Verify admin access - ONLY admins can access admin routes.
+
+    Admin status is re-checked against the database on every request rather
+    than trusted from the JWT claim alone, so revoking an admin's privileges
+    takes effect immediately instead of waiting for their token to expire.
+    """
     if not authorization or not authorization.startswith('Bearer '):
         raise HTTPException(status_code=401, detail="Missing token")
     
@@ -56,16 +61,28 @@ async def get_current_admin(authorization: Optional[str] = Header(None)):
     payload = AuthService.decode_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
-    # Check if user is admin from JWT payload
-    if not payload.get('is_admin', False):
+
+    if payload.get('is_guest'):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
-    # Get admin username for logging
+
     users = get_users_collection()
-    admin_user = await users.find_one({'user_id': payload['user_id']}, {'_id': 0, 'username': 1})
-    payload['username'] = admin_user.get('username', 'Admin') if admin_user else 'Admin'
-    
+    admin_user = await users.find_one({'user_id': payload['user_id']}, {'_id': 0})
+
+    if not admin_user:
+        raise HTTPException(status_code=401, detail="Account no longer exists")
+
+    token_valid_after = admin_user.get('token_valid_after')
+    if token_valid_after and payload.get('iat', 0) < token_valid_after:
+        raise HTTPException(status_code=401, detail="Session has been logged out, please sign in again")
+
+    if not admin_user.get('is_admin', False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if admin_user.get('is_banned', False):
+        raise HTTPException(status_code=403, detail="Account is banned")
+
+    payload['username'] = admin_user.get('username', 'Admin')
+
     return payload
 
 # ============================================
@@ -850,32 +867,6 @@ async def process_expired_items(admin = Depends(get_current_admin)):
         'unbanned_users': unbanned_count,
         'expired_premiums': expired_premium_count
     }
-
-@router.post("/setup-admin")
-async def setup_admin_account():
-    """One-time setup to create admin account"""
-    users_collection = get_users_collection()
-    admin_email = "admin@raccoon.app"
-    
-    admin_user = await users_collection.find_one({"email": admin_email}, {"_id": 0})
-    
-    if admin_user:
-        await users_collection.update_one(
-            {"email": admin_email},
-            {"$set": {"is_admin": True, "premium_status": True}}
-        )
-        return {
-            "message": f"User {admin_email} has been granted admin and premium status",
-            "user_id": admin_user.get("user_id"),
-            "action": "updated"
-        }
-    else:
-        return {
-            "message": f"User {admin_email} does not exist. Please sign up first.",
-            "action": "none"
-        }
-
-
 
 # ============================================
 # CHARTS DATA

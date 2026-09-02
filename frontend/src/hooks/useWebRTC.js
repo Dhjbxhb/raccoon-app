@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ICE_SERVERS, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
+import { getIceServers, fetchTurnCredentials, getMediaConstraints, CONNECTION_TIMEOUT } from '@/config/webrtcConfig';
 import { 
   getAutoPerformanceMode, 
   PERFORMANCE_MODES, 
@@ -59,6 +59,11 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
     performanceModeRef.current = performanceMode;
   }, [performanceMode]);
 
+  // Pre-fetch TURN credentials on mount so they're ready before the peer connection is created
+  useEffect(() => {
+    fetchTurnCredentials();
+  }, []);
+
   // Determine if this peer is "polite" (receiver) or "impolite" (offerer)
   const isPolite = useCallback(() => {
     if (!partnerId || !socket?.id) return true;
@@ -96,7 +101,7 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
   const createPeerConnection = useCallback(() => {
     cleanupPeerConnection();
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const pc = new RTCPeerConnection(getIceServers());
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
@@ -278,6 +283,10 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
         throw new Error('Failed to get camera stream');
       }
       
+      // Ensure TURN credentials are ready before creating the peer connection
+      // (critical for mobile/cellular networks behind carrier-grade NAT, where STUN alone fails)
+      await fetchTurnCredentials();
+      
       // Create peer connection
       const pc = createPeerConnection();
       
@@ -325,6 +334,8 @@ export const useWebRTC = (socket, sessionId, partnerId, autoStart = true, contex
     
     if (!peerConnection.current) {
       console.log('[WebRTC] No peer connection, creating one');
+      // Ensure TURN credentials are ready before creating the peer connection
+      await fetchTurnCredentials();
       const pc = createPeerConnection();
       
       // Get local stream if not already present

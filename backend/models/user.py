@@ -200,6 +200,7 @@ class UserResponse(BaseModel):
     country_flag: str = "🇺🇸"
     gender: str = "any"
     age_verified: bool = False
+    email_verified: bool = False
     premium_status: bool = False
     is_premium: bool = False  # Computed premium status for frontend
     currentSessionId: Optional[str] = None

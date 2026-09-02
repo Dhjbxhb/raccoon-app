@@ -118,7 +118,7 @@ const Terms = () => {
 
               <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>10. Contact</h2>
               <p className="text-gray-300 mb-6 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                If you have questions about these Terms, please contact us at support@raccoonapp.com
+                If you have questions about these Terms, please contact us at <a href="mailto:raccoonapp.support@gmail.com" className="text-[#7c3aed] font-bold hover:underline">raccoonapp.support@gmail.com</a>
               </p>
             </div>
           </div>
