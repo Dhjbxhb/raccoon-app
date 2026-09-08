@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import Response, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -74,6 +75,7 @@ from routes.payments import router as payments_router
 from routes.reports import router as reports_router
 from routes.stats import router as stats_router
 from routes.turn import router as turn_router
+from routes.profile import router as profile_router
 api_router.include_router(auth_router)
 api_router.include_router(auth_multiple_router)
 api_router.include_router(admin_router)
@@ -81,6 +83,7 @@ api_router.include_router(payments_router)
 api_router.include_router(reports_router)
 api_router.include_router(stats_router)
 api_router.include_router(turn_router)
+api_router.include_router(profile_router)
 
 # Basic route
 @api_router.get("/")
@@ -94,6 +97,11 @@ async def health_check():
 
 # Include the router in the main app
 app.include_router(api_router)
+
+# Serve uploaded profile pictures (uploads/avatars/<user_id>.jpg)
+AVATAR_UPLOAD_DIR = ROOT_DIR / "uploads" / "avatars"
+AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/api/static/avatars", StaticFiles(directory=str(AVATAR_UPLOAD_DIR)), name="avatars")
 
 # Add CORS middleware
 app.add_middleware(

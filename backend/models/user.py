@@ -213,6 +213,7 @@ class UserResponse(BaseModel):
     games_played: int = 0
     games_won: int = 0
     photo_url: Optional[str] = None
+    avatar_url: Optional[str] = None
     bio: Optional[str] = None
     created_at: Optional[str] = None
 

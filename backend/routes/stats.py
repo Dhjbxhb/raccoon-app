@@ -387,6 +387,7 @@ async def get_full_user_data(request: Request):
         "age_verified": user.get('age_verified', False),
         "created_at": user.get('created_at'),
         "photo_url": user.get('photo_url'),
+        "avatar_url": user.get('avatar_url'),
         "bio": user.get('bio'),
         "stats": {
             "total_sessions": user.get('total_sessions', 0),

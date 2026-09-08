@@ -2,20 +2,32 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { 
+import {
   ArrowLeft, User, Mail, Globe, Calendar, Star, Shield,
-  Settings, LogOut, Crown
+  Settings, LogOut, Crown, Camera, Pencil, Check, X, Loader2
 } from 'lucide-react';
 import SpaceBackground from '@/components/background/SpaceBackground';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const DEFAULT_AVATAR = '/assets/raccoon-mascot.png';
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'any', label: 'Prefer not to say' },
+];
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, logout, isGuest, token, refreshUser, loading: authLoading } = useAuth();
+  const { user, logout, isGuest, token, refreshUser, updateUser, loading: authLoading } = useAuth();
   const [fullUserData, setFullUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [editingGender, setEditingGender] = useState(false);
+  const [genderDraft, setGenderDraft] = useState('any');
+  const [savingGender, setSavingGender] = useState(false);
   const heartbeatRef = useRef(null);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     // Wait for auth to load
@@ -95,6 +107,93 @@ const Profile = () => {
   };
 
   const displayUser = fullUserData || user;
+  const avatarSrc = displayUser?.avatar_url || displayUser?.photo_url || DEFAULT_AVATAR;
+
+  const applyUserPatch = (patch) => {
+    setFullUserData((prev) => (prev ? { ...prev, ...patch } : prev));
+    updateUser(patch);
+  };
+
+  const handleAvatarButtonClick = () => {
+    if (uploadingAvatar) return;
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please choose a JPEG, PNG, or WEBP image');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be smaller than 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/profile/avatar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Failed to upload profile picture');
+      }
+
+      applyUserPatch({ avatar_url: data.avatar_url });
+      toast.success('Profile picture updated!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to upload profile picture');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleGenderEditStart = () => {
+    setGenderDraft(displayUser?.gender || 'any');
+    setEditingGender(true);
+  };
+
+  const handleGenderCancel = () => {
+    setEditingGender(false);
+  };
+
+  const handleGenderSave = async () => {
+    setSavingGender(true);
+    try {
+      const response = await fetch(`${API_URL}/api/profile`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ gender: genderDraft })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Failed to update gender');
+      }
+
+      applyUserPatch({ gender: genderDraft });
+      setEditingGender(false);
+      toast.success('Gender updated!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update gender');
+    } finally {
+      setSavingGender(false);
+    }
+  };
 
   return (
     <div className="min-h-screen text-white relative">
@@ -134,13 +233,43 @@ const Profile = () => {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
               {/* Avatar */}
               <div className="relative">
-                <div className="w-32 h-32 bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] rounded-full flex items-center justify-center text-5xl">
-                  {displayUser.username?.charAt(0).toUpperCase() || '🦝'}
+                <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center">
+                  <img
+                    src={avatarSrc}
+                    alt={displayUser.username}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }}
+                  />
                 </div>
                 {premium.is_premium && (
                   <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
                     <Star size={20} className="text-white fill-white" />
                   </div>
+                )}
+                {!isGuest() && (
+                  <>
+                    <button
+                      onClick={handleAvatarButtonClick}
+                      disabled={uploadingAvatar}
+                      className="absolute bottom-0 left-0 w-9 h-9 bg-[#7c3aed] hover:bg-[#8b4ff0] rounded-full flex items-center justify-center border-2 border-black/50 transition-all disabled:opacity-60"
+                      data-testid="edit-avatar-btn"
+                      aria-label="Change profile picture"
+                    >
+                      {uploadingAvatar ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Camera size={16} />
+                      )}
+                    </button>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleAvatarFileChange}
+                      data-testid="avatar-file-input"
+                    />
+                  </>
                 )}
               </div>
 
@@ -290,11 +419,60 @@ const Profile = () => {
                 </div>
               )}
               
-              <div className="flex items-center justify-between py-3 border-b border-white/5">
+              <div className="flex items-center justify-between py-3 border-b border-white/5" data-testid="gender-row">
                 <span className="text-gray-400">Gender</span>
-                <span className="font-semibold capitalize">{displayUser.gender || 'Not set'}</span>
+                {editingGender ? (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={genderDraft}
+                      onChange={(e) => setGenderDraft(e.target.value)}
+                      disabled={savingGender}
+                      className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:border-[#7c3aed]"
+                      data-testid="gender-select"
+                    >
+                      {GENDER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value} className="bg-[#1a1a2e]">
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleGenderSave}
+                      disabled={savingGender}
+                      className="p-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-all disabled:opacity-60"
+                      data-testid="save-gender-btn"
+                      aria-label="Save gender"
+                    >
+                      {savingGender ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    </button>
+                    <button
+                      onClick={handleGenderCancel}
+                      disabled={savingGender}
+                      className="p-1.5 bg-white/10 text-gray-300 hover:bg-white/20 rounded-lg transition-all disabled:opacity-60"
+                      aria-label="Cancel"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">
+                      {GENDER_OPTIONS.find((opt) => opt.value === displayUser.gender)?.label || 'Not set'}
+                    </span>
+                    {!isGuest() && (
+                      <button
+                        onClick={handleGenderEditStart}
+                        className="p-1 text-gray-500 hover:text-[#a855f7] transition-all"
+                        data-testid="edit-gender-btn"
+                        aria-label="Edit gender"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              
+
               <div className="flex items-center justify-between py-3 border-b border-white/5">
                 <span className="text-gray-400">Country</span>
                 <span className="font-semibold">{displayUser.country || 'Not detected'}</span>

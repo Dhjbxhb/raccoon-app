@@ -304,6 +304,7 @@ async def login(data: LoginRequest):
         games_played=user_dict.get('games_played', 0),
         games_won=user_dict.get('games_won', 0),
         photo_url=user_dict.get('photo_url'),
+        avatar_url=user_dict.get('avatar_url'),
         bio=user_dict.get('bio'),
         created_at=user_dict.get('created_at')
     )
@@ -456,6 +457,7 @@ async def get_current_user(request: Request):
             "games_played": user_dict.get('games_played', 0),
             "games_won": user_dict.get('games_won', 0),
             "photo_url": user_dict.get('photo_url'),
+            "avatar_url": user_dict.get('avatar_url'),
             "bio": user_dict.get('bio'),
             "created_at": user_dict.get('created_at'),
             "is_guest": False
@@ -822,7 +824,7 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
         )
         
         logger.info(f"Token generated for existing user: {existing_user['username']}")
-        
+
         user_response = UserResponse(
             user_id=existing_user['user_id'],
             email=existing_user.get('email', ''),
@@ -842,10 +844,11 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
             games_played=existing_user.get('games_played', 0),
             games_won=existing_user.get('games_won', 0),
             photo_url=existing_user.get('photo_url'),
+            avatar_url=existing_user.get('avatar_url'),
             bio=existing_user.get('bio'),
             created_at=existing_user.get('created_at')
         )
-        
+
         return AuthResponse(token=token, user=user_response)
     
     # Create new user (Google sign-in)
@@ -1081,10 +1084,11 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             games_played=existing_user.get('games_played', 0),
             games_won=existing_user.get('games_won', 0),
             photo_url=existing_user.get('photo_url'),
+            avatar_url=existing_user.get('avatar_url'),
             bio=existing_user.get('bio'),
             created_at=existing_user.get('created_at')
         )
-        
+
         logger.info(f"Google user logged in: {existing_user['username']} ({existing_user['user_id']})")
         
         return AuthResponse(token=token, user=user_response)

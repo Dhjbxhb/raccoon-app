@@ -207,6 +207,11 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  // Merge a partial update (e.g. after editing avatar/gender) into the local user object
+  const updateUser = useCallback((partialUpdate) => {
+    setUser((prev) => (prev ? { ...prev, ...partialUpdate } : prev));
+  }, []);
+
   // Helper functions
   const isGuest = useCallback(() => {
     return user && (user.guest_id || user.is_guest);
@@ -228,6 +233,7 @@ export const AuthProvider = ({ children }) => {
     isGuest,
     isAuthenticated,
     refreshUser,
+    updateUser,
     finishAuthCheck
   };
 
