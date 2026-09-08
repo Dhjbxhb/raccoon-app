@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const DEFAULT_AVATAR = '/assets/raccoon-mascot.png';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -136,7 +137,16 @@ const Dashboard = () => {
               className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full transition-all"
               data-testid="profile-btn"
             >
-              <User size={18} />
+              {isGuest() ? (
+                <User size={18} />
+              ) : (
+                <img
+                  src={user.avatar_url || user.photo_url || DEFAULT_AVATAR}
+                  alt=""
+                  className="w-6 h-6 rounded-full object-cover"
+                  onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }}
+                />
+              )}
               <span style={{ fontFamily: 'Manrope, sans-serif' }}>{user.username}</span>
               {isPremium && <Star size={16} className="text-yellow-400 fill-yellow-400" />}
             </button>
