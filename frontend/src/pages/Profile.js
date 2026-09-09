@@ -7,9 +7,10 @@ import {
   Settings, LogOut, Crown, Camera, Pencil, Check, X, Loader2
 } from 'lucide-react';
 import SpaceBackground from '@/components/background/SpaceBackground';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { getAvatarGradient } from '@/utils/avatarColor';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
-const DEFAULT_AVATAR = '/assets/raccoon-mascot.png';
 
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Male' },
@@ -107,7 +108,8 @@ const Profile = () => {
   };
 
   const displayUser = fullUserData || user;
-  const avatarSrc = displayUser?.avatar_url || displayUser?.photo_url || DEFAULT_AVATAR;
+  const avatarSrc = displayUser?.avatar_url || displayUser?.photo_url || undefined;
+  const avatarSeed = displayUser?.user_id || displayUser?.username || 'raccoon';
 
   const applyUserPatch = (patch) => {
     setFullUserData((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -233,14 +235,15 @@ const Profile = () => {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
               {/* Avatar */}
               <div className="relative">
-                <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] flex items-center justify-center">
-                  <img
-                    src={avatarSrc}
-                    alt={displayUser.username}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }}
-                  />
-                </div>
+                <Avatar className="w-32 h-32">
+                  <AvatarImage src={avatarSrc} alt={displayUser.username} className="object-cover" />
+                  <AvatarFallback
+                    className="text-5xl font-bold text-white"
+                    style={{ background: getAvatarGradient(avatarSeed) }}
+                  >
+                    {displayUser.username?.charAt(0).toUpperCase() || '🦝'}
+                  </AvatarFallback>
+                </Avatar>
                 {premium.is_premium && (
                   <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
                     <Star size={20} className="text-white fill-white" />

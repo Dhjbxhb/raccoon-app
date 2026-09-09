@@ -1,26 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Mail, Lock, User, ArrowRight } from 'lucide-react';
-import { 
-  AuthLayout, 
-  AuthCard, 
-  AuthInput, 
-  AuthButton, 
-  AuthFooterLink 
+import { Mail, Lock, User, ArrowRight, Camera } from 'lucide-react';
+import {
+  AuthLayout,
+  AuthCard,
+  AuthInput,
+  AuthButton,
+  AuthFooterLink
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { isFirebaseReady, signInWithGoogle } from '@/services/firebase.service';
-import { 
-  validateSignupForm, 
+import { getAvatarGradient } from '@/utils/avatarColor';
+import {
+  validateSignupForm,
   getErrorMessage,
   getBrowserLocale,
-  getPostAuthRedirect 
+  getPostAuthRedirect
 } from '@/utils/auth';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -38,8 +42,37 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const avatarInputRef = useRef(null);
 
   const firebaseReady = isFirebaseReady();
+
+  // Revoke the object URL when replaced/unmounted to avoid leaking memory
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
+  const handleAvatarSelect = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      toast.error('Please choose a JPEG, PNG, or WEBP image');
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      toast.error('Image must be smaller than 5MB');
+      return;
+    }
+
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
 
   // Redirect if already logged in. Skipped for users who still need to
   // verify their email, so pressing Back from that screen lands here
@@ -96,10 +129,29 @@ const Signup = () => {
         terms_accepted: agreedToTerms,
         privacy_accepted: agreedToTerms
       });
-      
-      login(response.data.token, response.data.user);
+
+      const { token: newToken, user: newUser } = response.data;
+
+      // Upload the chosen profile picture, if any. Best-effort: the account
+      // is already created at this point, so an upload failure here must
+      // not block the user from continuing - they can add one later from
+      // Profile. Skipped entirely falls back to the generated default avatar.
+      if (avatarFile) {
+        try {
+          const avatarFormData = new FormData();
+          avatarFormData.append('file', avatarFile);
+          const avatarResponse = await axios.post(`${API_URL}/profile/avatar`, avatarFormData, {
+            headers: { Authorization: `Bearer ${newToken}` }
+          });
+          newUser.avatar_url = avatarResponse.data.avatar_url;
+        } catch (avatarError) {
+          toast.error('Account created, but the profile picture upload failed - you can add it later from Profile.');
+        }
+      }
+
+      login(newToken, newUser);
       toast.success('Account created! Welcome to Raccoon!');
-      navigate(getPostAuthRedirect(response.data.user));
+      navigate(getPostAuthRedirect(newUser));
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       
@@ -222,7 +274,42 @@ const Signup = () => {
               {errors.form}
             </div>
           )}
-          
+
+          {/* Profile Picture - optional, defaults to a generated avatar if skipped */}
+          <div className="flex flex-col items-center gap-2 pb-2">
+            <div className="relative">
+              <Avatar className="w-20 h-20">
+                <AvatarImage src={avatarPreview} alt="" className="object-cover" />
+                <AvatarFallback
+                  className="text-2xl font-bold text-white"
+                  style={{ background: getAvatarGradient(formData.username || 'raccoon') }}
+                >
+                  {formData.username?.charAt(0).toUpperCase() || '🦝'}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="absolute bottom-0 right-0 w-7 h-7 bg-[#7c3aed] hover:bg-[#8b4ff0] rounded-full flex items-center justify-center border-2 border-black/50 transition-all"
+                data-testid="signup-avatar-btn"
+                aria-label="Upload profile picture"
+              >
+                <Camera size={13} />
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarSelect}
+                data-testid="signup-avatar-input"
+              />
+            </div>
+            <span className="text-xs text-gray-500" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Profile picture (optional)
+            </span>
+          </div>
+
           <AuthInput
             label="Username"
             icon={User}

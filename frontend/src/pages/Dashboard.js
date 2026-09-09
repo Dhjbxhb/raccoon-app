@@ -5,10 +5,11 @@ import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Tro
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
+import { getAvatarGradient } from '@/utils/avatarColor';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
-const DEFAULT_AVATAR = '/assets/raccoon-mascot.png';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -140,12 +141,15 @@ const Dashboard = () => {
               {isGuest() ? (
                 <User size={18} />
               ) : (
-                <img
-                  src={user.avatar_url || user.photo_url || DEFAULT_AVATAR}
-                  alt=""
-                  className="w-6 h-6 rounded-full object-cover"
-                  onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }}
-                />
+                <Avatar className="w-6 h-6">
+                  <AvatarImage src={user.avatar_url || user.photo_url} alt="" className="object-cover" />
+                  <AvatarFallback
+                    className="text-xs font-bold text-white"
+                    style={{ background: getAvatarGradient(user.user_id || user.username) }}
+                  >
+                    {user.username?.charAt(0).toUpperCase() || '🦝'}
+                  </AvatarFallback>
+                </Avatar>
               )}
               <span style={{ fontFamily: 'Manrope, sans-serif' }}>{user.username}</span>
               {isPremium && <Star size={16} className="text-yellow-400 fill-yellow-400" />}
