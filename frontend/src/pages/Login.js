@@ -4,14 +4,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
-import { 
-  AuthLayout, 
-  AuthCard, 
-  AuthInput, 
-  AuthButton, 
-  AuthFooterLink 
+import {
+  AuthLayout,
+  AuthCard,
+  AuthInput,
+  AuthButton,
+  AuthFooterLink
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
+import PhoneAuthSection from '@/components/auth/PhoneAuthSection';
 import { signInWithGoogle, isFirebaseReady } from '@/services/firebase.service';
 import { 
   validateLoginForm, 
@@ -31,7 +32,8 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(null);
-  
+  const [authMethod, setAuthMethod] = useState('email'); // 'email' | 'phone'
+
   const syncAttempted = useRef(false);
 
   // Redirect if already logged in. Skipped for users who still need to
@@ -207,61 +209,115 @@ const Login = () => {
     }
   };
 
+  // Called by PhoneAuthSection once Firebase has verified the phone's OTP.
+  // Same find-or-create endpoint as Google - works for both a first-time
+  // phone sign-up and a returning phone login.
+  const handlePhoneVerified = async ({ idToken, uid, phoneNumber }) => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/social`, {
+        uid,
+        phoneNumber,
+        provider: 'phone',
+        idToken,
+        browser_locale: getBrowserLocale()
+      });
+
+      localStorage.setItem(TOKEN_KEY, response.data.token);
+      login(response.data.token, response.data.user);
+      toast.success(`Welcome, ${response.data.user.username}!`);
+      navigate(getPostAuthRedirect(response.data.user), { replace: true });
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthLayout>
       <AuthCard 
         title="Welcome Back"
         subtitle="Sign in to continue to Raccoon"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-5">
           {errors.form && (
             <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
               {errors.form}
             </div>
           )}
-          
-          <AuthInput
-            label="Email"
-            icon={Mail}
-            type="email"
-            value={formData.email}
-            onChange={(e) => handleFieldChange('email', e.target.value)}
-            placeholder="your@email.com"
-            required
-            autoComplete="email"
-            testId="login-email-input"
-            error={errors.email}
-          />
-          <AuthInput
-            label="Password"
-            icon={Lock}
-            type="password"
-            value={formData.password}
-            onChange={(e) => handleFieldChange('password', e.target.value)}
-            placeholder="••••••••"
-            required
-            autoComplete="current-password"
-            testId="login-password-input"
-            error={errors.password}
-          />
-          <div className="flex justify-end -mt-2">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-[#7c3aed] hover:text-[#a855f7] font-medium transition-colors"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
-            >
-              Forgot password?
-            </Link>
+
+          {/* Sign-in method switcher */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-black/30 border border-white/10 rounded-xl">
+            {[
+              { key: 'email', label: 'Email' },
+              { key: 'phone', label: 'Phone' }
+            ].map((method) => (
+              <button
+                key={method.key}
+                type="button"
+                onClick={() => setAuthMethod(method.key)}
+                className={`py-2 rounded-lg text-sm font-semibold transition-all ${
+                  authMethod === method.key
+                    ? 'bg-[#7c3aed] text-white shadow-[0_0_15px_rgba(124,58,237,0.3)]'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                style={{ fontFamily: 'Manrope, sans-serif' }}
+                data-testid={`login-method-${method.key}`}
+              >
+                {method.label}
+              </button>
+            ))}
           </div>
-          <AuthButton 
-            loading={loading} 
-            disabled={loading || !!socialLoading}
-            testId="login-submit-button"
-          >
-            Sign In
-            <ArrowRight size={18} />
-          </AuthButton>
-        </form>
+
+          {authMethod === 'email' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <AuthInput
+                label="Email"
+                icon={Mail}
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFieldChange('email', e.target.value)}
+                placeholder="your@email.com"
+                required
+                autoComplete="email"
+                testId="login-email-input"
+                error={errors.email}
+              />
+              <AuthInput
+                label="Password"
+                icon={Lock}
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleFieldChange('password', e.target.value)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+                testId="login-password-input"
+                error={errors.password}
+              />
+              <div className="flex justify-end -mt-2">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-[#7c3aed] hover:text-[#a855f7] font-medium transition-colors"
+                  style={{ fontFamily: 'Manrope, sans-serif' }}
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <AuthButton
+                loading={loading}
+                disabled={loading || !!socialLoading}
+                testId="login-submit-button"
+              >
+                Sign In
+                <ArrowRight size={18} />
+              </AuthButton>
+            </form>
+          ) : (
+            <PhoneAuthSection onVerified={handlePhoneVerified} disabled={loading || !!socialLoading} />
+          )}
+        </div>
 
         <SocialAuthSection
           onGoogleClick={handleGoogleLogin}

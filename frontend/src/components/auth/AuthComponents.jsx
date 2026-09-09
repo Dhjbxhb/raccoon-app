@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { RaccoonIcon } from '@/components/branding/RaccoonLogo';
+import { RaccoonLogo } from '@/components/branding/RaccoonLogo';
 import SpaceBackground from '@/components/background/SpaceBackground';
 
 /**
@@ -55,21 +55,9 @@ const AuthCard = ({
         <div className="relative bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {/* Header */}
           <div className="text-center mb-8">
-            {/* Premium Raccoon Logo */}
-            <div className="relative w-20 h-20 mx-auto mb-5">
-              {/* Glow behind logo */}
-              <div 
-                className="absolute inset-0 rounded-2xl animate-pulse"
-                style={{
-                  background: 'radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)',
-                  transform: 'scale(1.5)',
-                  filter: 'blur(15px)'
-                }}
-              />
-              {/* Logo container */}
-              <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] flex items-center justify-center shadow-[0_0_30px_rgba(124,58,237,0.4)]">
-                <RaccoonIcon size={48} />
-              </div>
+            {/* Raccoon Logo - same mascot used on the homepage */}
+            <div className="mx-auto mb-5 w-fit">
+              <RaccoonLogo size={64} />
             </div>
             <h1 
               className="text-2xl font-bold text-white mb-1"

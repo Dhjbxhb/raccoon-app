@@ -9,13 +9,15 @@
  */
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
+import {
+  getAuth,
+  GoogleAuthProvider,
   signInWithPopup,
   signOut as firebaseSignOut,
   browserLocalPersistence,
-  setPersistence
+  setPersistence,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
 } from 'firebase/auth';
 import firebaseConfig, { isFirebaseConfigured } from '@/config/firebase.config';
 
@@ -171,6 +173,39 @@ export const signInWithGoogle = async () => {
     console.error('[FIREBASE] code:', error.code);
     console.error('[FIREBASE] message:', error.message);
     console.error('[FIREBASE] ==========================================');
+    throw error;
+  }
+};
+
+// Recaptcha verifiers are tied to a specific DOM container - a stale one from
+// a previous mount must be torn down before creating a new one, otherwise
+// Firebase throws "reCAPTCHA has already been rendered".
+let _recaptchaVerifier = null;
+
+/**
+ * Send a phone verification code (invisible reCAPTCHA in the given container).
+ * Returns a confirmationResult - call confirmationResult.confirm(code) with
+ * the code the user receives by SMS to complete sign-in.
+ */
+export const sendPhoneOTP = async (phoneNumber, recaptchaContainerId) => {
+  const auth = getFirebaseAuth();
+  if (!auth) {
+    throw new Error('Firebase not initialized');
+  }
+
+  if (_recaptchaVerifier) {
+    _recaptchaVerifier.clear();
+    _recaptchaVerifier = null;
+  }
+
+  _recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, { size: 'invisible' });
+
+  try {
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, _recaptchaVerifier);
+    return confirmationResult;
+  } catch (error) {
+    _recaptchaVerifier.clear();
+    _recaptchaVerifier = null;
     throw error;
   }
 };

@@ -12,6 +12,7 @@ import {
   AuthFooterLink
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
+import PhoneAuthSection from '@/components/auth/PhoneAuthSection';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { isFirebaseReady, signInWithGoogle } from '@/services/firebase.service';
 import { getAvatarGradient } from '@/utils/avatarColor';
@@ -44,6 +45,7 @@ const Signup = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [authMethod, setAuthMethod] = useState('email'); // 'email' | 'phone'
   const avatarInputRef = useRef(null);
 
   const firebaseReady = isFirebaseReady();
@@ -94,31 +96,49 @@ const Signup = () => {
     }
   }, [errors]);
 
+  // Upload the chosen profile picture, if any. Best-effort: the account is
+  // already created by the time this runs, so an upload failure here must
+  // not block the user from continuing - they can add one later from
+  // Profile. Mutates newUser in place with the resulting avatar_url.
+  const uploadAvatarIfSelected = async (newToken, newUser) => {
+    if (!avatarFile) return;
+    try {
+      const avatarFormData = new FormData();
+      avatarFormData.append('file', avatarFile);
+      const avatarResponse = await axios.post(`${API_URL}/profile/avatar`, avatarFormData, {
+        headers: { Authorization: `Bearer ${newToken}` }
+      });
+      newUser.avatar_url = avatarResponse.data.avatar_url;
+    } catch (avatarError) {
+      toast.error('Account created, but the profile picture upload failed - you can add it later from Profile.');
+    }
+  };
+
   // Handle email/password signup
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (loading) return;
-    
+
     // Terms validation
     if (!agreedToTerms) {
       setErrors(prev => ({ ...prev, terms: 'Please agree to the Terms of Service and Privacy Policy' }));
       return;
     }
-    
+
     // Client-side validation
     const validation = validateSignupForm(formData);
     if (!validation.valid) {
       setErrors(validation.errors);
       return;
     }
-    
+
     setErrors({});
     setLoading(true);
 
     try {
       const browserLocale = getBrowserLocale();
-      
+
       const response = await axios.post(`${API_URL}/auth/signup`, {
         email: formData.email,
         username: formData.username,
@@ -131,23 +151,7 @@ const Signup = () => {
       });
 
       const { token: newToken, user: newUser } = response.data;
-
-      // Upload the chosen profile picture, if any. Best-effort: the account
-      // is already created at this point, so an upload failure here must
-      // not block the user from continuing - they can add one later from
-      // Profile. Skipped entirely falls back to the generated default avatar.
-      if (avatarFile) {
-        try {
-          const avatarFormData = new FormData();
-          avatarFormData.append('file', avatarFile);
-          const avatarResponse = await axios.post(`${API_URL}/profile/avatar`, avatarFormData, {
-            headers: { Authorization: `Bearer ${newToken}` }
-          });
-          newUser.avatar_url = avatarResponse.data.avatar_url;
-        } catch (avatarError) {
-          toast.error('Account created, but the profile picture upload failed - you can add it later from Profile.');
-        }
-      }
+      await uploadAvatarIfSelected(newToken, newUser);
 
       login(newToken, newUser);
       toast.success('Account created! Welcome to Raccoon!');
@@ -175,17 +179,47 @@ const Signup = () => {
   const syncSocialAuth = async (userData) => {
     try {
       const browserLocale = getBrowserLocale();
-      
+
       const response = await axios.post(`${API_URL}/auth/social`, {
         ...userData,
         browser_locale: browserLocale
       });
-      
+
       login(response.data.token, response.data.user);
       toast.success('Welcome to Raccoon!');
       navigate(getPostAuthRedirect(response.data.user));
     } catch (error) {
       toast.error(getErrorMessage(error));
+    }
+  };
+
+  // Called by PhoneAuthSection once Firebase has verified the phone's OTP
+  const handlePhoneVerified = async ({ idToken, uid, phoneNumber }) => {
+    if (!agreedToTerms) {
+      toast.error('Please agree to the Terms of Service and Privacy Policy first');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/social`, {
+        uid,
+        phoneNumber,
+        provider: 'phone',
+        idToken,
+        browser_locale: getBrowserLocale()
+      });
+
+      const { token: newToken, user: newUser } = response.data;
+      await uploadAvatarIfSelected(newToken, newUser);
+
+      login(newToken, newUser);
+      toast.success('Account created! Welcome to Raccoon!');
+      navigate(getPostAuthRedirect(newUser));
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -262,12 +296,11 @@ const Signup = () => {
 
   return (
     <AuthLayout>
-      <AuthCard 
+      <AuthCard
         title="Create Account"
         subtitle="Join Raccoon and start meeting people"
       >
-        {/* Email/Password Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-5">
           {/* Form-level error */}
           {errors.form && (
             <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm" data-testid="signup-form-error">
@@ -276,12 +309,12 @@ const Signup = () => {
           )}
 
           {/* Profile Picture - optional, defaults to a generated avatar if skipped */}
-          <div className="flex flex-col items-center gap-2 pb-2">
+          <div className="flex flex-col items-center gap-2">
             <div className="relative">
-              <Avatar className="w-20 h-20">
+              <Avatar className="w-16 h-16">
                 <AvatarImage src={avatarPreview} alt="" className="object-cover" />
                 <AvatarFallback
-                  className="text-2xl font-bold text-white"
+                  className="text-xl font-bold text-white"
                   style={{ background: getAvatarGradient(formData.username || 'raccoon') }}
                 >
                   {formData.username?.charAt(0).toUpperCase() || '🦝'}
@@ -290,11 +323,11 @@ const Signup = () => {
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-7 h-7 bg-[#7c3aed] hover:bg-[#8b4ff0] rounded-full flex items-center justify-center border-2 border-black/50 transition-all"
+                className="absolute bottom-0 right-0 w-6 h-6 bg-[#7c3aed] hover:bg-[#8b4ff0] rounded-full flex items-center justify-center border-2 border-black/50 transition-all"
                 data-testid="signup-avatar-btn"
                 aria-label="Upload profile picture"
               >
-                <Camera size={13} />
+                <Camera size={11} />
               </button>
               <input
                 ref={avatarInputRef}
@@ -310,121 +343,152 @@ const Signup = () => {
             </span>
           </div>
 
-          <AuthInput
-            label="Username"
-            icon={User}
-            type="text"
-            value={formData.username}
-            onChange={(e) => handleFieldChange('username', e.target.value)}
-            placeholder="Choose a username"
-            required
-            autoComplete="username"
-            testId="signup-username-input"
-            error={errors.username}
-          />
-          <AuthInput
-            label="Email"
-            icon={Mail}
-            type="email"
-            value={formData.email}
-            onChange={(e) => handleFieldChange('email', e.target.value)}
-            placeholder="your@email.com"
-            required
-            autoComplete="email"
-            testId="signup-email-input"
-            error={errors.email}
-          />
-          
-          <div className="grid grid-cols-2 gap-3">
-            <AuthInput
-              label="Password"
-              icon={Lock}
-              type="password"
-              value={formData.password}
-              onChange={(e) => handleFieldChange('password', e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="new-password"
-              testId="signup-password-input"
-              error={errors.password}
-            />
-            <AuthInput
-              label="Confirm"
-              icon={Lock}
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => handleFieldChange('confirmPassword', e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="new-password"
-              testId="signup-confirm-password-input"
-              error={errors.confirmPassword}
-            />
+          {/* Sign-up method switcher */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-black/30 border border-white/10 rounded-xl">
+            {[
+              { key: 'email', label: 'Email' },
+              { key: 'phone', label: 'Phone' }
+            ].map((method) => (
+              <button
+                key={method.key}
+                type="button"
+                onClick={() => setAuthMethod(method.key)}
+                className={`py-2 rounded-lg text-sm font-semibold transition-all ${
+                  authMethod === method.key
+                    ? 'bg-[#7c3aed] text-white shadow-[0_0_15px_rgba(124,58,237,0.3)]'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                style={{ fontFamily: 'Manrope, sans-serif' }}
+                data-testid={`signup-method-${method.key}`}
+              >
+                {method.label}
+              </button>
+            ))}
           </div>
 
-          {/* Gender Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Gender
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {['male', 'female'].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => handleFieldChange('gender', g)}
-                  className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                    formData.gender === g
-                      ? 'bg-[#7c3aed] text-white shadow-[0_0_15px_rgba(124,58,237,0.3)]'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'
-                  }`}
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
-                  data-testid={`signup-gender-${g}`}
-                >
-                  {g.charAt(0).toUpperCase() + g.slice(1)}
-                </button>
-              ))}
-            </div>
-            {errors.gender && (
-              <p className="text-red-400 text-xs mt-2">{errors.gender}</p>
-            )}
-          </div>
+          {authMethod === 'email' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <AuthInput
+                label="Username"
+                icon={User}
+                type="text"
+                value={formData.username}
+                onChange={(e) => handleFieldChange('username', e.target.value)}
+                placeholder="Choose a username"
+                required
+                autoComplete="username"
+                testId="signup-username-input"
+                error={errors.username}
+              />
+              <AuthInput
+                label="Email"
+                icon={Mail}
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFieldChange('email', e.target.value)}
+                placeholder="your@email.com"
+                required
+                autoComplete="email"
+                testId="signup-email-input"
+                error={errors.email}
+              />
 
-          {/* Terms Checkbox */}
-          <label className="flex items-start gap-3 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={agreedToTerms}
-              onChange={(e) => {
-                setAgreedToTerms(e.target.checked);
-                if (errors.terms) {
-                  setErrors(prev => ({ ...prev, terms: '' }));
-                }
-              }}
-              className="mt-1 w-4 h-4 rounded border-white/20 bg-black/40 text-[#7c3aed] focus:ring-[#7c3aed] focus:ring-offset-0"
-              data-testid="signup-terms-checkbox"
-            />
-            <span className="text-xs text-gray-400 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              I agree to the{' '}
-              <Link to="/terms" className="text-[#7c3aed] hover:underline">Terms of Service</Link>
-              {' '}and{' '}
-              <Link to="/privacy" className="text-[#7c3aed] hover:underline">Privacy Policy</Link>
-              , and confirm I am 18 years or older.
-            </span>
-          </label>
-          {errors.terms && (
-            <p className="text-red-400 text-xs -mt-2">{errors.terms}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <AuthInput
+                  label="Password"
+                  icon={Lock}
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => handleFieldChange('password', e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete="new-password"
+                  testId="signup-password-input"
+                  error={errors.password}
+                />
+                <AuthInput
+                  label="Confirm"
+                  icon={Lock}
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleFieldChange('confirmPassword', e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete="new-password"
+                  testId="signup-confirm-password-input"
+                  error={errors.confirmPassword}
+                />
+              </div>
+
+              {/* Gender Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Gender
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {['male', 'female'].map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => handleFieldChange('gender', g)}
+                      className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                        formData.gender === g
+                          ? 'bg-[#7c3aed] text-white shadow-[0_0_15px_rgba(124,58,237,0.3)]'
+                          : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'
+                      }`}
+                      style={{ fontFamily: 'Manrope, sans-serif' }}
+                      data-testid={`signup-gender-${g}`}
+                    >
+                      {g.charAt(0).toUpperCase() + g.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                {errors.gender && (
+                  <p className="text-red-400 text-xs mt-2">{errors.gender}</p>
+                )}
+              </div>
+
+              <AuthButton
+                loading={loading}
+                disabled={loading || !!socialLoading}
+                testId="signup-submit-button"
+              >
+                Create Account
+                <ArrowRight size={18} />
+              </AuthButton>
+            </form>
+          ) : (
+            <PhoneAuthSection onVerified={handlePhoneVerified} disabled={loading || !!socialLoading} />
           )}
 
-          <AuthButton 
-            loading={loading} 
-            disabled={loading || !!socialLoading}
-            testId="signup-submit-button"
-          >
-            Create Account
-            <ArrowRight size={18} />
-          </AuthButton>
-        </form>
+          {/* Terms Checkbox - shared by both sign-up methods */}
+          <div>
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => {
+                  setAgreedToTerms(e.target.checked);
+                  if (errors.terms) {
+                    setErrors(prev => ({ ...prev, terms: '' }));
+                  }
+                }}
+                className="mt-1 w-4 h-4 rounded border-white/20 bg-black/40 text-[#7c3aed] focus:ring-[#7c3aed] focus:ring-offset-0"
+                data-testid="signup-terms-checkbox"
+              />
+              <span className="text-xs text-gray-400 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                I agree to the{' '}
+                <Link to="/terms" className="text-[#7c3aed] hover:underline">Terms of Service</Link>
+                {' '}and{' '}
+                <Link to="/privacy" className="text-[#7c3aed] hover:underline">Privacy Policy</Link>
+                , and confirm I am 18 years or older.
+              </span>
+            </label>
+            {errors.terms && (
+              <p className="text-red-400 text-xs mt-2">{errors.terms}</p>
+            )}
+          </div>
+        </div>
 
         {/* Social Signup Section - Google + Anonymous */}
         <SocialAuthSection
@@ -434,7 +498,7 @@ const Signup = () => {
           disabled={loading}
         />
 
-        <AuthFooterLink 
+        <AuthFooterLink
           text="Already have an account?"
           linkText="Sign In"
           linkTo="/login"

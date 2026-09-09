@@ -731,6 +731,7 @@ class SocialAuthRequest(BaseModel):
     email: str | None = None
     displayName: str | None = None
     photoURL: str | None = None
+    phoneNumber: str | None = None
     provider: str
     idToken: str
     browser_locale: str | None = None
@@ -866,7 +867,9 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
     new_user = {
         "user_id": user_id,
         "firebase_uid": data.uid,
-        "email": data.email or "",
+        # Store None (not "") when absent - the users collection has a sparse
+        # unique index on email, and multiple "" values would collide on it.
+        "email": data.email or None,
         "username": username,
         "password_hash": "",
         "country": country_info['country'],
@@ -1033,6 +1036,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         )
     data.uid = verified_uid
     data.email = decoded_token.get('email') or data.email
+    data.phoneNumber = decoded_token.get('phone_number') or data.phoneNumber
 
     # Check if user exists by Firebase UID or email (for Google login)
     existing_user = None
@@ -1106,9 +1110,14 @@ async def social_auth(data: SocialAuthRequest, request: Request):
     new_user = {
         "user_id": user_id,
         "firebase_uid": data.uid,
-        "email": data.email or "",
+        # Store None (not "") when absent - the users collection has a sparse
+        # unique index on email, and multiple "" values would collide on it.
+        "email": data.email or None,
+        "phone_number": data.phoneNumber or None,
+        "phone_verified": bool(data.phoneNumber),
         "username": username,
         "password_hash": "",
+        "login_method": data.provider if data.provider in ('phone', 'google', 'apple') else 'email',
         "country": country_info['country'],
         "country_code": country_info['countryCode'],
         "country_flag": country_info['flag'],
@@ -1144,7 +1153,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
         "updated_at": now.isoformat(),
         "last_active": now.isoformat()
     }
-    
+
     await users.insert_one(new_user)
     
     logger.info(f"New Google user created: {username} ({user_id}) - Provider: {data.provider}")
