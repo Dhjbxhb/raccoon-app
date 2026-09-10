@@ -1,11 +1,20 @@
 import React, { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Phone, ArrowRight, ArrowLeft } from 'lucide-react';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
 import OTPInput from './OTPInput';
 import { AuthButton } from './AuthComponents';
+import CountryCodeSelect from './CountryCodeSelect';
 import { sendPhoneOTP } from '@/services/firebase.service';
+import { detectDefaultCountry } from '@/data/countries';
 
 const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
+
+// Build an E.164 number from a selected country + the local part the user typed
+// (drop non-digits and a leading local-trunk zero, e.g. UK/NG "07..." -> "7...").
+const buildE164 = (country, local) => {
+  const digits = (local || '').replace(/\D/g, '').replace(/^0+/, '');
+  return `+${country.dial}${digits}`;
+};
 
 /**
  * Self-contained phone number -> OTP verification flow (Firebase Phone Auth).
@@ -14,7 +23,8 @@ const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
  * this component only owns the Firebase side of phone verification.
  */
 const PhoneAuthSection = ({ onVerified, disabled }) => {
-  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState(() => detectDefaultCountry());
+  const [localNumber, setLocalNumber] = useState('');
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   const [code, setCode] = useState('');
   const [sending, setSending] = useState(false);
@@ -23,18 +33,19 @@ const PhoneAuthSection = ({ onVerified, disabled }) => {
   const confirmationRef = useRef(null);
   const recaptchaContainerId = useRef(`recaptcha-container-${Math.random().toString(36).slice(2)}`).current;
 
+  const fullPhone = buildE164(country, localNumber);
+
   const handleSendCode = async () => {
     if (sending || disabled) return;
-    const trimmed = phone.trim();
-    if (!PHONE_REGEX.test(trimmed)) {
-      setError('Enter a valid phone number with country code, e.g. +1 234 567 8900');
+    if (!PHONE_REGEX.test(fullPhone)) {
+      setError('Enter a valid phone number for the selected country');
       return;
     }
 
     setError('');
     setSending(true);
     try {
-      confirmationRef.current = await sendPhoneOTP(trimmed, recaptchaContainerId);
+      confirmationRef.current = await sendPhoneOTP(fullPhone, recaptchaContainerId);
       setStep('otp');
       toast.success('Verification code sent!');
     } catch (err) {
@@ -91,16 +102,16 @@ const PhoneAuthSection = ({ onVerified, disabled }) => {
             <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
               Phone Number
             </label>
-            <div className="relative">
-              <Phone className={`absolute left-4 top-1/2 -translate-y-1/2 ${error ? 'text-red-400' : 'text-gray-500'}`} size={18} />
+            <div className="flex gap-2">
+              <CountryCodeSelect value={country} onChange={setCountry} disabled={disabled || sending} />
               <input
                 type="tel"
-                value={phone}
-                onChange={(e) => { setPhone(e.target.value); if (error) setError(''); }}
-                placeholder="+1 234 567 8900"
+                value={localNumber}
+                onChange={(e) => { setLocalNumber(e.target.value); if (error) setError(''); }}
+                placeholder="234 567 8900"
                 disabled={disabled || sending}
                 data-testid="phone-number-input"
-                className={`w-full bg-black/40 rounded-xl h-12 pl-11 pr-4 text-white placeholder:text-gray-500 outline-none transition-all border ${
+                className={`flex-1 min-w-0 bg-black/40 rounded-xl h-12 px-4 text-white placeholder:text-gray-500 outline-none transition-all border ${
                   error
                     ? 'border-red-500/50 focus:border-red-500/70 focus:ring-2 focus:ring-red-500/20'
                     : 'border-white/10 focus:border-[#7c3aed]/60 focus:ring-2 focus:ring-[#7c3aed]/20'
@@ -109,7 +120,7 @@ const PhoneAuthSection = ({ onVerified, disabled }) => {
               />
             </div>
             <p className="text-gray-500 text-xs mt-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Include your country code
+              Pick your country, then enter your number without the country code
             </p>
             {error && (
               <p className="text-red-400 text-xs mt-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>{error}</p>
@@ -124,7 +135,7 @@ const PhoneAuthSection = ({ onVerified, disabled }) => {
       ) : (
         <>
           <p className="text-center text-gray-400 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Enter the 6-digit code sent to <span className="text-white font-medium">{phone.trim()}</span>
+            Enter the 6-digit code sent to <span className="text-white font-medium">{fullPhone}</span>
           </p>
 
           <OTPInput
