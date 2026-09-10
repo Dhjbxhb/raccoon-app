@@ -49,12 +49,24 @@ const PhoneAuthSection = ({ onVerified, disabled }) => {
       setStep('otp');
       toast.success('Verification code sent!');
     } catch (err) {
-      if (err.code === 'auth/invalid-phone-number') {
-        setError('That phone number looks invalid. Please check and try again.');
-      } else if (err.code === 'auth/too-many-requests') {
-        toast.error('Too many attempts. Please try again later.');
+      // Keep the real Firebase error visible - it's the quickest way to tell a
+      // config problem (billing / provider disabled) from a bad number.
+      console.error('[PhoneAuth] send code failed:', err?.code, err?.message, err);
+      const messages = {
+        'auth/invalid-phone-number': 'That phone number looks invalid. Please check and try again.',
+        'auth/missing-phone-number': 'Please enter your phone number.',
+        'auth/too-many-requests': 'Too many attempts. Please wait a while and try again.',
+        'auth/quota-exceeded': 'SMS limit reached for now. Please try again later.',
+        'auth/billing-not-enabled': 'Phone sign-in is not available right now (billing not enabled).',
+        'auth/operation-not-allowed': 'Phone sign-in is not enabled for this app.',
+        'auth/captcha-check-failed': 'Verification check failed. Please reload the page and try again.',
+        'auth/invalid-app-credential': 'Verification check failed. Please reload the page and try again.',
+      };
+      const friendly = messages[err?.code];
+      if (friendly) {
+        setError(friendly);
       } else {
-        toast.error('Failed to send code. Please try again.');
+        setError(err?.message || 'Could not send the code. Please try again.');
       }
     } finally {
       setSending(false);
