@@ -87,6 +87,7 @@ class User(BaseModel):
     phone_verified: bool = Field(default=False, description="Phone verification status")
     age_verified: bool = Field(default=False, description="18+ age verification")
     identity_verified: bool = Field(default=False, description="ID verification (future)")
+    profile_completed: bool = Field(default=False, description="First-time onboarding (gender + DOB) completed")
     
     # === Account Status ===
     account_status: str = Field(default="active", description="Account status")
@@ -201,6 +202,7 @@ class UserResponse(BaseModel):
     gender: str = "any"
     age_verified: bool = False
     email_verified: bool = False
+    profile_completed: bool = False
     premium_status: bool = False
     is_premium: bool = False  # Computed premium status for frontend
     currentSessionId: Optional[str] = None

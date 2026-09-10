@@ -25,14 +25,17 @@ class Guest(BaseModel):
     
     # === Profile ===
     gender: str = Field(default="male", description="User gender: male, female")
-    
+    date_of_birth: Optional[str] = Field(default=None, description="ISO format date")
+    avatar_url: Optional[str] = Field(default=None, description="Custom avatar URL")
+
     # === Location ===
     country: str = Field(default="United States", description="Country name")
     country_code: str = Field(default="US", description="ISO country code")
     country_flag: str = Field(default="🇺🇸", description="Country flag emoji")
-    
+
     # === Verification ===
     age_verified: bool = Field(default=False, description="18+ age verification")
+    profile_completed: bool = Field(default=False, description="First-time onboarding (gender + DOB) completed")
     
     # === Session ===
     session_expires_at: datetime = Field(..., description="When guest session expires")
@@ -68,6 +71,8 @@ class GuestResponse(BaseModel):
     gender: str
     is_guest: bool = True
     age_verified: bool = False
+    profile_completed: bool = False
+    avatar_url: Optional[str] = None
     currentSessionId: Optional[str] = None
     country: Optional[str] = None
     country_code: Optional[str] = None

@@ -14,6 +14,7 @@ const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'));
 const EmailVerificationPending = lazy(() => import('@/pages/EmailVerificationPending'));
 const Guest = lazy(() => import('@/pages/Guest'));
 const AgeVerification = lazy(() => import('@/pages/AgeVerification'));
+const Onboarding = lazy(() => import('@/pages/Onboarding'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Match = lazy(() => import('@/pages/Match'));
 const Premium = lazy(() => import('@/pages/Premium'));
@@ -96,14 +97,20 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
+  // Admins bypass the onboarding / email-verification gates
+  if (user.is_admin) {
+    return children;
+  }
+
   // Authenticated but email not verified (guests are exempt - no email on file)
   if (!user.is_guest && !user.email_verified) {
     return <Navigate to="/verify-email-pending" />;
   }
 
-  // Authenticated but not age verified - redirect to age verification
-  if (!user.age_verified) {
-    return <Navigate to="/verify-age" />;
+  // Authenticated but hasn't finished onboarding (date of birth + gender).
+  // This also covers age verification, so it replaces the old /verify-age gate.
+  if (!user.profile_completed) {
+    return <Navigate to="/onboarding" />;
   }
 
   return children;
@@ -184,14 +191,25 @@ function AppRoutes() {
         <Route path="/guidelines" element={<Guidelines />} />
         <Route path="/refund" element={<Refund />} />
         
-        {/* Age Verification - Requires auth but not age verification */}
-        <Route 
-          path="/verify-age" 
+        {/* Onboarding - Requires auth (+ email verified for non-guests), collects
+            date of birth + gender before the app is usable */}
+        <Route
+          path="/onboarding"
+          element={
+            <EmailVerifiedRoute>
+              <Onboarding />
+            </EmailVerifiedRoute>
+          }
+        />
+        {/* Legacy age-verification route - superseded by /onboarding, kept so old
+            links still resolve (redirects on to the dashboard once completed) */}
+        <Route
+          path="/verify-age"
           element={
             <EmailVerifiedRoute>
               <AgeVerification />
             </EmailVerifiedRoute>
-          } 
+          }
         />
         <Route 
           path="/verify-email-pending" 

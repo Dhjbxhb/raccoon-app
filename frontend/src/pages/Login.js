@@ -201,7 +201,7 @@ const Login = () => {
       localStorage.setItem(TOKEN_KEY, response.data.token);
       login(response.data.token, response.data.user);
       toast.success(`Welcome, ${response.data.user.username}!`);
-      navigate('/verify-age', { replace: true });
+      navigate(getPostAuthRedirect(response.data.user), { replace: true });
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {

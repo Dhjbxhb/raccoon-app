@@ -151,6 +151,17 @@ export const getErrorMessage = (error) => {
   return 'An unexpected error occurred. Please try again.';
 };
 
+// Parse a fetch Response as JSON, tolerating a non-JSON body (e.g. an nginx
+// 502/504 HTML page served while the backend restarts) instead of throwing a
+// raw "Unexpected token '<'" error up to the caller/UI.
+export const readJsonSafe = async (response) => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
 // Token management helpers
 export const TOKEN_KEY = 'raccoon_token';
 
@@ -186,12 +197,14 @@ export const getBrowserLocale = () => {
 };
 
 // Determines where to send a user right after login/signup, based on the
-// verification gates that apply to them. Guests skip email verification
-// entirely since they don't have an email on file.
+// gates that apply to them. Guests skip email verification entirely since
+// they don't have an email on file. Onboarding (date of birth + gender)
+// applies to every new account, guests included, and also covers age
+// verification - so a completed profile implies age_verified.
 export const getPostAuthRedirect = (user) => {
   if (!user) return '/login';
   if (user.is_admin) return '/admin';
   if (!user.is_guest && !user.email_verified) return '/verify-email-pending';
-  if (!user.age_verified) return '/verify-age';
+  if (!user.profile_completed) return '/onboarding';
   return '/dashboard';
 };

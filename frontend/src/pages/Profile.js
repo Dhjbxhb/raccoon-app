@@ -9,6 +9,7 @@ import {
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { getAvatarGradient } from '@/utils/avatarColor';
+import { readJsonSafe } from '@/utils/auth';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -147,12 +148,12 @@ const Profile = () => {
         body: formData
       });
 
-      const data = await response.json();
+      const data = await readJsonSafe(response);
       if (!response.ok) {
-        throw new Error(data?.detail || 'Failed to upload profile picture');
+        throw new Error(data?.detail || 'Could not upload the picture right now. Please try again.');
       }
 
-      applyUserPatch({ avatar_url: data.avatar_url });
+      applyUserPatch({ avatar_url: data?.avatar_url });
       toast.success('Profile picture updated!');
     } catch (error) {
       toast.error(error.message || 'Failed to upload profile picture');
@@ -182,9 +183,9 @@ const Profile = () => {
         body: JSON.stringify({ gender: genderDraft })
       });
 
-      const data = await response.json();
+      const data = await readJsonSafe(response);
       if (!response.ok) {
-        throw new Error(data?.detail || 'Failed to update gender');
+        throw new Error(data?.detail || 'Could not save that right now. Please try again.');
       }
 
       applyUserPatch({ gender: genderDraft });

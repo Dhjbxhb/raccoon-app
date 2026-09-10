@@ -293,6 +293,7 @@ async def login(data: LoginRequest):
         gender=user_dict['gender'],
         age_verified=user_dict.get('age_verified', False),
         email_verified=user_dict.get('email_verified', False),
+        profile_completed=user_dict.get('profile_completed', False),
         premium_status=is_premium,
         is_premium=is_premium,  # Computed premium status for frontend
         premium_tier=premium_tier,
@@ -406,6 +407,8 @@ async def get_current_user(request: Request):
             "username": guest_dict['username'],
             "gender": guest_dict['gender'],
             "age_verified": guest_dict.get('age_verified', False),
+            "profile_completed": guest_dict.get('profile_completed', False),
+            "avatar_url": guest_dict.get('avatar_url'),
             "currentSessionId": guest_dict.get('currentSessionId'),
             "country": guest_dict.get('country'),
             "country_code": guest_dict.get('country_code'),
@@ -445,6 +448,7 @@ async def get_current_user(request: Request):
             "gender": user_dict['gender'],
             "age_verified": user_dict.get('age_verified', False),
             "email_verified": user_dict.get('email_verified', False),
+            "profile_completed": user_dict.get('profile_completed', False),
             "currentSessionId": user_dict.get('currentSessionId'),
             "premium_status": is_premium,  # COMPUTED premium status
             "is_premium": is_premium,  # COMPUTED premium status
@@ -836,6 +840,7 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
             gender=existing_user.get('gender', 'any'),
             age_verified=existing_user.get('age_verified', False),
             email_verified=existing_user.get('email_verified', False),
+            profile_completed=existing_user.get('profile_completed', False),
             premium_status=existing_user.get('premium_status', False),
             premium_tier=existing_user.get('premium_tier', 'free'),
             is_admin=existing_user.get('is_admin', False),
@@ -1079,6 +1084,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             gender=existing_user.get('gender', 'any'),
             age_verified=existing_user.get('age_verified', False),
             email_verified=existing_user.get('email_verified', False),
+            profile_completed=existing_user.get('profile_completed', False),
             premium_status=existing_user.get('premium_status', False),
             premium_tier=existing_user.get('premium_tier', 'free'),
             is_admin=existing_user.get('is_admin', False),

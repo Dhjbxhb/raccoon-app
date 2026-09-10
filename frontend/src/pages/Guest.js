@@ -64,15 +64,15 @@ const Guest = () => {
     setLoading(true);
     try {
       const userData = await loginAsGuest(selectedGender);
-      
+
       // Store preferences
       sessionStorage.setItem('match_preferences', JSON.stringify({
         gender: preferGender,
         country: selectedCountry
       }));
-      
-      // Guests always need age verification
-      navigate('/verify-age');
+
+      // Guests still complete onboarding (date of birth + gender) first
+      navigate(getPostAuthRedirect(userData));
     } catch (error) {
       toast.error('Failed to start. Please try again.');
       setLoading(false);

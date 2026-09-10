@@ -123,6 +123,7 @@ async def ensure_admin_user():
             "country_flag": "🇺🇸",
             "age_verified": True,
             "email_verified": True,
+            "profile_completed": True,
             "account_status": "active",
             "is_banned": False,
             "currentSessionId": None,
@@ -154,6 +155,8 @@ async def ensure_admin_user():
             update_fields['is_admin'] = True
         if not existing.get('age_verified'):
             update_fields['age_verified'] = True
+        if not existing.get('profile_completed'):
+            update_fields['profile_completed'] = True
         if not existing.get('premium_status'):
             update_fields['premium_status'] = True
             update_fields['premium_tier'] = 'lifetime'
