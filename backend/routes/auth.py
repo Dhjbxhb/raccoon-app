@@ -21,6 +21,13 @@ def _generate_code_pair() -> tuple[str, str]:
     return raw_code, code_hash
 
 
+def _normalize_email(email) -> str:
+    """Lower-case + trim so that lookups and storage are case-insensitive -
+    otherwise "Foo@x.com" at signup never matches "foo@x.com" at login /
+    password reset and the account looks like it doesn't exist."""
+    return (email or "").strip().lower()
+
+
 PASSWORD_RESET_CODE_TTL_MINUTES = 15
 EMAIL_VERIFICATION_CODE_TTL_MINUTES = 15
 MAX_CODE_ATTEMPTS = 5
@@ -89,7 +96,9 @@ async def signup(data: SignupRequest, request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=message
         )
-    
+
+    data.email = _normalize_email(data.email)
+
     # Check if email exists
     existing_user = await users.find_one({"email": data.email}, {"_id": 0})
     if existing_user:
@@ -225,7 +234,8 @@ async def signup(data: SignupRequest, request: Request):
 async def login(data: LoginRequest):
     """Login existing user"""
     users = get_users_collection()
-    
+
+    data.email = _normalize_email(data.email)
     user_dict = await users.find_one({"email": data.email}, {"_id": 0})
     if not user_dict:
         raise HTTPException(
@@ -514,6 +524,7 @@ async def forgot_password(data: ForgotPasswordRequest):
     Calling this again (e.g. "resend code") simply issues a fresh code.
     """
     users = get_users_collection()
+    data.email = _normalize_email(data.email)
     user = await users.find_one({"email": data.email}, {"_id": 0})
 
     generic_response = {
@@ -547,7 +558,7 @@ async def verify_reset_code(data: VerifyResetCodeRequest):
     frontend can move to the "enter new password" step only after the code
     has actually been confirmed correct."""
     users = get_users_collection()
-    user = await users.find_one({"email": data.email}, {"_id": 0})
+    user = await users.find_one({"email": _normalize_email(data.email)}, {"_id": 0})
     await _check_reset_code(user, data.code)
     return {"message": "Code verified"}
 
@@ -564,7 +575,7 @@ async def reset_password(data: ResetPasswordRequest):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
 
     users = get_users_collection()
-    user = await users.find_one({"email": data.email}, {"_id": 0})
+    user = await users.find_one({"email": _normalize_email(data.email)}, {"_id": 0})
     await _check_reset_code(user, data.code)
 
     now_ts = int(datetime.now(timezone.utc).timestamp())
@@ -766,7 +777,7 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
         )
 
     verified_uid = decoded_token.get('uid')
-    verified_email = decoded_token.get('email') or data.email
+    verified_email = _normalize_email(decoded_token.get('email') or data.email or "") or None
 
     if not verified_uid:
         raise HTTPException(
@@ -1040,7 +1051,7 @@ async def social_auth(data: SocialAuthRequest, request: Request):
             detail="Invalid sign-in token"
         )
     data.uid = verified_uid
-    data.email = decoded_token.get('email') or data.email
+    data.email = _normalize_email(decoded_token.get('email') or data.email or "") or None
     data.phoneNumber = decoded_token.get('phone_number') or data.phoneNumber
 
     # Check if user exists by Firebase UID or email (for Google login)
