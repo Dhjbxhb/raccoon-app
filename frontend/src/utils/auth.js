@@ -59,12 +59,12 @@ export const validateUsername = (username) => {
 
 // Gender validation
 export const validateGender = (gender) => {
-  const validGenders = ['male', 'female'];
+  const validGenders = ['male', 'female', 'any'];
   if (!gender) {
-    return { valid: false, error: 'Please select your gender' };
+    return { valid: false, error: 'Please select an option' };
   }
   if (!validGenders.includes(gender.toLowerCase())) {
-    return { valid: false, error: 'Please select Male or Female' };
+    return { valid: false, error: 'Please select a valid option' };
   }
   return { valid: true, error: null };
 };
@@ -149,6 +149,17 @@ export const getErrorMessage = (error) => {
     return error.message;
   }
   return 'An unexpected error occurred. Please try again.';
+};
+
+// Whole years old for an ISO date string, or null if the date is unparseable.
+export const getAge = (isoDate) => {
+  const dob = new Date(isoDate);
+  if (Number.isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+  return age;
 };
 
 // Parse a fetch Response as JSON, tolerating a non-JSON body (e.g. an nginx

@@ -8,7 +8,7 @@ import { AuthLayout, AuthCard, AuthInput, AuthButton } from '@/components/auth/A
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Flag from '@/components/ui/Flag';
 import { getAvatarGradient } from '@/utils/avatarColor';
-import { getErrorMessage } from '@/utils/auth';
+import { getErrorMessage, getAge } from '@/utils/auth';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -19,16 +19,6 @@ const GENDER_OPTIONS = [
   { value: 'female', label: 'Female' },
   { value: 'any', label: 'Prefer not to say' },
 ];
-
-const getAge = (isoDate) => {
-  const dob = new Date(isoDate);
-  if (Number.isNaN(dob.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-  return age;
-};
 
 const Onboarding = () => {
   const navigate = useNavigate();

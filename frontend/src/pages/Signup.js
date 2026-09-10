@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Mail, Lock, User, ArrowRight, Camera } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Camera, CalendarDays } from 'lucide-react';
 import {
   AuthLayout,
   AuthCard,
@@ -13,15 +13,24 @@ import {
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
 import PhoneAuthSection from '@/components/auth/PhoneAuthSection';
+import CountrySelect from '@/components/auth/CountrySelect';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { isFirebaseReady, signInWithGoogle } from '@/services/firebase.service';
 import { getAvatarGradient } from '@/utils/avatarColor';
+import { detectDefaultCountry, getFlagEmoji } from '@/data/countries';
 import {
   validateSignupForm,
   getErrorMessage,
   getBrowserLocale,
-  getPostAuthRedirect
+  getPostAuthRedirect,
+  getAge
 } from '@/utils/auth';
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'any', label: 'Prefer not to say' },
+];
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -37,8 +46,10 @@ const Signup = () => {
     username: '',
     password: '',
     confirmPassword: '',
-    gender: 'male'
+    gender: '',
+    dateOfBirth: ''
   });
+  const [country, setCountry] = useState(() => detectDefaultCountry());
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(null);
@@ -128,6 +139,23 @@ const Signup = () => {
 
     // Client-side validation
     const validation = validateSignupForm(formData);
+    if (!formData.dateOfBirth) {
+      validation.errors.dateOfBirth = 'Please enter your date of birth';
+      validation.valid = false;
+    } else {
+      const age = getAge(formData.dateOfBirth);
+      if (age === null || age > 120) {
+        validation.errors.dateOfBirth = 'That date does not look right';
+        validation.valid = false;
+      } else if (age < 18) {
+        validation.errors.dateOfBirth = 'You must be 18 or older to use Raccoon';
+        validation.valid = false;
+      }
+    }
+    if (!country) {
+      validation.errors.country = 'Please select your country';
+      validation.valid = false;
+    }
     if (!validation.valid) {
       setErrors(validation.errors);
       return;
@@ -144,7 +172,10 @@ const Signup = () => {
         username: formData.username,
         password: formData.password,
         gender: formData.gender.toLowerCase(),
-        date_of_birth: '2000-01-01',
+        date_of_birth: formData.dateOfBirth,
+        country: country.name,
+        country_code: country.code,
+        country_flag: getFlagEmoji(country.code),
         browser_locale: browserLocale,
         terms_accepted: agreedToTerms,
         privacy_accepted: agreedToTerms
@@ -420,31 +451,73 @@ const Signup = () => {
                 />
               </div>
 
+              {/* Date of Birth */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Date of Birth
+                </label>
+                <div className="relative">
+                  <CalendarDays className={`absolute left-4 top-1/2 -translate-y-1/2 ${errors.dateOfBirth ? 'text-red-400' : 'text-gray-500'}`} size={18} />
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => handleFieldChange('dateOfBirth', e.target.value)}
+                    data-testid="signup-dob-input"
+                    className={`w-full bg-black/40 rounded-xl h-12 pl-11 pr-4 text-white outline-none transition-all border ${
+                      errors.dateOfBirth
+                        ? 'border-red-500/50 focus:border-red-500/70 focus:ring-2 focus:ring-red-500/20'
+                        : 'border-white/10 focus:border-[#7c3aed]/60 focus:ring-2 focus:ring-[#7c3aed]/20'
+                    }`}
+                    style={{ fontFamily: 'Manrope, sans-serif', colorScheme: 'dark' }}
+                  />
+                </div>
+                {errors.dateOfBirth && (
+                  <p className="text-red-400 text-xs mt-2">{errors.dateOfBirth}</p>
+                )}
+              </div>
+
               {/* Gender Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
                   Gender
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {['male', 'female'].map((g) => (
+                <div className="grid grid-cols-3 gap-2">
+                  {GENDER_OPTIONS.map((opt) => (
                     <button
-                      key={g}
+                      key={opt.value}
                       type="button"
-                      onClick={() => handleFieldChange('gender', g)}
-                      className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                        formData.gender === g
+                      onClick={() => handleFieldChange('gender', opt.value)}
+                      className={`py-3 px-2 rounded-xl text-xs font-medium transition-all ${
+                        formData.gender === opt.value
                           ? 'bg-[#7c3aed] text-white shadow-[0_0_15px_rgba(124,58,237,0.3)]'
                           : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'
                       }`}
                       style={{ fontFamily: 'Manrope, sans-serif' }}
-                      data-testid={`signup-gender-${g}`}
+                      data-testid={`signup-gender-${opt.value}`}
                     >
-                      {g.charAt(0).toUpperCase() + g.slice(1)}
+                      {opt.label}
                     </button>
                   ))}
                 </div>
                 {errors.gender && (
                   <p className="text-red-400 text-xs mt-2">{errors.gender}</p>
+                )}
+              </div>
+
+              {/* Country */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Country
+                </label>
+                <CountrySelect
+                  value={country}
+                  onChange={(c) => { setCountry(c); if (errors.country) setErrors((p) => ({ ...p, country: '' })); }}
+                  disabled={loading}
+                  error={!!errors.country}
+                />
+                {errors.country && (
+                  <p className="text-red-400 text-xs mt-2">{errors.country}</p>
                 )}
               </div>
 

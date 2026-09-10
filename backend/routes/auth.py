@@ -46,6 +46,9 @@ class SignupRequest(BaseModel):
     password: str
     gender: str
     date_of_birth: str
+    country: str | None = None
+    country_code: str | None = None
+    country_flag: str | None = None
     browser_locale: str | None = None
     terms_accepted: bool = False
     privacy_accepted: bool = False
@@ -116,19 +119,32 @@ async def signup(data: SignupRequest, request: Request):
         )
     
     # Validate gender
-    if data.gender.lower() not in ['male', 'female']:
+    if data.gender.lower() not in ['male', 'female', 'any']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Gender must be Male or Female"
+            detail="Please select a valid gender"
         )
-    
-    # Auto-detect country from IP
-    client_ip = request.client.host
-    forwarded_for = request.headers.get('X-Forwarded-For')
-    if forwarded_for:
-        client_ip = forwarded_for.split(',')[0].strip()
-    
-    country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
+
+    # Validate date of birth (must be 18+)
+    if not validate_age(data.date_of_birth):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must be 18 or older to use Raccoon"
+        )
+
+    # Country: use what the user picked in the form, else auto-detect from IP
+    if data.country and data.country_code:
+        country_info = {
+            'country': data.country,
+            'countryCode': data.country_code.upper(),
+            'flag': data.country_flag or '',
+        }
+    else:
+        client_ip = request.client.host
+        forwarded_for = request.headers.get('X-Forwarded-For')
+        if forwarded_for:
+            client_ip = forwarded_for.split(',')[0].strip()
+        country_info = CountryService.get_country_from_ip(client_ip, data.browser_locale)
     
     # Create user
     user_id = str(uuid.uuid4())
@@ -148,7 +164,10 @@ async def signup(data: SignupRequest, request: Request):
         "country_flag": country_info['flag'],
         "email_verified": False,
         "phone_verified": False,
-        "age_verified": False,
+        # DOB + gender + country are collected on the signup form itself, so
+        # email sign-ups skip the separate onboarding step.
+        "age_verified": True,
+        "profile_completed": True,
         "account_status": "active",
         "is_banned": False,
         "currentSessionId": None,
@@ -213,8 +232,9 @@ async def signup(data: SignupRequest, request: Request):
         country_code=country_info['countryCode'],
         country_flag=country_info['flag'],
         gender=data.gender.lower(),
-        age_verified=False,
+        age_verified=True,
         email_verified=False,
+        profile_completed=True,
         currentSessionId=None,
         premium_status=False,
         is_premium=False,  # New users are not premium
