@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { User, ArrowRight, Camera, CalendarDays } from 'lucide-react';
 import { AuthLayout, AuthCard, AuthInput, AuthButton } from '@/components/auth/AuthComponents';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import Flag from '@/components/ui/Flag';
 import { getAvatarGradient } from '@/utils/avatarColor';
 import { getErrorMessage } from '@/utils/auth';
 
@@ -244,7 +245,7 @@ const Onboarding = () => {
               Country
             </label>
             <div className="w-full bg-black/40 rounded-xl h-12 px-4 flex items-center gap-3 border border-white/10 text-gray-300" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              <span className="text-lg">{user.country_flag || '🌐'}</span>
+              <Flag code={user.country_code} className="w-6 h-4" />
               <span>{user.country || 'Detecting...'}</span>
             </div>
             <p className="text-gray-500 text-xs mt-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
-import { COUNTRIES, getFlagEmoji } from '@/data/countries';
+import { COUNTRIES } from '@/data/countries';
+import Flag from '@/components/ui/Flag';
 
 /**
  * Searchable country dial-code picker. Shows flag + "+<dial>" and, when open,
@@ -58,7 +59,7 @@ const CountryCodeSelect = ({ value, onChange, disabled }) => {
         data-testid="country-code-button"
         aria-label="Select country"
       >
-        <span className="text-lg leading-none">{getFlagEmoji(value?.code)}</span>
+        <Flag code={value?.code} className="w-5 h-3.5" />
         <span className="text-sm text-gray-300">+{value?.dial}</span>
         <ChevronDown size={14} className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -96,7 +97,7 @@ const CountryCodeSelect = ({ value, onChange, disabled }) => {
                     }`}
                     style={{ fontFamily: 'Manrope, sans-serif' }}
                   >
-                    <span className="text-lg leading-none">{getFlagEmoji(c.code)}</span>
+                    <Flag code={c.code} className="w-5 h-3.5 shrink-0" />
                     <span className="flex-1 text-gray-200 truncate">{c.name}</span>
                     <span className="text-gray-500">+{c.dial}</span>
                   </button>
