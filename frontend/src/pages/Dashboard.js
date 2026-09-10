@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Trophy, Pencil } from 'lucide-react';
+import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Swords, Spade, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/button';
@@ -117,11 +117,17 @@ const Dashboard = () => {
       {/* Content */}
       <div className="relative z-10">
         {/* Navbar */}
-        <nav className="px-6 py-6 flex justify-between items-center border-b border-white/5 backdrop-blur-md bg-black/20">
+        <nav className="relative px-6 py-6 flex justify-between items-center border-b border-white/5 backdrop-blur-md bg-black/20">
           <div className="flex items-center gap-3">
             <RaccoonLogo size={40} />
             <span className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
           </div>
+          <span
+            className="hidden lg:block absolute left-1/2 -translate-x-1/2 text-sm font-medium text-gray-400 tracking-wide"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
+            Be cool. Be kind. Be a Raccoon.
+          </span>
           <div className="flex items-center gap-4">
             {!isPremium && (
               <button
@@ -306,7 +312,7 @@ const Dashboard = () => {
                 )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-[#ffd700] to-[#ff8c00] rounded-2xl flex items-center justify-center">
-                    <Trophy size={28} className="text-[#1a237e]" />
+                    <Swords size={28} className="text-[#1a237e]" />
                   </div>
                   <span className={`px-3 py-1 ${isPremium ? 'bg-[#ffd700]/20 text-[#ffd700]' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
                     {isPremium ? 'PLAY NOW' : 'PREMIUM'}
@@ -335,8 +341,8 @@ const Dashboard = () => {
                   </div>
                 )}
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#7c3aed] to-[#a855f7] rounded-2xl flex items-center justify-center text-2xl">
-                    🦝
+                  <div className="w-14 h-14 bg-gradient-to-br from-[#7c3aed] to-[#a855f7] rounded-2xl flex items-center justify-center">
+                    <Spade size={28} className="text-white" />
                   </div>
                   <span className={`px-3 py-1 ${isPremium ? 'bg-purple-500/20 text-purple-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
                     {isPremium ? 'PLAY NOW' : 'PREMIUM'}
@@ -366,7 +372,7 @@ const Dashboard = () => {
                 )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-[#06b6d4] to-[#22d3ee] rounded-2xl flex items-center justify-center">
-                    <Pencil size={28} className="text-white" />
+                    <Palette size={28} className="text-white" />
                   </div>
                   <span className={`px-3 py-1 ${isPremium ? 'bg-cyan-500/20 text-cyan-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
                     {isPremium ? 'PLAY NOW' : 'PREMIUM'}
