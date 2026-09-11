@@ -123,7 +123,7 @@ const Dashboard = () => {
             <span className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
           </div>
           <span
-            className="hidden lg:block absolute left-1/2 -translate-x-1/2 text-lg font-extrabold tracking-wide whitespace-nowrap bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 bg-clip-text text-transparent"
+            className="hidden lg:block absolute left-1/2 -translate-x-1/2 text-2xl font-black tracking-wide whitespace-nowrap bg-gradient-to-r from-orange-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(236,72,153,0.5)]"
             style={{ fontFamily: 'Outfit, sans-serif' }}
           >
             Be cool. Be kind. Be a Raccoon.
