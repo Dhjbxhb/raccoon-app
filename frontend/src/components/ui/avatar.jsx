@@ -14,6 +14,11 @@ Avatar.displayName = AvatarPrimitive.Root.displayName
 const AvatarImage = React.forwardRef(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
+    // Google profile photo URLs (lh3.googleusercontent.com) can silently
+    // fail to load in some browsers when a Referer header is sent - default
+    // to none so a Google-sourced photo_url doesn't intermittently fall back
+    // to the letter avatar. Callers can still override via props.
+    referrerPolicy="no-referrer"
     className={cn("aspect-square h-full w-full", className)}
     {...props} />
 ))

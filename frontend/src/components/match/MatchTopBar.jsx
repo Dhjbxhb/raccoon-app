@@ -70,8 +70,12 @@ const MatchTopBar = ({
                 <img
                   src={partner.avatar_url}
                   alt=""
+                  referrerPolicy="no-referrer"
                   className="match-topbar__avatar-img"
-                  onError={() => setAvatarFailed(true)}
+                  onError={() => {
+                    console.warn('[MatchTopBar] Partner avatar failed to load:', partner.avatar_url);
+                    setAvatarFailed(true);
+                  }}
                 />
               ) : (
                 <span className="match-topbar__avatar-letter">
