@@ -13,8 +13,8 @@ import {
 } from '@/components/auth/AuthComponents';
 import { SocialAuthSection } from '@/components/auth/SocialAuthButtons';
 import PhoneAuthSection from '@/components/auth/PhoneAuthSection';
-import CountrySelect from '@/components/auth/CountrySelect';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import Flag from '@/components/ui/Flag';
 import { isFirebaseReady, signInWithGoogle } from '@/services/firebase.service';
 import { getAvatarGradient } from '@/utils/avatarColor';
 import { detectDefaultCountry, getFlagEmoji } from '@/data/countries';
@@ -67,6 +67,21 @@ const Signup = () => {
       if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarPreview]);
+
+  // Detect the real country from the visitor's IP (falls back to the
+  // browser-locale guess already in state if the request fails).
+  useEffect(() => {
+    let cancelled = false;
+    axios.get(`${API_URL}/geo/detect-country`)
+      .then(({ data }) => {
+        if (cancelled || !data?.country_code) return;
+        setCountry({ code: data.country_code, name: data.country });
+      })
+      .catch(() => {
+        // Keep the browser-locale fallback already set as initial state
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleAvatarSelect = (e) => {
     const file = e.target.files?.[0];
@@ -505,17 +520,18 @@ const Signup = () => {
                 )}
               </div>
 
-              {/* Country */}
+              {/* Country - auto-detected, not manually editable */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
                   Country
                 </label>
-                <CountrySelect
-                  value={country}
-                  onChange={(c) => { setCountry(c); if (errors.country) setErrors((p) => ({ ...p, country: '' })); }}
-                  disabled={loading}
-                  error={!!errors.country}
-                />
+                <div className="w-full bg-black/40 rounded-xl h-12 px-4 flex items-center gap-3 border border-white/10 text-gray-300" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  <Flag code={country?.code} className="w-6 h-4" />
+                  <span>{country?.name || 'Detecting...'}</span>
+                </div>
+                <p className="text-gray-500 text-xs mt-1.5" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Detected from your location
+                </p>
                 {errors.country && (
                   <p className="text-red-400 text-xs mt-2">{errors.country}</p>
                 )}

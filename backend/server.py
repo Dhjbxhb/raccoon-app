@@ -76,6 +76,7 @@ from routes.reports import router as reports_router
 from routes.stats import router as stats_router
 from routes.turn import router as turn_router
 from routes.profile import router as profile_router
+from routes.geo import router as geo_router
 api_router.include_router(auth_router)
 api_router.include_router(auth_multiple_router)
 api_router.include_router(admin_router)
@@ -84,6 +85,7 @@ api_router.include_router(reports_router)
 api_router.include_router(stats_router)
 api_router.include_router(turn_router)
 api_router.include_router(profile_router)
+api_router.include_router(geo_router)
 
 # Basic route
 @api_router.get("/")

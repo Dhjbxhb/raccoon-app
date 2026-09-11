@@ -28,6 +28,10 @@ const Profile = () => {
   const [editingGender, setEditingGender] = useState(false);
   const [genderDraft, setGenderDraft] = useState('any');
   const [savingGender, setSavingGender] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
   const heartbeatRef = useRef(null);
   const avatarInputRef = useRef(null);
 
@@ -198,6 +202,59 @@ const Profile = () => {
     }
   };
 
+  const handleUsernameEditStart = () => {
+    setUsernameDraft(displayUser?.username || '');
+    setUsernameError('');
+    setEditingUsername(true);
+  };
+
+  const handleUsernameCancel = () => {
+    setEditingUsername(false);
+    setUsernameError('');
+  };
+
+  const handleUsernameSave = async () => {
+    const name = usernameDraft.trim();
+    if (name.length < 3 || name.length > 20) {
+      setUsernameError('Name must be 3-20 characters');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      setUsernameError('Only letters, numbers, and underscores allowed');
+      return;
+    }
+    if (name === displayUser?.username) {
+      setEditingUsername(false);
+      return;
+    }
+
+    setSavingUsername(true);
+    setUsernameError('');
+    try {
+      const response = await fetch(`${API_URL}/api/profile`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username: name })
+      });
+
+      const data = await readJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Could not save that right now. Please try again.');
+      }
+
+      applyUserPatch({ username: name });
+      setEditingUsername(false);
+      toast.success('Name updated!');
+    } catch (error) {
+      setUsernameError(error.message || 'Failed to update name');
+    } finally {
+      setSavingUsername(false);
+    }
+  };
+
   return (
     <div className="min-h-screen text-white relative">
       {/* Cinematic space background */}
@@ -250,31 +307,27 @@ const Profile = () => {
                     <Star size={20} className="text-white fill-white" />
                   </div>
                 )}
-                {!isGuest() && (
-                  <>
-                    <button
-                      onClick={handleAvatarButtonClick}
-                      disabled={uploadingAvatar}
-                      className="absolute bottom-0 left-0 w-9 h-9 bg-[#7c3aed] hover:bg-[#8b4ff0] rounded-full flex items-center justify-center border-2 border-black/50 transition-all disabled:opacity-60"
-                      data-testid="edit-avatar-btn"
-                      aria-label="Change profile picture"
-                    >
-                      {uploadingAvatar ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Camera size={16} />
-                      )}
-                    </button>
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={handleAvatarFileChange}
-                      data-testid="avatar-file-input"
-                    />
-                  </>
-                )}
+                <button
+                  onClick={handleAvatarButtonClick}
+                  disabled={uploadingAvatar}
+                  className="absolute bottom-0 left-0 w-9 h-9 bg-[#7c3aed] hover:bg-[#8b4ff0] rounded-full flex items-center justify-center border-2 border-black/50 transition-all disabled:opacity-60"
+                  data-testid="edit-avatar-btn"
+                  aria-label="Change profile picture"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Camera size={16} />
+                  )}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                  data-testid="avatar-file-input"
+                />
               </div>
 
               {/* Info */}
@@ -411,11 +464,58 @@ const Profile = () => {
             </h3>
             
             <div className="space-y-4">
-              <div className="flex items-center justify-between py-3 border-b border-white/5">
-                <span className="text-gray-400">Username</span>
-                <span className="font-semibold">{displayUser.username}</span>
+              <div className="flex items-center justify-between py-3 border-b border-white/5" data-testid="username-row">
+                <span className="text-gray-400">Name</span>
+                {editingUsername ? (
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={usernameDraft}
+                        onChange={(e) => { setUsernameDraft(e.target.value); if (usernameError) setUsernameError(''); }}
+                        disabled={savingUsername}
+                        maxLength={20}
+                        className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:border-[#7c3aed] w-40"
+                        data-testid="username-input"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleUsernameSave}
+                        disabled={savingUsername}
+                        className="p-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-all disabled:opacity-60"
+                        data-testid="save-username-btn"
+                        aria-label="Save name"
+                      >
+                        {savingUsername ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                      </button>
+                      <button
+                        onClick={handleUsernameCancel}
+                        disabled={savingUsername}
+                        className="p-1.5 bg-white/10 text-gray-300 hover:bg-white/20 rounded-lg transition-all disabled:opacity-60"
+                        aria-label="Cancel"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    {usernameError && (
+                      <p className="text-red-400 text-xs">{usernameError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{displayUser.username}</span>
+                    <button
+                      onClick={handleUsernameEditStart}
+                      className="p-1 text-gray-500 hover:text-[#a855f7] transition-all"
+                      data-testid="edit-username-btn"
+                      aria-label="Edit name"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
-              
+
               {displayUser.email && (
                 <div className="flex items-center justify-between py-3 border-b border-white/5">
                   <span className="text-gray-400">Email</span>
@@ -477,11 +577,21 @@ const Profile = () => {
                 )}
               </div>
 
+              {Number.isInteger(displayUser.age) && (
+                <div className="flex items-center justify-between py-3 border-b border-white/5" data-testid="age-row">
+                  <span className="text-gray-400">Age</span>
+                  <span className="font-semibold">{displayUser.age}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between py-3 border-b border-white/5">
                 <span className="text-gray-400">Country</span>
-                <span className="font-semibold">{displayUser.country || 'Not detected'}</span>
+                <span className="font-semibold flex items-center gap-2">
+                  <span className="text-lg">{displayUser.country_flag || '🌐'}</span>
+                  {displayUser.country || 'Not detected'}
+                </span>
               </div>
-              
+
               <div className="flex items-center justify-between py-3 border-b border-white/5">
                 <span className="text-gray-400">Account Type</span>
                 <span className={`font-semibold flex items-center gap-2 ${premium.is_premium ? 'text-yellow-400' : ''}`}>

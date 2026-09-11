@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Swords, Spade, Palette } from 'lucide-react';
+import { LogOut, Zap, Star, User, Sparkles, Crown, Lock, Gamepad2, Calendar, Swords, Repeat, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import SpaceBackground from '@/components/background/SpaceBackground';
 import { Button } from '@/components/ui/button';
@@ -123,8 +123,8 @@ const Dashboard = () => {
             <span className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>RACCOON</span>
           </div>
           <span
-            className="hidden lg:block absolute left-1/2 -translate-x-1/2 text-sm font-medium text-gray-400 tracking-wide"
-            style={{ fontFamily: 'Manrope, sans-serif' }}
+            className="hidden lg:block absolute left-1/2 -translate-x-1/2 text-lg font-extrabold tracking-wide whitespace-nowrap bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 bg-clip-text text-transparent"
+            style={{ fontFamily: 'Outfit, sans-serif' }}
           >
             Be cool. Be kind. Be a Raccoon.
           </span>
@@ -329,7 +329,7 @@ const Dashboard = () => {
                 </div>
               </div>
               
-              {/* Raccoon UNO Card */}
+              {/* UNO Card */}
               <div 
                 className={`group relative p-8 bg-gradient-to-br from-[#7c3aed]/40 to-[#5b21b6]/40 backdrop-blur-xl border ${isPremium ? 'border-purple-500/30 hover:border-purple-500/60' : 'border-white/10'} rounded-2xl transition-all cursor-pointer hover:shadow-[0_0_30px_rgba(124,58,237,0.3)]`}
                 onClick={() => handleGameClick('UNO')}
@@ -342,13 +342,13 @@ const Dashboard = () => {
                 )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-[#7c3aed] to-[#a855f7] rounded-2xl flex items-center justify-center">
-                    <Spade size={28} className="text-white" />
+                    <Repeat size={28} className="text-white" />
                   </div>
                   <span className={`px-3 py-1 ${isPremium ? 'bg-purple-500/20 text-purple-400' : 'bg-yellow-500/10 text-yellow-500/60'} rounded-full text-xs font-bold`}>
                     {isPremium ? 'PLAY NOW' : 'PREMIUM'}
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Raccoon UNO</h3>
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>UNO</h3>
                 <p className="text-gray-400" style={{ fontFamily: 'Manrope, sans-serif' }}>
                   {isPremium ? 'Classic card game with a raccoon twist!' : 'Unlock with Premium to play!'}
                 </p>

@@ -52,6 +52,7 @@ async def _username_taken(username: str, exclude_id: str) -> bool:
 
 class ProfileUpdateRequest(BaseModel):
     gender: Optional[str] = None
+    username: Optional[str] = None
 
 
 class OnboardingRequest(BaseModel):
@@ -149,6 +150,15 @@ async def update_profile(data: ProfileUpdateRequest, request: Request):
         if gender not in VALID_GENDERS:
             raise HTTPException(status_code=400, detail="Gender must be 'male', 'female', or 'any'")
         updates['gender'] = gender
+
+    if data.username is not None:
+        name = data.username.strip()
+        ok, msg = validate_username(name)
+        if not ok:
+            raise HTTPException(status_code=400, detail=msg)
+        if await _username_taken(name, account_id):
+            raise HTTPException(status_code=400, detail="That name is already taken")
+        updates['username'] = name
 
     if not updates:
         raise HTTPException(status_code=400, detail="No valid fields to update")

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 import re
 
 def validate_age(date_of_birth: str) -> bool:
@@ -10,6 +11,19 @@ def validate_age(date_of_birth: str) -> bool:
         return age >= 18
     except:
         return False
+
+def calculate_age(date_of_birth: Optional[str]) -> Optional[int]:
+    """Whole years old from a stored ISO date-of-birth string, or None if
+    missing/unparseable (e.g. a Google/phone account that skipped onboarding)."""
+    if not date_of_birth:
+        return None
+    try:
+        dob = datetime.fromisoformat(str(date_of_birth).replace('Z', '+00:00'))
+        today = datetime.now()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        return age if age >= 0 else None
+    except (ValueError, TypeError):
+        return None
 
 def validate_email(email: str) -> bool:
     """Basic email validation"""

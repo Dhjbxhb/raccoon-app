@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, Globe, Flag, SkipForward, Shield, Clock, Loader2 } from 'lucide-react';
 
@@ -22,6 +22,13 @@ const MatchTopBar = ({
   isSkipping = false
 }) => {
   const navigate = useNavigate();
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  // Reset the "image failed to load" flag whenever the partner (and thus the
+  // avatar URL) changes, so a new partner's photo gets a fresh chance to load.
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [partner?.avatar_url]);
 
   const handleBack = () => {
     if (onBack) {
@@ -36,17 +43,6 @@ const MatchTopBar = ({
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Get country flag emoji (simplified)
-  const getCountryFlag = (countryCode) => {
-    const flags = {
-      'US': '🇺🇸', 'GB': '🇬🇧', 'CA': '🇨🇦', 'AU': '🇦🇺', 'DE': '🇩🇪',
-      'FR': '🇫🇷', 'ES': '🇪🇸', 'IT': '🇮🇹', 'JP': '🇯🇵', 'KR': '🇰🇷',
-      'BR': '🇧🇷', 'MX': '🇲🇽', 'IN': '🇮🇳', 'RU': '🇷🇺', 'CN': '🇨🇳',
-      'NL': '🇳🇱', 'SE': '🇸🇪', 'NO': '🇳🇴', 'PL': '🇵🇱', 'TR': '🇹🇷'
-    };
-    return flags[countryCode?.toUpperCase()] || '🌍';
   };
 
   return (
@@ -70,27 +66,39 @@ const MatchTopBar = ({
           <div className="match-topbar__partner" data-testid="partner-info">
             {/* Avatar */}
             <div className="match-topbar__avatar">
-              <span className="match-topbar__avatar-letter">
-                {partner.username?.charAt(0).toUpperCase() || '?'}
-              </span>
-              {partner.premium && (
+              {partner.avatar_url && !avatarFailed ? (
+                <img
+                  src={partner.avatar_url}
+                  alt=""
+                  className="match-topbar__avatar-img"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <span className="match-topbar__avatar-letter">
+                  {partner.username?.charAt(0).toUpperCase() || '?'}
+                </span>
+              )}
+              {partner.is_premium && (
                 <div className="match-topbar__premium-badge">
                   <Star size={8} className="fill-current" />
                 </div>
               )}
             </div>
-            
+
             {/* Info */}
             <div className="match-topbar__info">
               <div className="match-topbar__name-row">
-                <span className="match-topbar__name">{partner.username || 'Stranger'}</span>
+                <span className="match-topbar__name">
+                  {partner.username || 'Stranger'}
+                  {Number.isInteger(partner.age) && <span className="match-topbar__age">, {partner.age}</span>}
+                </span>
                 {partner.verified && (
                   <Shield size={12} className="text-blue-400" />
                 )}
               </div>
               <div className="match-topbar__location">
                 <span className="match-topbar__flag">
-                  {getCountryFlag(partner.country_code)}
+                  {partner.country_flag || '🌍'}
                 </span>
                 <Globe size={10} />
                 <span>{partner.country || 'Unknown'}</span>

@@ -34,6 +34,7 @@ from services.game_service import feud_service
 from services.moderation_service import content_moderator
 from services.chat_moderation import filter_message, is_message_allowed
 import services.room_service as room_service
+from utils.validators import calculate_age
 
 # PERFORMANCE: Reduce logging overhead
 logger = logging.getLogger(__name__)
@@ -41,6 +42,22 @@ logger.setLevel(logging.WARNING)  # Only warnings and errors
 
 CURRENT_SESSION_FIELD = 'currentSessionId'
 active_user_sockets: dict[str, str] = {}
+
+
+def build_partner_payload(partner_user: dict) -> dict:
+    """Shared shape for the matched partner's profile info - shown while
+    connecting and kept in a small overlay once the video call starts."""
+    return {
+        'user_id': partner_user.get('user_id') or partner_user.get('guest_id'),
+        'username': partner_user.get('username'),
+        'gender': partner_user.get('gender'),
+        'age': calculate_age(partner_user.get('date_of_birth')),
+        'country': partner_user.get('country'),
+        'country_code': partner_user.get('country_code'),
+        'country_flag': partner_user.get('country_flag'),
+        'avatar_url': partner_user.get('avatar_url') or partner_user.get('photo_url'),
+        'is_premium': partner_user.get('premium_status', partner_user.get('premium', False)),
+    }
 
 
 def get_actor_collection(is_guest: bool):
@@ -221,14 +238,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             payload = {
                 'room_code': room_code,
                 'session_id': match['session_id'],
-                'partner': {
-                    'user_id': partner_user['user_id'],
-                    'username': partner_user.get('username'),
-                    'gender': partner_user.get('gender'),
-                    'country': partner_user.get('country'),
-                    'country_code': partner_user.get('country_code'),
-                    'is_premium': partner_user.get('premium', False)
-                },
+                'partner': build_partner_payload(partner_user),
                 'auto_start_game': auto_start_game,
                 'initiator_id': initiator_id
             }
@@ -693,26 +703,12 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
                 
                 await sio.emit('match_found', {
                     'session_id': session_id,
-                    'partner': {
-                        'user_id': match['user2']['user_id'],
-                        'username': match['user2'].get('username'),
-                        'gender': match['user2'].get('gender'),
-                        'country': match['user2'].get('country'),
-                        'country_code': match['user2'].get('country_code'),
-                        'is_premium': match['user2'].get('premium', False)
-                    }
+                    'partner': build_partner_payload(match['user2'])
                 }, room=user1_socket)
-                
+
                 await sio.emit('match_found', {
                     'session_id': session_id,
-                    'partner': {
-                        'user_id': match['user1']['user_id'],
-                        'username': match['user1'].get('username'),
-                        'gender': match['user1'].get('gender'),
-                        'country': match['user1'].get('country'),
-                        'country_code': match['user1'].get('country_code'),
-                        'is_premium': match['user1'].get('premium', False)
-                    }
+                    'partner': build_partner_payload(match['user1'])
                 }, room=user2_socket)
                 
                 logger.info(f"Match created: {user1_id} <-> {user2_id}")
@@ -1281,14 +1277,7 @@ async def register_socket_handlers(sio: socketio.AsyncServer):
             # Send session restored event with all data
             await sio.emit('session_restored', {
                 'session_id': room_id,
-                'partner': {
-                    'user_id': partner_data.get('user_id'),
-                    'username': partner_data.get('username'),
-                    'gender': partner_data.get('gender'),
-                    'country': partner_data.get('country'),
-                    'country_code': partner_data.get('country_code'),
-                    'is_premium': partner_data.get('premium', False)
-                },
+                'partner': build_partner_payload(partner_data),
                 'messages': messages,
                 'created_at': context.get('created_at'),
                 'active_game': await get_active_game_state(room_id) if context['context_type'] == 'match' else None,

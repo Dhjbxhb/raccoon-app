@@ -15,6 +15,7 @@ from middleware.auth_middleware import verify_token
 from services.stats_service import stats_service
 from services.db_service import get_users_collection, get_guests_collection
 from services.subscription_service import subscription_service
+from utils.validators import calculate_age
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -280,6 +281,8 @@ async def get_full_user_data(request: Request):
             "country_flag": user.get('country_flag'),
             "is_guest": True,
             "age_verified": user.get('age_verified', False),
+            "age": calculate_age(user.get('date_of_birth')),
+            "avatar_url": user.get('avatar_url'),
             "created_at": user.get('created_at'),
             "stats": {
                 "total_sessions": user.get('total_sessions', 0),
@@ -385,6 +388,7 @@ async def get_full_user_data(request: Request):
         "country_flag": user.get('country_flag'),
         "is_guest": False,
         "age_verified": user.get('age_verified', False),
+        "age": calculate_age(user.get('date_of_birth')),
         "created_at": user.get('created_at'),
         "photo_url": user.get('photo_url'),
         "avatar_url": user.get('avatar_url'),

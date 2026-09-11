@@ -135,6 +135,8 @@ const Onboarding = () => {
 
   const today = new Date().toISOString().split('T')[0];
   const seedName = displayName || user.username || 'raccoon';
+  // Guests only choose Male/Female; Google/Phone sign-ups keep "Prefer not to say"
+  const genderOptions = user.is_guest ? GENDER_OPTIONS.filter((o) => o.value !== 'any') : GENDER_OPTIONS;
 
   return (
     <AuthLayout>
@@ -208,8 +210,8 @@ const Onboarding = () => {
             <label className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
               Gender
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {GENDER_OPTIONS.map((opt) => (
+            <div className={`grid gap-2 ${genderOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {genderOptions.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
