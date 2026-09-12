@@ -3,7 +3,8 @@ Matching Service - Real-time user pairing queue with session management.
 
 Features:
 - Duplicate entry prevention
-- Progressive filter relaxation for fast matching (2-5 seconds)
+- Progressive country-filter relaxation for fast matching (gender is never
+  relaxed - Male/Female filtering is a paid feature and must stay accurate)
 - Proper cleanup on disconnect/skip/cancel
 - Session lifecycle tracking
 - Queue statistics
@@ -57,14 +58,16 @@ class MatchingQueue:
     Key features:
     - Prevents duplicate queue entries
     - Removes stale entries on disconnect
-    - Progressive filter relaxation for fast matching
+    - Progressive country-filter relaxation for fast matching (gender stays strict)
     - Clean session lifecycle management
     """
     
     def __init__(self):
         self._lock = threading.RLock()
         
-        # Queue structure: {gender_filter: [QueueEntry]}
+        # Queue structure: {this_persons_own_gender: [QueueEntry]} - bucketed
+        # by what each waiting user IS, not by what they're searching for, so
+        # a strict gender search can look candidates up directly.
         self.queues: Dict[str, List[QueueEntry]] = {
             'male': [],
             'female': [],
@@ -145,47 +148,49 @@ class MatchingQueue:
             if match:
                 return match
             
-            # No match found, add to appropriate queue
-            self.queues[gender_filter].append(entry)
+            # No match found, add to a queue keyed by this user's OWN gender
+            # (not their filter) - a strict search below looks up candidates
+            # under the gender the searcher wants, so that bucket has to hold
+            # people who actually ARE that gender for it to find anyone.
+            bucket = entry.gender if entry.gender in ('male', 'female') else 'any'
+            self.queues[bucket].append(entry)
             self.users_in_queue.add(user_id)
-            
+
             logger.info(
-                f"User {user_id} added to {gender_filter} queue. "
+                f"User {user_id} added to queue (gender={bucket}, wants={gender_filter}). "
                 f"Sizes: male={len(self.queues['male'])}, "
                 f"female={len(self.queues['female'])}, "
                 f"any={len(self.queues['any'])}"
             )
-            
+
             return None
     
     def _find_match_progressive(self, entry: QueueEntry) -> Optional[dict]:
         """
-        Progressive matching strategy for fast pairing (2-5 seconds target):
-        
-        1. Perfect match: Exact gender and country filters
-        2. Relaxed country: Gender matched, any country
-        3. Relaxed all: Any compatible user available
+        Progressive matching strategy for fast pairing:
+
+        1. Perfect match: exact gender and country filters
+        2. Relaxed country: gender filter still enforced, any country
+
+        Gender is never relaxed. A Male/Female filter is a paid feature -
+        silently matching the user with someone outside it (as an earlier
+        "relax everything" fallback stage used to do) would make the filter
+        inaccurate, which the spec explicitly requires it not be. If no one
+        compatible is available yet, the user simply waits in queue.
         """
         # Stage 1: Perfect match
         match = self._try_match(entry, strict_country=True, strict_gender=True)
         if match:
             logger.info(f"Perfect match found for {entry.user_id}")
             return match
-        
-        # Stage 2: Relaxed country
+
+        # Stage 2: Relaxed country, gender filter still enforced
         if entry.country_filter != 'ANY':
             match = self._try_match(entry, strict_country=False, strict_gender=True)
             if match:
                 logger.info(f"Relaxed country match found for {entry.user_id}")
                 return match
-        
-        # Stage 3: Relaxed gender (match anyone)
-        if entry.gender_filter != 'any':
-            match = self._try_match(entry, strict_country=False, strict_gender=False)
-            if match:
-                logger.info(f"Relaxed all match found for {entry.user_id}")
-                return match
-        
+
         return None
     
     def _try_match(
