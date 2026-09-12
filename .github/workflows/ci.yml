@@ -28,7 +28,7 @@ jobs:
         # live server/DB/network dependency. Most of tests/ predates this and
         # expects a running server + real Mongo/Firebase, which this CI job
         # doesn't stand up - see backend/pytest.ini.
-        run: pytest tests/ -m unit -v
+        run: python -m pytest tests/ -m unit -v
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'yarn'
           cache-dependency-path: frontend/yarn.lock
 
@@ -47,4 +47,10 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        # CI=false to match how the VPS actually builds (plain `yarn build`,
+        # no CI flag) - GitHub Actions sets CI=true by default, which turns
+        # pre-existing eslint warnings (unrelated to this workflow) into
+        # build failures via react-scripts/craco.
         run: yarn build
+        env:
+          CI: false
