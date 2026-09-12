@@ -13,6 +13,11 @@ Male/Female filter with literally anyone, defeating the paid filter entirely.
 import pytest
 from services.matching_service import MatchingQueue
 
+# Pure unit tests (no server/DB/network) - safe to run as an automated
+# deploy gate, unlike most of this directory which are legacy integration
+# tests that expect a live server on BASE_URL.
+pytestmark = pytest.mark.unit
+
 
 def make_user(user_id, gender, socket_id=None, premium=False):
     return {

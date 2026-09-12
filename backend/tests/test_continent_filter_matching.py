@@ -14,6 +14,11 @@ import pytest
 from services.matching_service import MatchingQueue
 from services.continent_service import get_continent, CONTINENTS, COUNTRY_CODE_TO_CONTINENT
 
+# Pure unit tests (no server/DB/network) - safe to run as an automated
+# deploy gate, unlike most of this directory which are legacy integration
+# tests that expect a live server on BASE_URL.
+pytestmark = pytest.mark.unit
+
 
 def make_user(user_id, country_code, gender='any', premium=False):
     return {
