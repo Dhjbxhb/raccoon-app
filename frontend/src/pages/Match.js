@@ -54,13 +54,14 @@ const Match = () => {
         partner: location.state.partner,
       }
     : null;
-  const { 
-    state, 
-    partner, 
-    sessionId, 
+  const {
+    state,
+    partner,
+    sessionId,
     isSkipping,
-    startMatching, 
-    skipMatch, 
+    continentFallbackNotice,
+    startMatching,
+    skipMatch,
     blockUser,
     endSession,
     setAutoRejoin,
@@ -412,6 +413,13 @@ const Match = () => {
       socket.off('feud_error', handleFeudError);
     };
   }, [socket, activeGame, sessionId, resetAllGameState, showPremiumModal, endCall, navigate, setAutoRejoin, privateRoomLaunch]);
+
+  // Continent Filter: notify the user when the search widens to Worldwide
+  useEffect(() => {
+    if (continentFallbackNotice) {
+      toast.info(continentFallbackNotice, { duration: 4000 });
+    }
+  }, [continentFallbackNotice]);
 
   // Track session duration
   useEffect(() => {

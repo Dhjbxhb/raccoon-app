@@ -29,6 +29,13 @@ export const useMatching = (socket, initialMatchData = null) => {
   const autoRejoinInFlightRef = useRef(false);
   const skipRetryCountRef = useRef(0);
   const MAX_SKIP_RETRIES = 2;
+
+  // Continent Filter: per spec, if no one is available in the chosen
+  // continent, show a brief notice and automatically widen to Worldwide,
+  // then keep matching - Gender Filter has no such fallback, it stays exact.
+  const [continentFallbackNotice, setContinentFallbackNotice] = useState(null);
+  const continentFallbackTimeoutRef = useRef(null);
+  const CONTINENT_FALLBACK_MS = 12000;
   
   // Track if component is mounted to prevent state updates after unmount
   const mountedRef = useRef(true);
@@ -50,7 +57,40 @@ export const useMatching = (socket, initialMatchData = null) => {
       clearTimeout(matchRetryTimeoutRef.current);
       matchRetryTimeoutRef.current = null;
     }
+    if (continentFallbackTimeoutRef.current) {
+      clearTimeout(continentFallbackTimeoutRef.current);
+      continentFallbackTimeoutRef.current = null;
+    }
   }, []);
+
+  // Arms a one-shot timer that widens a specific continent search to
+  // Worldwide if still searching (with that same continent) once it fires.
+  // No-op for 'ANY'/Worldwide - there's nothing to widen from.
+  const armContinentFallback = useCallback((continent) => {
+    if (continentFallbackTimeoutRef.current) {
+      clearTimeout(continentFallbackTimeoutRef.current);
+      continentFallbackTimeoutRef.current = null;
+    }
+    if (!continent || continent === 'ANY') return;
+
+    continentFallbackTimeoutRef.current = setTimeout(() => {
+      continentFallbackTimeoutRef.current = null;
+      if (!mountedRef.current || !socket?.connected) return;
+      // Stale-guard: only fall back if still searching with this exact
+      // continent - if the user matched, left, or changed filters since
+      // this timer was armed, it must do nothing.
+      if (stateRef.current !== 'searching' || lastFiltersRef.current.country !== continent) {
+        return;
+      }
+
+      lastFiltersRef.current = { ...lastFiltersRef.current, country: 'ANY' };
+      setContinentFallbackNotice(`No one online in ${continent} right now - searching worldwide.`);
+      socket.emit('join_queue', {
+        gender_filter: lastFiltersRef.current.gender,
+        country_filter: 'ANY'
+      });
+    }, CONTINENT_FALLBACK_MS);
+  }, [socket]);
 
   const attemptAutoRejoin = useCallback((reason) => {
     const shouldAutoRejoin = [
@@ -80,10 +120,12 @@ export const useMatching = (socket, initialMatchData = null) => {
 
     autoRejoinInFlightRef.current = true;
     setState('searching');
+    setContinentFallbackNotice(null);
     socket.emit('join_queue', {
       gender_filter: lastFiltersRef.current.gender,
       country_filter: lastFiltersRef.current.country
     });
+    armContinentFallback(lastFiltersRef.current.country);
 
     matchRetryTimeoutRef.current = setTimeout(() => {
       if (!mountedRef.current || !socket?.connected || !autoRejoinRef.current) {
@@ -100,7 +142,7 @@ export const useMatching = (socket, initialMatchData = null) => {
     }, 3000);
 
     return true;
-  }, [socket]);
+  }, [socket, armContinentFallback]);
 
   // Clean reset of all match-related state
   const resetMatchState = useCallback(() => {
@@ -142,6 +184,7 @@ export const useMatching = (socket, initialMatchData = null) => {
     setSessionId(data.session_id);
     setQueuePosition(null);
     setIsSkipping(false);
+    setContinentFallbackNotice(null);
     skipRetryCountRef.current = 0;
     autoRejoinInFlightRef.current = false;
     clearTimers();
@@ -305,26 +348,29 @@ export const useMatching = (socket, initialMatchData = null) => {
   // Start matching
   const startMatching = useCallback((genderFilter = 'any', countryFilter = 'ANY') => {
     if (!socket) return;
-    
+
     // Store filters for auto-rejoin
     lastFiltersRef.current = { gender: genderFilter, country: countryFilter };
     autoRejoinRef.current = true;
     autoRejoinInFlightRef.current = false;
-    
-    socket.emit('join_queue', { 
+    setContinentFallbackNotice(null);
+
+    socket.emit('join_queue', {
       gender_filter: genderFilter,
-      country_filter: countryFilter 
+      country_filter: countryFilter
     });
+    armContinentFallback(countryFilter);
     setState('searching');
-  }, [socket]);
+  }, [socket, armContinentFallback]);
 
   // Stop matching (leave queue)
   const stopMatching = useCallback(() => {
     if (!socket) return;
-    
+
     autoRejoinRef.current = false;
     autoRejoinInFlightRef.current = false;
     clearTimers();
+    setContinentFallbackNotice(null);
     socket.emit('leave_queue');
     setState('idle');
     setQueuePosition(null);
@@ -417,11 +463,12 @@ export const useMatching = (socket, initialMatchData = null) => {
   // End session without auto-rejoin (for leaving match page)
   const endSession = useCallback(() => {
     if (!socket) return;
-    
+
     autoRejoinRef.current = false;
     autoRejoinInFlightRef.current = false;
     clearTimers();
-    
+    setContinentFallbackNotice(null);
+
     if (state === 'matched') {
       socket.emit('skip_match');
     } else if (state === 'searching') {
@@ -452,7 +499,8 @@ export const useMatching = (socket, initialMatchData = null) => {
     queuePosition,
     queueStats,
     isSkipping,
-    
+    continentFallbackNotice,
+
     // Actions
     startMatching,
     stopMatching,

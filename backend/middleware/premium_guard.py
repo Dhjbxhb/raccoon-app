@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, Tuple
 from enum import Enum
 from datetime import datetime, timezone
 from services.subscription_service import subscription_service
+from services.continent_service import CONTINENTS
 
 
 class PremiumFeature(str, Enum):
@@ -33,8 +34,8 @@ PREMIUM_FEATURES: Dict[PremiumFeature, Dict] = {
         "requires_premium": True
     },
     PremiumFeature.COUNTRY_FILTER: {
-        "name": "Country Filter",
-        "description": "Filter matches by country",
+        "name": "Continent Filter",
+        "description": "Filter matches by continent",
         "free_value": "ANY",  # Free users can only use this value
         "requires_premium": True
     },
@@ -145,27 +146,33 @@ class PremiumGuard:
     
     @staticmethod
     async def validate_country_filter(
-        user_id: str, 
+        user_id: str,
         requested_filter: str,
         is_guest: bool = False
     ) -> Tuple[bool, str, str]:
         """
-        Validate country filter selection.
-        
+        Validate continent filter selection (one of CONTINENTS, or 'ANY'/Worldwide).
+
         Returns: (allowed, message, effective_filter)
-        - If not premium and requesting specific country, returns 'ANY' as effective filter
+        - An unrecognized value (e.g. a stale client sending a raw country
+          code) falls back to 'ANY' the same as a non-premium request would.
+        - If not premium and requesting a specific continent, returns 'ANY'.
         """
-        is_premium, _ = await PremiumGuard.check_premium_status(user_id, is_guest)
         free_value = PREMIUM_FEATURES[PremiumFeature.COUNTRY_FILTER]["free_value"]
-        
+
+        if requested_filter != free_value and requested_filter not in CONTINENTS:
+            return False, f"Invalid continent. Using '{free_value}' instead.", free_value
+
+        is_premium, _ = await PremiumGuard.check_premium_status(user_id, is_guest)
+
         if is_premium:
             return True, "Premium filter applied", requested_filter
-        
+
         if requested_filter == free_value:
             return True, "Free filter applied", requested_filter
-        
+
         # Non-premium trying to use premium filter - fall back to free
-        return False, f"Country filter requires premium. Using '{free_value}' instead.", free_value
+        return False, f"Continent filter requires premium. Using '{free_value}' instead.", free_value
     
     @staticmethod
     async def validate_camera_filter(

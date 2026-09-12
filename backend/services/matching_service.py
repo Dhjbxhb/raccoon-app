@@ -3,8 +3,11 @@ Matching Service - Real-time user pairing queue with session management.
 
 Features:
 - Duplicate entry prevention
-- Progressive country-filter relaxation for fast matching (gender is never
-  relaxed - Male/Female filtering is a paid feature and must stay accurate)
+- Strict gender + continent matching (neither is silently relaxed here -
+  both Gender Filter and Continent Filter are paid features and must stay
+  accurate). The Continent Filter's spec'd "fall back to Worldwide after a
+  short wait" behavior is an explicit, visible client-driven rejoin
+  (see join_queue in socket_handlers.py), not a silent server-side retry.
 - Proper cleanup on disconnect/skip/cancel
 - Session lifecycle tracking
 - Queue statistics
@@ -16,6 +19,8 @@ from dataclasses import dataclass, field
 import logging
 import uuid
 import threading
+
+from services.continent_service import get_continent
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ class MatchingQueue:
     Key features:
     - Prevents duplicate queue entries
     - Removes stale entries on disconnect
-    - Progressive country-filter relaxation for fast matching (gender stays strict)
+    - Strict gender + continent matching (both accurate, never silently relaxed)
     - Clean session lifecycle management
     """
     
@@ -102,7 +107,7 @@ class MatchingQueue:
             user_id: Unique user identifier
             user_data: User profile data including socket_id
             gender_filter: Preferred match gender ('male', 'female', 'any')
-            country_filter: Preferred match country code or 'ANY'
+            country_filter: Preferred continent name (see continent_service.CONTINENTS) or 'ANY'
             
         Returns:
             Match session data if match found, None if added to queue
@@ -123,7 +128,12 @@ class MatchingQueue:
             if gender_filter not in ['male', 'female', 'any']:
                 gender_filter = 'any'
             
-            country_filter = (country_filter or 'ANY').upper()
+            # Normalize the "no preference" sentinel only - a continent name
+            # (e.g. "Middle East", "North America") must keep its exact
+            # casing to match CONTINENTS / continent_service's mapping.
+            country_filter = (country_filter or 'ANY').strip()
+            if country_filter.upper() == 'ANY':
+                country_filter = 'ANY'
             
             # Create queue entry
             entry = QueueEntry(
@@ -167,31 +177,17 @@ class MatchingQueue:
     
     def _find_match_progressive(self, entry: QueueEntry) -> Optional[dict]:
         """
-        Progressive matching strategy for fast pairing:
-
-        1. Perfect match: exact gender and country filters
-        2. Relaxed country: gender filter still enforced, any country
-
-        Gender is never relaxed. A Male/Female filter is a paid feature -
-        silently matching the user with someone outside it (as an earlier
-        "relax everything" fallback stage used to do) would make the filter
-        inaccurate, which the spec explicitly requires it not be. If no one
-        compatible is available yet, the user simply waits in queue.
+        Strict match only - both gender and continent filters are exactly
+        honored. Neither is silently relaxed here: Gender Filter has no
+        spec'd fallback at all (wait for the right gender), and Continent
+        Filter's spec'd "fall back to Worldwide" is a visible client-driven
+        rejoin after a short timeout (see join_queue in socket_handlers.py),
+        not a silent retry a user would never notice happened.
         """
-        # Stage 1: Perfect match
         match = self._try_match(entry, strict_country=True, strict_gender=True)
         if match:
-            logger.info(f"Perfect match found for {entry.user_id}")
-            return match
-
-        # Stage 2: Relaxed country, gender filter still enforced
-        if entry.country_filter != 'ANY':
-            match = self._try_match(entry, strict_country=False, strict_gender=True)
-            if match:
-                logger.info(f"Relaxed country match found for {entry.user_id}")
-                return match
-
-        return None
+            logger.info(f"Match found for {entry.user_id}")
+        return match
     
     def _try_match(
         self, 
@@ -248,18 +244,19 @@ class MatchingQueue:
                 if entry1.gender != 'any':
                     return False
         
-        # Check country compatibility
+        # Check continent compatibility (country_filter holds a continent
+        # name, e.g. "Asia", or "ANY" for Worldwide - see continent_service)
         if strict_country:
-            # Entry1's country filter
+            # Entry1's continent filter
             if entry1.country_filter != 'ANY':
-                if entry1.country_filter != entry2.country_code:
+                if get_continent(entry2.country_code) != entry1.country_filter:
                     return False
-            
-            # Entry2's country filter
+
+            # Entry2's continent filter
             if entry2.country_filter != 'ANY':
-                if entry2.country_filter != entry1.country_code:
+                if get_continent(entry1.country_code) != entry2.country_filter:
                     return False
-        
+
         return True
     
     def _create_session(self, user1: QueueEntry, user2: QueueEntry, session_id_override: Optional[str] = None) -> dict:
