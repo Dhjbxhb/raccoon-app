@@ -38,6 +38,10 @@ class QueueEntry:
     is_premium: bool
     gender_filter: str
     country_filter: str
+    avatar_url: Optional[str] = None
+    photo_url: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    country_flag: Optional[str] = None
     joined_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -146,7 +150,11 @@ class MatchingQueue:
                 is_guest=user_data.get('is_guest', bool(user_data.get('guest_id'))),
                 is_premium=user_data.get('premium_status', user_data.get('premium', False)),
                 gender_filter=gender_filter,
-                country_filter=country_filter
+                country_filter=country_filter,
+                avatar_url=user_data.get('avatar_url'),
+                photo_url=user_data.get('photo_url'),
+                date_of_birth=user_data.get('date_of_birth'),
+                country_flag=user_data.get('country_flag')
             )
             
             # Track socket
@@ -276,9 +284,13 @@ class MatchingQueue:
                 'gender': user1.gender,
                 'country': user1.country,
                 'country_code': user1.country_code,
+                'country_flag': user1.country_flag,
                 'is_guest': user1.is_guest,
                 'premium': user1.is_premium,
-                'socket_id': user1.socket_id
+                'socket_id': user1.socket_id,
+                'avatar_url': user1.avatar_url,
+                'photo_url': user1.photo_url,
+                'date_of_birth': user1.date_of_birth
             },
             user2_data={
                 'user_id': user2.user_id,
@@ -286,9 +298,13 @@ class MatchingQueue:
                 'gender': user2.gender,
                 'country': user2.country,
                 'country_code': user2.country_code,
+                'country_flag': user2.country_flag,
                 'is_guest': user2.is_guest,
                 'premium': user2.is_premium,
-                'socket_id': user2.socket_id
+                'socket_id': user2.socket_id,
+                'avatar_url': user2.avatar_url,
+                'photo_url': user2.photo_url,
+                'date_of_birth': user2.date_of_birth
             },
             created_at=now
         )
@@ -334,7 +350,11 @@ class MatchingQueue:
                 is_guest=user1_data.get('is_guest', False),
                 is_premium=user1_data.get('premium_status', user1_data.get('premium', False)),
                 gender_filter='any',
-                country_filter='ANY'
+                country_filter='ANY',
+                avatar_url=user1_data.get('avatar_url'),
+                photo_url=user1_data.get('photo_url'),
+                date_of_birth=user1_data.get('date_of_birth'),
+                country_flag=user1_data.get('country_flag')
             )
 
             entry2 = QueueEntry(
@@ -347,7 +367,11 @@ class MatchingQueue:
                 is_guest=user2_data.get('is_guest', False),
                 is_premium=user2_data.get('premium_status', user2_data.get('premium', False)),
                 gender_filter='any',
-                country_filter='ANY'
+                country_filter='ANY',
+                avatar_url=user2_data.get('avatar_url'),
+                photo_url=user2_data.get('photo_url'),
+                date_of_birth=user2_data.get('date_of_birth'),
+                country_flag=user2_data.get('country_flag')
             )
 
             if entry1.socket_id:
