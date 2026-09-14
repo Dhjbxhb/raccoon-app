@@ -845,7 +845,24 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
                 }}
             )
             logger.info("Updated existing user with Firebase UID")
-        
+
+        # A successful Google sign-in is itself proof the user owns this
+        # email (Firebase already verified it) - this must win over a
+        # leftover email_verified=False from, e.g., an old unverified
+        # email/password signup that used the same address. Without this,
+        # such an account gets bounced to the "Verify Your Email" page on
+        # every Google login even though nothing further needs verifying,
+        # and that page never actually sends a code on its own (see
+        # EmailVerificationPending.js) - only the signup flow does, so the
+        # user is stuck needing "Resend" every single time.
+        if not existing_user.get('email_verified'):
+            await users.update_one(
+                {"user_id": existing_user['user_id']},
+                {"$set": {"email_verified": True}}
+            )
+            existing_user['email_verified'] = True
+            logger.info(f"Marked email_verified=True for {existing_user['user_id']} (verified via Google)")
+
         # Check if banned
         if existing_user.get('is_banned', False):
             logger.warning(f"Banned user attempted login: {existing_user['user_id']}")
@@ -853,12 +870,12 @@ async def google_auth(data: GoogleAuthRequest, request: Request):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Your account has been banned"
             )
-        
+
         token = AuthService.create_token(
             existing_user['user_id'],
             is_admin=existing_user.get('is_admin', False)
         )
-        
+
         logger.info(f"Token generated for existing user: {existing_user['username']}")
 
         user_response = UserResponse(
@@ -1092,19 +1109,31 @@ async def social_auth(data: SocialAuthRequest, request: Request):
                     "last_active": datetime.now(timezone.utc).isoformat()
                 }}
             )
-        
+
+        # A successful Google/social sign-in is itself proof of email
+        # ownership (Firebase already verified it) - see the matching fix
+        # in /auth/google above for the full explanation of why this must
+        # override a leftover email_verified=False.
+        if not existing_user.get('email_verified'):
+            await users.update_one(
+                {"user_id": existing_user['user_id']},
+                {"$set": {"email_verified": True}}
+            )
+            existing_user['email_verified'] = True
+            logger.info(f"Marked email_verified=True for {existing_user['user_id']} (verified via {data.provider})")
+
         # Check if banned
         if existing_user.get('is_banned', False):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Your account has been banned"
             )
-        
+
         token = AuthService.create_token(
             existing_user['user_id'],
             is_admin=existing_user.get('is_admin', False)
         )
-        
+
         user_response = UserResponse(
             user_id=existing_user['user_id'],
             email=existing_user.get('email', ''),
